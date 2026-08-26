@@ -1,8 +1,9 @@
 import { loadConfig, requireOpenAiConfig } from "../config/env";
-import { LeadType, SHEETS } from "../domain/lead";
-import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
-import { appendSalesLead } from "../google/salesLeadRepository";
-import { collectLeadCandidates, toSalesLeadInput } from "../openai/leadCandidateCollector";
+import { filterUniqueCandidates, formatTargetTypes, importLeadCandidates, readExistingLeadState } from "../collection/leadImport";
+import { saveCollectPreview } from "../collection/previewStore";
+import { LeadType } from "../domain/lead";
+import { createSheetsClient } from "../google/sheetsClient";
+import { collectLeadCandidates } from "../openai/leadCandidateCollector";
 import { createOpenAIClient } from "../openai/openAIClient";
 
 type CliOptions = {
@@ -13,22 +14,7 @@ type CliOptions = {
   help: boolean;
 };
 
-type ExistingLeadState = {
-  maxNumericLeadId: number;
-  companies: string[];
-  siteUrls: string[];
-};
-
 const MAX_INITIAL_LIMIT = 10;
-
-const today = (): string => {
-  return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
-};
 
 const printHelp = (): void => {
   console.log(`Usage:
@@ -39,7 +25,7 @@ Options:
   --area       検索対象地域。省略時は "埼玉県春日部市"
   --target     対象種別。広告代理店, 制作会社, Web制作会社, 直クライアント, 事業者
   --limit      追加候補数。初期安全上限は10件
-  --dry-run    スプレッドシートへ追加せず結果だけ表示
+  --dry-run    スプレッドシートへ追加せず、結果を tmp/collect-preview.json に保存
 `);
 };
 
@@ -118,46 +104,6 @@ const parseArgs = (argv: string[]): CliOptions => {
   return options;
 };
 
-const readExistingLeadState = async (sheets: SheetsClient): Promise<ExistingLeadState> => {
-  const values = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:F1000`);
-  const companies: string[] = [];
-  const siteUrls: string[] = [];
-  let maxNumericLeadId = 0;
-
-  for (const row of values) {
-    const leadId = String(row[0] ?? "").trim();
-    const numericMatch = /^L-(\d+)$/.exec(leadId);
-    const company = String(row[1] ?? "").trim();
-    const siteUrl = String(row[5] ?? "").trim();
-
-    if (numericMatch) {
-      maxNumericLeadId = Math.max(maxNumericLeadId, Number(numericMatch[1]));
-    }
-
-    if (company) {
-      companies.push(company);
-    }
-
-    if (siteUrl) {
-      siteUrls.push(siteUrl);
-    }
-  }
-
-  return {
-    maxNumericLeadId,
-    companies,
-    siteUrls
-  };
-};
-
-const leadKey = (value: string): string => {
-  return value.trim().toLowerCase().replace(/\/$/, "");
-};
-
-const nextLeadId = (numericId: number): string => {
-  return `L-${String(numericId).padStart(4, "0")}`;
-};
-
 const main = async (): Promise<void> => {
   const options = parseArgs(process.argv.slice(2));
 
@@ -174,7 +120,7 @@ const main = async (): Promise<void> => {
 
   console.log(`Collecting up to ${options.limit} leads. Sending is not automated.`);
   console.log(`Area: ${options.area}`);
-  console.log(`Targets: ${options.targetTypes.join(", ")}`);
+  console.log(`Targets: ${formatTargetTypes(options.targetTypes)}`);
 
   const candidates = await collectLeadCandidates(openAI, {
     area: options.area,
@@ -184,20 +130,7 @@ const main = async (): Promise<void> => {
     existingSiteUrls: existing.siteUrls
   });
 
-  const seenCompanies = new Set(existing.companies.map(leadKey));
-  const seenSiteUrls = new Set(existing.siteUrls.map(leadKey));
-  const uniqueCandidates = candidates.filter((candidate) => {
-    const companyKey = leadKey(candidate.companyName);
-    const siteUrlKey = leadKey(candidate.officialSiteUrl);
-
-    if (seenCompanies.has(companyKey) || seenSiteUrls.has(siteUrlKey)) {
-      return false;
-    }
-
-    seenCompanies.add(companyKey);
-    seenSiteUrls.add(siteUrlKey);
-    return true;
-  });
+  const uniqueCandidates = filterUniqueCandidates(candidates, existing);
 
   if (uniqueCandidates.length === 0) {
     console.log("No new unique leads found.");
@@ -206,19 +139,22 @@ const main = async (): Promise<void> => {
 
   if (options.dryRun) {
     console.log(JSON.stringify(uniqueCandidates, null, 2));
+    const previewPath = await saveCollectPreview({
+      generatedAt: new Date().toISOString(),
+      area: options.area,
+      targetTypes: options.targetTypes,
+      limit: options.limit,
+      candidates: uniqueCandidates
+    });
+    console.log(`Saved preview: ${previewPath}`);
+    console.log("Import with: npm run collect:import");
     return;
   }
 
-  const updatedAt = today();
-  let nextNumericId = existing.maxNumericLeadId + 1;
+  const results = await importLeadCandidates(sheets, uniqueCandidates);
 
-  for (const candidate of uniqueCandidates) {
-    const leadId = nextLeadId(nextNumericId);
-    const lead = toSalesLeadInput(candidate, leadId, updatedAt);
-    const result = await appendSalesLead(sheets, lead);
-
-    console.log(`Added ${leadId}: ${lead.companyName} -> ${result.range ?? "(unknown)"}`);
-    nextNumericId += 1;
+  for (const result of results) {
+    console.log(`Added ${result.leadId}: ${result.companyName} -> ${result.range ?? "(unknown)"}`);
   }
 };
 

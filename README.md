@@ -45,7 +45,20 @@ npm run collect -- --area "埼玉県春日部市" --target "制作会社,直ク�
 npm run collect -- --area "埼玉県春日部市" --target "制作会社,直クライアント" --limit 5 --dry-run
 ```
 
-このコマンドはリード登録までです。メール送信やフォーム送信は行いません。
+`--dry-run` の結果は `tmp/collect-preview.json` に保存されます。
+確認後、同じ候補をスプレッドシートへ追加する場合:
+
+```bash
+npm run collect:import
+```
+
+取り込み対象だけ確認する場合:
+
+```bash
+npm run collect:import -- --dry-run
+```
+
+これらのコマンドはリード登録までです。メール送信やフォーム送信は行いません。
 
 ## 現在の対象
 

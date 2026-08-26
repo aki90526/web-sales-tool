@@ -87,7 +87,7 @@ const normalizeScore = (value: unknown): number => {
   return Math.max(0, Math.min(100, Math.round(numeric)));
 };
 
-const normalizeCandidate = (value: unknown): LeadCandidate | null => {
+export const normalizeLeadCandidate = (value: unknown): LeadCandidate | null => {
   if (value === null || typeof value !== "object") {
     return null;
   }
@@ -155,7 +155,7 @@ export const collectLeadCandidates = async (
   }
 
   return parsed
-    .map(normalizeCandidate)
+    .map(normalizeLeadCandidate)
     .filter((candidate): candidate is LeadCandidate => candidate !== null)
     .slice(0, options.limit);
 };
