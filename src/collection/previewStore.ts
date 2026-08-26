@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { LeadType, LEAD_TYPES } from "../domain/lead";
 import { LeadCandidate, normalizeLeadCandidate } from "../openai/leadCandidateCollector";
+import { WebSearchTrace } from "../openai/openAIClient";
 
 export const DEFAULT_PREVIEW_PATH = path.resolve(process.cwd(), "tmp", "collect-preview.json");
 
@@ -10,6 +11,7 @@ export type CollectPreview = {
   area: string;
   targetTypes: LeadType[];
   limit: number;
+  searchTrace?: WebSearchTrace;
   candidates: LeadCandidate[];
 };
 
@@ -66,6 +68,16 @@ export const loadCollectPreview = async (
     area: typeof parsed.area === "string" ? parsed.area : "",
     targetTypes: normalizeTargetTypes(parsed.targetTypes),
     limit: typeof parsed.limit === "number" ? parsed.limit : candidates.length,
+    searchTrace: isObject(parsed.searchTrace)
+      ? {
+          queries: Array.isArray(parsed.searchTrace.queries)
+            ? parsed.searchTrace.queries.filter((value): value is string => typeof value === "string")
+            : [],
+          sourceUrls: Array.isArray(parsed.searchTrace.sourceUrls)
+            ? parsed.searchTrace.sourceUrls.filter((value): value is string => typeof value === "string")
+            : []
+        }
+      : undefined,
     candidates
   };
 };

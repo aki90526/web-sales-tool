@@ -3,7 +3,7 @@ import { filterUniqueCandidates, formatTargetTypes, importLeadCandidates, readEx
 import { saveCollectPreview } from "../collection/previewStore";
 import { LeadType } from "../domain/lead";
 import { createSheetsClient } from "../google/sheetsClient";
-import { collectLeadCandidates } from "../openai/leadCandidateCollector";
+import { collectLeadCandidateCollection } from "../openai/leadCandidateCollector";
 import { createOpenAIClient } from "../openai/openAIClient";
 
 type CliOptions = {
@@ -15,6 +15,10 @@ type CliOptions = {
 };
 
 const MAX_INITIAL_LIMIT = 10;
+
+const buildSearchCondition = (options: CliOptions): string => {
+  return `地域: ${options.area} / 対象: ${formatTargetTypes(options.targetTypes)} / 最大件数: ${options.limit}`;
+};
 
 const printHelp = (): void => {
   console.log(`Usage:
@@ -122,7 +126,7 @@ const main = async (): Promise<void> => {
   console.log(`Area: ${options.area}`);
   console.log(`Targets: ${formatTargetTypes(options.targetTypes)}`);
 
-  const candidates = await collectLeadCandidates(openAI, {
+  const collection = await collectLeadCandidateCollection(openAI, {
     area: options.area,
     targetTypes: options.targetTypes,
     limit: options.limit,
@@ -130,7 +134,13 @@ const main = async (): Promise<void> => {
     existingSiteUrls: existing.siteUrls
   });
 
-  const uniqueCandidates = filterUniqueCandidates(candidates, existing);
+  if (collection.searchTrace.queries.length > 0) {
+    console.log(`Search queries: ${collection.searchTrace.queries.join(" / ")}`);
+  }
+
+  console.log(`Referenced URLs: ${collection.searchTrace.sourceUrls.length}`);
+
+  const uniqueCandidates = filterUniqueCandidates(collection.candidates, existing);
 
   if (uniqueCandidates.length === 0) {
     console.log("No new unique leads found.");
@@ -144,6 +154,7 @@ const main = async (): Promise<void> => {
       area: options.area,
       targetTypes: options.targetTypes,
       limit: options.limit,
+      searchTrace: collection.searchTrace,
       candidates: uniqueCandidates
     });
     console.log(`Saved preview: ${previewPath}`);
@@ -151,10 +162,14 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const results = await importLeadCandidates(sheets, uniqueCandidates);
+  const results = await importLeadCandidates(sheets, uniqueCandidates, undefined, {
+    searchCondition: buildSearchCondition(options),
+    searchTrace: collection.searchTrace
+  });
 
   for (const result of results) {
     console.log(`Added ${result.leadId}: ${result.companyName} -> ${result.range ?? "(unknown)"}`);
+    console.log(`Logged search trace -> ${result.analysisLogRange ?? "(unknown)"}`);
   }
 };
 

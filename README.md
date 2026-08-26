@@ -49,6 +49,7 @@ npm run collect -- --area "埼玉県春日部市" --target "制作会社,直ク�
 ```
 
 `--dry-run` の結果は `tmp/collect-preview.json` に保存されます。
+検索クエリと参照URLが取得できた場合は、取り込み時に `分析ログ` へ保存します。
 確認後、同じ候補をスプレッドシートへ追加する場合:
 
 ```bash

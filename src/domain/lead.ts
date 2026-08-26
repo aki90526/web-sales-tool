@@ -1,5 +1,6 @@
 export const SHEETS = {
   salesManagement: "営業管理",
+  analysisLog: "分析ログ",
   approachHistory: "アプローチ履歴"
 } as const;
 

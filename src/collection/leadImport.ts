@@ -1,7 +1,9 @@
 import { LeadType, SHEETS } from "../domain/lead";
+import { appendAnalysisLog } from "../google/analysisLogRepository";
 import { appendSalesLead } from "../google/salesLeadRepository";
 import { SheetsClient } from "../google/sheetsClient";
 import { LeadCandidate, toSalesLeadInput } from "../openai/leadCandidateCollector";
+import { WebSearchTrace } from "../openai/openAIClient";
 
 export type ExistingLeadState = {
   maxNumericLeadId: number;
@@ -13,7 +15,14 @@ export type ImportedLeadResult = {
   leadId: string;
   companyName: string;
   range?: string;
+  analysisLogRange?: string;
   rowNumber: number;
+};
+
+export type LeadImportContext = {
+  searchCondition?: string;
+  searchTrace?: WebSearchTrace;
+  acquiredAt?: string;
 };
 
 export const today = (): string => {
@@ -89,7 +98,8 @@ export const nextLeadId = (numericId: number): string => {
 export const importLeadCandidates = async (
   sheets: SheetsClient,
   candidates: LeadCandidate[],
-  updatedAt = today()
+  updatedAt = today(),
+  context: LeadImportContext = {}
 ): Promise<ImportedLeadResult[]> => {
   const existing = await readExistingLeadState(sheets);
   const uniqueCandidates = filterUniqueCandidates(candidates, existing);
@@ -100,11 +110,25 @@ export const importLeadCandidates = async (
     const leadId = nextLeadId(nextNumericId);
     const lead = toSalesLeadInput(candidate, leadId, updatedAt);
     const result = await appendSalesLead(sheets, lead);
+    const analysisLogResult = await appendAnalysisLog(sheets, {
+      leadId,
+      companyName: lead.companyName,
+      officialSiteUrl: lead.officialSiteUrl,
+      acquiredAt: context.acquiredAt ?? new Date().toISOString(),
+      targetPageUrl: lead.officialSiteUrl,
+      pageType: "検索結果",
+      mainImprovementPoint: lead.improvementPoints,
+      analysisMemo: "OpenAI web_search による候補取得ログ。詳細なサイトクロールは未実施。",
+      searchCondition: context.searchCondition ?? "",
+      searchQueries: context.searchTrace?.queries ?? [],
+      sourceUrls: context.searchTrace?.sourceUrls ?? []
+    });
 
     results.push({
       leadId,
       companyName: lead.companyName,
       range: result.range,
+      analysisLogRange: analysisLogResult.range,
       rowNumber: result.rowNumber
     });
 

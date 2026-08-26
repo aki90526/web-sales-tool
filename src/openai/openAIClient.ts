@@ -18,10 +18,29 @@ type JsonRequestOptions = {
 type ResponseContent = {
   type?: string;
   text?: string;
+  annotations?: Array<{
+    type?: string;
+    title?: string;
+    url?: string;
+  }>;
+};
+
+type WebSearchSource = {
+  type?: string;
+  title?: string;
+  url?: string;
+};
+
+type WebSearchAction = {
+  type?: string;
+  query?: string;
+  queries?: string[];
+  sources?: WebSearchSource[];
 };
 
 type ResponseOutputItem = {
   type?: string;
+  action?: WebSearchAction;
   content?: ResponseContent[];
 };
 
@@ -38,6 +57,11 @@ export type OpenAIResponse = {
 
 export type OpenAIClient = {
   createWebSearchResponse: (input: string, maxOutputTokens?: number) => Promise<OpenAIResponse>;
+};
+
+export type WebSearchTrace = {
+  queries: string[];
+  sourceUrls: string[];
 };
 
 type RequestError = Error & {
@@ -153,6 +177,7 @@ export const createOpenAIClient = (options: OpenAIClientOptions): OpenAIClient =
               search_context_size: "low"
             }
           ],
+          include: ["web_search_call.action.sources"],
           input,
           max_output_tokens: maxOutputTokens,
           store: false
@@ -178,4 +203,46 @@ export const extractOutputText = (response: OpenAIResponse): string => {
   }
 
   return text;
+};
+
+const uniqueStrings = (values: string[]): string[] => {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+};
+
+export const extractWebSearchTrace = (response: OpenAIResponse): WebSearchTrace => {
+  const queries: string[] = [];
+  const sourceUrls: string[] = [];
+
+  for (const item of response.output ?? []) {
+    const action = item.action;
+
+    if (action?.query) {
+      queries.push(action.query);
+    }
+
+    const actionQueries = action?.queries;
+
+    if (Array.isArray(actionQueries)) {
+      queries.push(...actionQueries);
+    }
+
+    for (const source of action?.sources ?? []) {
+      if (source.url) {
+        sourceUrls.push(source.url);
+      }
+    }
+
+    for (const content of item.content ?? []) {
+      for (const annotation of content.annotations ?? []) {
+        if (annotation.url) {
+          sourceUrls.push(annotation.url);
+        }
+      }
+    }
+  }
+
+  return {
+    queries: uniqueStrings(queries),
+    sourceUrls: uniqueStrings(sourceUrls)
+  };
 };

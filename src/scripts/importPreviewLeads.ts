@@ -69,6 +69,7 @@ const main = async (): Promise<void> => {
   const sheets = await createSheetsClient(config);
   const existing = await readExistingLeadState(sheets);
   const uniqueCandidates = filterUniqueCandidates(preview.candidates, existing);
+  const searchCondition = `地域: ${preview.area || "(unknown)"} / 対象: ${formatTargetTypes(preview.targetTypes) || "(unknown)"} / 最大件数: ${preview.limit}`;
 
   console.log(`Loaded preview: ${options.filePath}`);
   console.log(`Generated at: ${preview.generatedAt || "(unknown)"}`);
@@ -88,10 +89,15 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const results = await importLeadCandidates(sheets, uniqueCandidates);
+  const results = await importLeadCandidates(sheets, uniqueCandidates, undefined, {
+    searchCondition,
+    searchTrace: preview.searchTrace,
+    acquiredAt: preview.generatedAt || undefined
+  });
 
   for (const result of results) {
     console.log(`Added ${result.leadId}: ${result.companyName} -> ${result.range ?? "(unknown)"}`);
+    console.log(`Logged search trace -> ${result.analysisLogRange ?? "(unknown)"}`);
   }
 };
 

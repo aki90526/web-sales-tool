@@ -9,7 +9,7 @@ import {
   PROPOSAL_TYPES,
   SalesLeadInput
 } from "../domain/lead";
-import { extractOutputText, OpenAIClient } from "./openAIClient";
+import { extractOutputText, extractWebSearchTrace, OpenAIClient, WebSearchTrace } from "./openAIClient";
 
 export type LeadCandidate = {
   companyName: string;
@@ -39,6 +39,11 @@ export type CollectLeadCandidateOptions = {
   limit: number;
   existingCompanies: string[];
   existingSiteUrls: string[];
+};
+
+export type LeadCandidateCollectionResult = {
+  candidates: LeadCandidate[];
+  searchTrace: WebSearchTrace;
 };
 
 const stripCitationMarkers = (value: string): string => {
@@ -175,10 +180,10 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
   ].join("\n");
 };
 
-export const collectLeadCandidates = async (
+export const collectLeadCandidateCollection = async (
   openAI: OpenAIClient,
   options: CollectLeadCandidateOptions
-): Promise<LeadCandidate[]> => {
+): Promise<LeadCandidateCollectionResult> => {
   const response = await openAI.createWebSearchResponse(buildPrompt(options));
   const parsed = extractJsonArray(extractOutputText(response));
 
@@ -186,10 +191,22 @@ export const collectLeadCandidates = async (
     throw new Error("OpenAI response JSON was not an array");
   }
 
-  return parsed
+  const candidates = parsed
     .map(normalizeLeadCandidate)
     .filter((candidate): candidate is LeadCandidate => candidate !== null)
     .slice(0, options.limit);
+
+  return {
+    candidates,
+    searchTrace: extractWebSearchTrace(response)
+  };
+};
+
+export const collectLeadCandidates = async (
+  openAI: OpenAIClient,
+  options: CollectLeadCandidateOptions
+): Promise<LeadCandidate[]> => {
+  return (await collectLeadCandidateCollection(openAI, options)).candidates;
 };
 
 export const toSalesLeadInput = (
