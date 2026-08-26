@@ -12,6 +12,7 @@ type JsonRequestOptions = {
   apiKey: string;
   body: unknown;
   timeoutMs?: number;
+  maxAttempts?: number;
 };
 
 type ResponseContent = {
@@ -39,7 +40,29 @@ export type OpenAIClient = {
   createWebSearchResponse: (input: string, maxOutputTokens?: number) => Promise<OpenAIResponse>;
 };
 
-const requestJson = async <T>(options: JsonRequestOptions): Promise<T> => {
+type RequestError = Error & {
+  code?: string;
+  statusCode?: number;
+  responseBody?: string;
+};
+
+const sleep = async (ms: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+const shouldRetry = (error: RequestError): boolean => {
+  if (error.responseBody?.includes("insufficient_quota")) {
+    return false;
+  }
+
+  if (error.statusCode !== undefined) {
+    return [408, 409, 429, 500, 502, 503, 504].includes(error.statusCode);
+  }
+
+  return ["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND"].includes(error.code ?? "");
+};
+
+const requestJsonOnce = async <T>(options: JsonRequestOptions): Promise<T> => {
   const parsedUrl = new URL(options.url);
   const body = JSON.stringify(options.body);
 
@@ -67,7 +90,10 @@ const requestJson = async <T>(options: JsonRequestOptions): Promise<T> => {
           const statusCode = response.statusCode ?? 0;
 
           if (statusCode < 200 || statusCode >= 300) {
-            reject(new Error(`OpenAI API request failed (${statusCode}): ${raw}`));
+            const error = new Error(`OpenAI API request failed (${statusCode}): ${raw}`) as RequestError;
+            error.statusCode = statusCode;
+            error.responseBody = raw;
+            reject(error);
             return;
           }
 
@@ -84,6 +110,29 @@ const requestJson = async <T>(options: JsonRequestOptions): Promise<T> => {
     request.write(body);
     request.end();
   });
+};
+
+const requestJson = async <T>(options: JsonRequestOptions): Promise<T> => {
+  const maxAttempts = options.maxAttempts ?? 3;
+  let lastError: RequestError | undefined;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await requestJsonOnce<T>(options);
+    } catch (error: unknown) {
+      lastError = error instanceof Error ? (error as RequestError) : new Error(String(error));
+
+      if (attempt >= maxAttempts || !shouldRetry(lastError)) {
+        throw lastError;
+      }
+
+      const waitMs = attempt * 2000;
+      console.warn(`OpenAI request failed (${lastError.code ?? lastError.statusCode ?? "unknown"}). Retrying in ${waitMs / 1000}s...`);
+      await sleep(waitMs);
+    }
+  }
+
+  throw lastError ?? new Error("OpenAI API request failed");
 };
 
 export const createOpenAIClient = (options: OpenAIClientOptions): OpenAIClient => {
