@@ -16,6 +16,8 @@ export const SEND_PERMISSIONS = ["未判定", "送信OK", "送信NG"] as const;
 export const SEND_STATUSES = ["未送信", "下書き", "送信済み", "返信あり", "送信不可"] as const;
 export const REPLY_STATUSES = ["未返信", "返信あり", "商談化", "失注", "再営業禁止"] as const;
 export const EXCLUDE_REASONS = ["", "対象外", "競合", "連絡不可", "配信停止", "再営業禁止", "重複"] as const;
+export const LISTING_STATUSES = ["不明", "未上場", "上場", "公的機関", "個人事業"] as const;
+export const COMPANY_SIZE_CATEGORIES = ["不明", "小規模", "中規模", "大規模"] as const;
 
 export type LeadType = (typeof LEAD_TYPES)[number];
 export type ProposalType = (typeof PROPOSAL_TYPES)[number];
@@ -24,6 +26,8 @@ export type SendPermission = (typeof SEND_PERMISSIONS)[number];
 export type SendStatus = (typeof SEND_STATUSES)[number];
 export type ReplyStatus = (typeof REPLY_STATUSES)[number];
 export type ExcludeReason = (typeof EXCLUDE_REASONS)[number];
+export type ListingStatus = (typeof LISTING_STATUSES)[number];
+export type CompanySizeCategory = (typeof COMPANY_SIZE_CATEGORIES)[number];
 
 export type SalesLeadInput = {
   leadId: string;
@@ -48,6 +52,12 @@ export type SalesLeadInput = {
   excludeReason: ExcludeReason;
   updatedAt: string;
   memo: string;
+  capital: string;
+  employeeCount: string;
+  annualRevenue: string;
+  listingStatus: ListingStatus;
+  companySizeCategory: CompanySizeCategory;
+  companySizeMemo: string;
 };
 
 export const buildSalesLeadRow = (lead: SalesLeadInput, rowNumber: number): unknown[] => {
@@ -81,6 +91,12 @@ export const buildSalesLeadRow = (lead: SalesLeadInput, rowNumber: number): unkn
     `=IF(A${rowNumber}="","",COUNTIFS(${approachLeadColumn},A${rowNumber},${approachSendStatusColumn},"送信済み"))`,
     `=IF(A${rowNumber}="","",IFERROR(MAX(FILTER(${approachSentAtColumn},${approachLeadColumn}=A${rowNumber},${approachSendStatusColumn}="送信済み")),""))`,
     `=IF(OR(A${rowNumber}="",X${rowNumber}=""),"",X${rowNumber}+'設定'!$B$13)`,
-    `=IF(A${rowNumber}="","",IF(S${rowNumber}=TRUE,"除外",IF(W${rowNumber}=0,"未送信",IF(TODAY()>=Y${rowNumber},"再送信可","待機"))))`
+    `=IF(A${rowNumber}="","",IF(S${rowNumber}=TRUE,"除外",IF(W${rowNumber}=0,"未送信",IF(TODAY()>=Y${rowNumber},"再送信可","待機"))))`,
+    lead.capital,
+    lead.employeeCount,
+    lead.annualRevenue,
+    lead.listingStatus,
+    lead.companySizeCategory,
+    lead.companySizeMemo
   ];
 };

@@ -42,7 +42,13 @@ const buildTestLead = (): SalesLeadInput => {
     excludeFlag: false,
     excludeReason: "",
     updatedAt: new Date().toISOString().slice(0, 10),
-    memo: "npm run test:sheets による自動追加テスト"
+    memo: "npm run test:sheets による自動追加テスト",
+    capital: "不明",
+    employeeCount: "不明",
+    annualRevenue: "不明",
+    listingStatus: "不明",
+    companySizeCategory: "不明",
+    companySizeMemo: "API接続確認用の規模情報です。"
   };
 };
 

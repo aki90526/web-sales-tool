@@ -1,6 +1,10 @@
 import {
+  CompanySizeCategory,
+  COMPANY_SIZE_CATEGORIES,
   LeadType,
   LEAD_TYPES,
+  ListingStatus,
+  LISTING_STATUSES,
   ProposalType,
   PROPOSAL_TYPES,
   SalesLeadInput
@@ -21,6 +25,12 @@ export type LeadCandidate = {
   proposalType: ProposalType;
   salesMessageDraft: string;
   memo: string;
+  capital: string;
+  employeeCount: string;
+  annualRevenue: string;
+  listingStatus: ListingStatus;
+  companySizeCategory: CompanySizeCategory;
+  companySizeMemo: string;
 };
 
 export type CollectLeadCandidateOptions = {
@@ -57,6 +67,14 @@ const isLeadType = (value: unknown): value is LeadType => {
 
 const isProposalType = (value: unknown): value is ProposalType => {
   return PROPOSAL_TYPES.includes(value as ProposalType);
+};
+
+const isListingStatus = (value: unknown): value is ListingStatus => {
+  return LISTING_STATUSES.includes(value as ListingStatus);
+};
+
+const isCompanySizeCategory = (value: unknown): value is CompanySizeCategory => {
+  return COMPANY_SIZE_CATEGORIES.includes(value as CompanySizeCategory);
 };
 
 const text = (value: unknown, maxLength = 1200): string => {
@@ -115,7 +133,15 @@ export const normalizeLeadCandidate = (value: unknown): LeadCandidate | null => 
     salesScore: normalizeScore(record.salesScore),
     proposalType,
     salesMessageDraft: text(record.salesMessageDraft, 2500),
-    memo: text(record.memo, 600)
+    memo: text(record.memo, 600),
+    capital: text(record.capital, 120),
+    employeeCount: text(record.employeeCount, 120),
+    annualRevenue: text(record.annualRevenue, 120),
+    listingStatus: isListingStatus(record.listingStatus) ? record.listingStatus : "不明",
+    companySizeCategory: isCompanySizeCategory(record.companySizeCategory)
+      ? record.companySizeCategory
+      : "不明",
+    companySizeMemo: text(record.companySizeMemo, 600)
   };
 };
 
@@ -130,15 +156,21 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
     `候補件数: 最大${options.limit}件`,
     "目的: aaWebCreate（春日部市のフリーランスWeb制作者）が、Web制作会社・広告代理店には外部パートナー提案、直クライアントにはWebサイト改善提案を行うための営業候補を作る。",
     "優先条件: 公式サイトURLが確認できる、問い合わせフォームまたはメールがある、Web制作/WordPress/フロントエンド/Shopify/保守運用の提案余地がある。",
+    "直クライアントの規模判定: 上場企業、全国展開、大企業、資本金1億円以上、従業員300名以上などは大規模として営業優先度を下げる。地域密着、中小企業、店舗、士業、工務店、クリニック、専門サービスは優先する。",
+    "Web制作会社・広告代理店の規模判定: 大規模でも外部パートナー募集や制作外注余地があれば候補にしてよい。",
     "除外条件: 採用媒体だけの情報、公式サイトが見つからない企業、既存候補と重複する企業、同業フリーランス個人のみのサイト。",
     `既存候補の企業名: ${excludedCompanies}`,
     `既存候補のURL: ${excludedUrls}`,
     "返答はJSON配列のみ。Markdown、説明文、引用マーカーは不要。",
     "各要素のキーは必ず次の通りにしてください:",
-    "companyName, leadType, industry, region, officialSiteUrl, contactUrl, email, siteAnalysisSummary, improvementPoints, salesScore, proposalType, salesMessageDraft, memo",
+    "companyName, leadType, industry, region, officialSiteUrl, contactUrl, email, siteAnalysisSummary, improvementPoints, salesScore, proposalType, salesMessageDraft, memo, capital, employeeCount, annualRevenue, listingStatus, companySizeCategory, companySizeMemo",
     `leadType は次のいずれかのみ: ${LEAD_TYPES.join(", ")}`,
     `proposalType は次のいずれかのみ: ${PROPOSAL_TYPES.join(", ")}`,
+    `listingStatus は次のいずれかのみ: ${LISTING_STATUSES.join(", ")}`,
+    `companySizeCategory は次のいずれかのみ: ${COMPANY_SIZE_CATEGORIES.join(", ")}`,
     "salesScore は0〜100の整数。contactUrl は問い合わせフォームURLが不明なら空文字。email は不明なら空文字。",
+    "資本金、従業員数、売上高は公式サイトや信頼できる会社情報で確認できた場合のみ入れ、不明なら空文字にしてください。",
+    "直クライアントが大規模の場合、salesScore は原則60以下にしてください。",
     "salesMessageDraft は日本語で、送信前に人間が確認する前提の簡潔な下書きにしてください。"
   ].join("\n");
 };
@@ -187,6 +219,12 @@ export const toSalesLeadInput = (
     excludeFlag: false,
     excludeReason: "",
     updatedAt,
-    memo: candidate.memo
+    memo: candidate.memo,
+    capital: candidate.capital,
+    employeeCount: candidate.employeeCount,
+    annualRevenue: candidate.annualRevenue,
+    listingStatus: candidate.listingStatus,
+    companySizeCategory: candidate.companySizeCategory,
+    companySizeMemo: candidate.companySizeMemo
   };
 };

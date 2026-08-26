@@ -23,7 +23,7 @@ const printHelp = (): void => {
 
 Options:
   --area       検索対象地域。省略時は "埼玉県春日部市"
-  --target     対象種別。広告代理店, 制作会社, Web制作会社, 直クライアント, 事業者
+  --target     対象種別。広告代理店, 制作会社, Web制作会社, 直クライアント, クライアント, 事業者
   --limit      追加候補数。初期安全上限は10件
   --dry-run    スプレッドシートへ追加せず、結果を tmp/collect-preview.json に保存
 `);
@@ -51,7 +51,7 @@ const parseTargetTypes = (value: string): LeadType[] => {
       types.add("広告代理店");
     } else if (token === "制作会社" || token === "Web制作会社") {
       types.add("Web制作会社");
-    } else if (token === "直クライアント" || token === "事業者") {
+    } else if (token === "直クライアント" || token === "クライアント" || token === "事業者") {
       types.add("直クライアント");
     }
   }
