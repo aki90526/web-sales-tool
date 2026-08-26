@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test:sheets": "ts-node src/scripts/testSheetsConnection.ts"
+    "test:sheets": "ts-node src/scripts/testSheetsConnection.ts",
+    "collect": "ts-node src/scripts/collectLeads.ts"
   },
   "engines": {
     "node": ">=14.16.0"
