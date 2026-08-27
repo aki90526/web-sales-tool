@@ -9,6 +9,7 @@
     "test:sheets": "ts-node src/scripts/testSheetsConnection.ts",
     "collect": "ts-node src/scripts/collectLeads.ts",
     "collect:import": "ts-node src/scripts/importPreviewLeads.ts",
+    "send:emails": "ts-node src/scripts/sendSalesEmails.ts",
     "send:test-email": "ts-node src/scripts/sendTestEmail.ts"
   },
   "engines": {
