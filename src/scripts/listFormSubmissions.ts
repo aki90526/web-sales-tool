@@ -1,6 +1,11 @@
 import { execFile } from "child_process";
 import { loadConfig } from "../config/env";
-import { buildSalesBody, buildSalesSubject, CONTACT_SENDER } from "../contact/salesMessage";
+import {
+  buildSalesMessage,
+  readSalesContentConfig,
+  SalesContentConfig,
+  SenderInfo
+} from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
@@ -16,11 +21,16 @@ type FormCandidate = {
   leadId: string;
   companyName: string;
   leadType: string;
+  industry: string;
+  region: string;
+  officialSiteUrl: string;
   formUrl: string;
   salesScore: number;
+  salesAngle: string;
   recommendedApproach: string;
   subject: string;
   body: string;
+  templateId: string;
 };
 
 type SkipReason =
@@ -39,9 +49,13 @@ const COL = {
   leadId: 0,
   companyName: 1,
   leadType: 2,
+  industry: 3,
+  region: 4,
+  officialSiteUrl: 5,
   contactMethod: 6,
   formUrl: 7,
   salesScore: 9,
+  salesAngle: 10,
   recommendedApproach: 11,
   salesMessageDraft: 12,
   status: 13,
@@ -159,7 +173,8 @@ const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise
 const toCandidate = (
   row: unknown[],
   rowNumber: number,
-  minScore: number
+  minScore: number,
+  contentConfig: SalesContentConfig
 ): { candidate?: FormCandidate; reason?: SkipReason } => {
   const leadId = cell(row, COL.leadId);
 
@@ -200,6 +215,19 @@ const toCandidate = (
 
   const leadType = cell(row, COL.leadType);
   const recommendedApproach = cell(row, COL.recommendedApproach);
+  const message = buildSalesMessage(
+    {
+      companyName: cell(row, COL.companyName),
+      leadType,
+      industry: cell(row, COL.industry),
+      region: cell(row, COL.region),
+      officialSiteUrl: cell(row, COL.officialSiteUrl),
+      salesAngle: cell(row, COL.salesAngle),
+      recommendedApproach,
+      salesMessageDraft
+    },
+    contentConfig
+  );
 
   return {
     candidate: {
@@ -207,11 +235,16 @@ const toCandidate = (
       leadId,
       companyName: cell(row, COL.companyName),
       leadType,
+      industry: cell(row, COL.industry),
+      region: cell(row, COL.region),
+      officialSiteUrl: cell(row, COL.officialSiteUrl),
       formUrl,
       salesScore,
+      salesAngle: cell(row, COL.salesAngle),
       recommendedApproach,
-      subject: buildSalesSubject(leadType, recommendedApproach),
-      body: buildSalesBody(salesMessageDraft)
+      subject: message.subject,
+      body: message.body,
+      templateId: message.templateId
     }
   };
 };
@@ -219,7 +252,8 @@ const toCandidate = (
 const findCandidates = async (
   sheets: SheetsClient,
   limit: number,
-  minScore: number
+  minScore: number,
+  contentConfig: SalesContentConfig
 ): Promise<{ candidates: FormCandidate[]; skipped: Map<SkipReason, number> }> => {
   const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:Q1000`);
   const skipped = new Map<SkipReason, number>();
@@ -230,7 +264,7 @@ const findCandidates = async (
       return;
     }
 
-    const result = toCandidate(row, index + 2, minScore);
+    const result = toCandidate(row, index + 2, minScore, contentConfig);
 
     if (result.candidate) {
       candidates.push(result.candidate);
@@ -261,19 +295,20 @@ const openUrl = async (url: string): Promise<void> => {
   });
 };
 
-const printCandidate = (candidate: FormCandidate, index: number): void => {
+const printCandidate = (candidate: FormCandidate, index: number, sender: SenderInfo): void => {
   console.log("");
   console.log(`#${index + 1} ${candidate.leadId} ${candidate.companyName}`);
   console.log(`Row: ${candidate.rowNumber}`);
   console.log(`Score: ${candidate.salesScore}`);
+  console.log(`Template: ${candidate.templateId}`);
   console.log(`Form URL: ${candidate.formUrl}`);
   console.log("");
   console.log("Form fields:");
-  console.log(`会社名: ${CONTACT_SENDER.companyName}`);
-  console.log(`氏名: ${CONTACT_SENDER.name}`);
-  console.log(`メールアドレス: ${CONTACT_SENDER.email}`);
-  console.log(`電話番号: ${CONTACT_SENDER.tel}`);
-  console.log(`URL: ${CONTACT_SENDER.url}`);
+  console.log(`会社名: ${sender.companyName}`);
+  console.log(`氏名: ${sender.name}`);
+  console.log(`メールアドレス: ${sender.email}`);
+  console.log(`電話番号: ${sender.tel}`);
+  console.log(`URL: ${sender.url}`);
   console.log(`件名: ${candidate.subject}`);
   console.log("");
   console.log("本文:");
@@ -294,6 +329,18 @@ const printSkippedSummary = (skipped: Map<SkipReason, number>): void => {
   });
 };
 
+const printFieldAliases = (contentConfig: SalesContentConfig): void => {
+  console.log("");
+  console.log("Auto-fill field aliases:");
+  console.log(`会社名: ${contentConfig.formFieldAliases.companyName.join(" / ")}`);
+  console.log(`氏名: ${contentConfig.formFieldAliases.name.join(" / ")}`);
+  console.log(`メール: ${contentConfig.formFieldAliases.email.join(" / ")}`);
+  console.log(`電話: ${contentConfig.formFieldAliases.tel.join(" / ")}`);
+  console.log(`URL: ${contentConfig.formFieldAliases.url.join(" / ")}`);
+  console.log(`件名: ${contentConfig.formFieldAliases.subject.join(" / ")}`);
+  console.log(`本文: ${contentConfig.formFieldAliases.body.join(" / ")}`);
+};
+
 const main = async (): Promise<void> => {
   const options = parseArgs(process.argv.slice(2));
 
@@ -304,15 +351,17 @@ const main = async (): Promise<void> => {
 
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
+  const contentConfig = await readSalesContentConfig(sheets);
   const minScore = await readMinScore(sheets, options.minScore);
-  const { candidates, skipped } = await findCandidates(sheets, options.limit, minScore);
+  const { candidates, skipped } = await findCandidates(sheets, options.limit, minScore, contentConfig);
 
   console.log("Form submission todo: this command does not submit forms.");
   console.log(`Eligible form leads: ${candidates.length}`);
   console.log(`Minimum sales score: ${minScore}`);
 
-  candidates.forEach(printCandidate);
+  candidates.forEach((candidate, index) => printCandidate(candidate, index, contentConfig.sender));
   printSkippedSummary(skipped);
+  printFieldAliases(contentConfig);
 
   if (options.open) {
     for (const candidate of candidates) {

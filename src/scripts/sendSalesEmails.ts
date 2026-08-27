@@ -1,5 +1,5 @@
 import { loadConfig, requireSmtpConfig } from "../config/env";
-import { buildSalesBody, buildSalesSubject } from "../contact/salesMessage";
+import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
 import { createSmtpMailer } from "../email/smtpMailer";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
@@ -16,13 +16,18 @@ type SalesEmailCandidate = {
   leadId: string;
   companyName: string;
   leadType: string;
+  industry: string;
+  region: string;
+  officialSiteUrl: string;
   contactMethod: string;
   emailAddress: string;
   salesScore: number;
+  salesAngle: string;
   recommendedApproach: string;
   salesMessageDraft: string;
   subject: string;
   body: string;
+  templateId: string;
 };
 
 type SkipReason =
@@ -41,9 +46,13 @@ const COL = {
   leadId: 0,
   companyName: 1,
   leadType: 2,
+  industry: 3,
+  region: 4,
+  officialSiteUrl: 5,
   contactMethod: 6,
   emailAddress: 8,
   salesScore: 9,
+  salesAngle: 10,
   recommendedApproach: 11,
   salesMessageDraft: 12,
   status: 13,
@@ -173,7 +182,8 @@ const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise
 const toCandidate = (
   row: unknown[],
   rowNumber: number,
-  minScore: number
+  minScore: number,
+  contentConfig: SalesContentConfig
 ): { candidate?: SalesEmailCandidate; reason?: SkipReason } => {
   const leadId = cell(row, COL.leadId);
 
@@ -214,7 +224,19 @@ const toCandidate = (
 
   const leadType = cell(row, COL.leadType);
   const recommendedApproach = cell(row, COL.recommendedApproach);
-  const subject = buildSalesSubject(leadType, recommendedApproach);
+  const message = buildSalesMessage(
+    {
+      companyName: cell(row, COL.companyName),
+      leadType,
+      industry: cell(row, COL.industry),
+      region: cell(row, COL.region),
+      officialSiteUrl: cell(row, COL.officialSiteUrl),
+      salesAngle: cell(row, COL.salesAngle),
+      recommendedApproach,
+      salesMessageDraft
+    },
+    contentConfig
+  );
 
   return {
     candidate: {
@@ -222,13 +244,18 @@ const toCandidate = (
       leadId,
       companyName: cell(row, COL.companyName),
       leadType,
+      industry: cell(row, COL.industry),
+      region: cell(row, COL.region),
+      officialSiteUrl: cell(row, COL.officialSiteUrl),
       contactMethod,
       emailAddress,
       salesScore,
+      salesAngle: cell(row, COL.salesAngle),
       recommendedApproach,
       salesMessageDraft,
-      subject,
-      body: buildSalesBody(salesMessageDraft)
+      subject: message.subject,
+      body: message.body,
+      templateId: message.templateId
     }
   };
 };
@@ -236,7 +263,8 @@ const toCandidate = (
 const findCandidates = async (
   sheets: SheetsClient,
   limit: number,
-  minScore: number
+  minScore: number,
+  contentConfig: SalesContentConfig
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
   const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:Q1000`);
   const skipped = new Map<SkipReason, number>();
@@ -247,7 +275,7 @@ const findCandidates = async (
       return;
     }
 
-    const result = toCandidate(row, index + 2, minScore);
+    const result = toCandidate(row, index + 2, minScore, contentConfig);
 
     if (result.candidate) {
       candidates.push(result.candidate);
@@ -272,6 +300,7 @@ const printCandidates = (candidates: SalesEmailCandidate[], minScore: number): v
     console.log(`Row: ${candidate.rowNumber}`);
     console.log(`To: ${candidate.emailAddress}`);
     console.log(`Score: ${candidate.salesScore}`);
+    console.log(`Template: ${candidate.templateId}`);
     console.log(`Subject: ${candidate.subject}`);
     console.log("Message preview:");
     console.log(candidate.body);
@@ -326,8 +355,9 @@ const main = async (): Promise<void> => {
 
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
+  const contentConfig = await readSalesContentConfig(sheets);
   const minScore = await readMinScore(sheets, options.minScore);
-  const { candidates, skipped } = await findCandidates(sheets, options.limit, minScore);
+  const { candidates, skipped } = await findCandidates(sheets, options.limit, minScore, contentConfig);
 
   if (options.dryRun) {
     console.log("Dry run: no emails will be sent and sheets will not be updated.");

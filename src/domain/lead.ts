@@ -2,6 +2,7 @@ export const SHEETS = {
   salesManagement: "営業管理",
   analysisData: "分析データ",
   approachHistory: "アプローチ履歴",
+  messageTemplates: "メッセージテンプレート",
   settings: "設定"
 } as const;
 

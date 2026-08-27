@@ -1,5 +1,5 @@
 import { loadConfig } from "../config/env";
-import { buildSalesBody, buildSalesSubject } from "../contact/salesMessage";
+import { buildSalesMessage, readSalesContentConfig } from "../contact/salesMessage";
 import { SHEETS, Status } from "../domain/lead";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
@@ -16,8 +16,12 @@ type FormLead = {
   leadId: string;
   companyName: string;
   leadType: string;
+  industry: string;
+  region: string;
+  officialSiteUrl: string;
   contactMethod: string;
   formUrl: string;
+  salesAngle: string;
   recommendedApproach: string;
   salesMessageDraft: string;
   status: string;
@@ -28,8 +32,12 @@ const COL = {
   leadId: 0,
   companyName: 1,
   leadType: 2,
+  industry: 3,
+  region: 4,
+  officialSiteUrl: 5,
   contactMethod: 6,
   formUrl: 7,
+  salesAngle: 10,
   recommendedApproach: 11,
   salesMessageDraft: 12,
   status: 13,
@@ -150,8 +158,12 @@ const readLead = async (sheets: SheetsClient, leadId: string): Promise<FormLead 
       leadId,
       companyName: cell(row, COL.companyName),
       leadType: cell(row, COL.leadType),
+      industry: cell(row, COL.industry),
+      region: cell(row, COL.region),
+      officialSiteUrl: cell(row, COL.officialSiteUrl),
       contactMethod: cell(row, COL.contactMethod),
       formUrl: cell(row, COL.formUrl),
+      salesAngle: cell(row, COL.salesAngle),
       recommendedApproach: cell(row, COL.recommendedApproach),
       salesMessageDraft: cell(row, COL.salesMessageDraft),
       status: cell(row, COL.status),
@@ -234,6 +246,7 @@ const main = async (): Promise<void> => {
 
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
+  const contentConfig = await readSalesContentConfig(sheets);
   const lead = await readLead(sheets, options.leadId);
 
   if (!lead) {
@@ -242,8 +255,21 @@ const main = async (): Promise<void> => {
 
   validateLead(lead, options.force);
 
-  const subject = buildSalesSubject(lead.leadType, lead.recommendedApproach);
-  const body = buildSalesBody(lead.salesMessageDraft);
+  const message = buildSalesMessage(
+    {
+      companyName: lead.companyName,
+      leadType: lead.leadType,
+      industry: lead.industry,
+      region: lead.region,
+      officialSiteUrl: lead.officialSiteUrl,
+      salesAngle: lead.salesAngle,
+      recommendedApproach: lead.recommendedApproach,
+      salesMessageDraft: lead.salesMessageDraft
+    },
+    contentConfig
+  );
+  const subject = message.subject;
+  const body = message.body;
   const sentAt = formatTokyoDateTime(new Date());
 
   if (options.dryRun) {
