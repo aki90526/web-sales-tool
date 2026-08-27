@@ -1,26 +1,24 @@
-import { loadConfig, requireSmtpConfig } from "../config/env";
-import { buildSalesBody, buildSalesSubject } from "../contact/salesMessage";
+import { execFile } from "child_process";
+import { loadConfig } from "../config/env";
+import { buildSalesBody, buildSalesSubject, CONTACT_SENDER } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
-import { createSmtpMailer } from "../email/smtpMailer";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
-  dryRun: boolean;
   help: boolean;
   limit: number;
   minScore?: number;
+  open: boolean;
 };
 
-type SalesEmailCandidate = {
+type FormCandidate = {
   rowNumber: number;
   leadId: string;
   companyName: string;
   leadType: string;
-  contactMethod: string;
-  emailAddress: string;
+  formUrl: string;
   salesScore: number;
   recommendedApproach: string;
-  salesMessageDraft: string;
   subject: string;
   body: string;
 };
@@ -28,12 +26,12 @@ type SalesEmailCandidate = {
 type SkipReason =
   | "ステータスが送信待ちではない"
   | "次回対応日が未来"
-  | "連絡方法がメールではない"
-  | "メールアドレスが空またはメール形式ではない"
+  | "連絡方法が問い合わせフォームではない"
+  | "フォームURLが空またはURL形式ではない"
   | "営業メッセージ案が空"
   | "営業スコアが基準未満";
 
-const DEFAULT_LIMIT = 1;
+const DEFAULT_LIMIT = 3;
 const MAX_LIMIT = 10;
 const DEFAULT_MIN_SCORE = 50;
 
@@ -42,7 +40,7 @@ const COL = {
   companyName: 1,
   leadType: 2,
   contactMethod: 6,
-  emailAddress: 8,
+  formUrl: 7,
   salesScore: 9,
   recommendedApproach: 11,
   salesMessageDraft: 12,
@@ -52,13 +50,14 @@ const COL = {
 
 const printHelp = (): void => {
   console.log(`Usage:
-  npm run send:emails -- --dry-run --limit 3
-  npm run send:emails -- --limit 1
+  npm run forms:todo
+  npm run forms:todo -- --limit 3
+  npm run forms:todo -- --limit 1 --open
 
 Options:
-  --dry-run       送信せず、対象候補だけ表示します
-  --limit         送信または表示する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
-  --min-score     最低営業スコア。省略時は 設定 シートの値、未設定時は ${DEFAULT_MIN_SCORE}
+  --limit       表示する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
+  --min-score   最低営業スコア。省略時は 設定 シートの値、未設定時は ${DEFAULT_MIN_SCORE}
+  --open        対象フォームURLを既定ブラウザで開きます。送信はしません
 `);
 };
 
@@ -84,9 +83,9 @@ const parsePositiveInteger = (value: string, name: string): number => {
 
 const parseArgs = (argv: string[]): CliOptions => {
   const options: CliOptions = {
-    dryRun: false,
     help: false,
-    limit: DEFAULT_LIMIT
+    limit: DEFAULT_LIMIT,
+    open: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -94,14 +93,14 @@ const parseArgs = (argv: string[]): CliOptions => {
 
     if (arg === "--help" || arg === "-h") {
       options.help = true;
-    } else if (arg === "--dry-run") {
-      options.dryRun = true;
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
       index += 1;
     } else if (arg === "--min-score") {
       options.minScore = parsePositiveInteger(nextValue(argv, index, "--min-score"), "--min-score");
       index += 1;
+    } else if (arg === "--open") {
+      options.open = true;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -124,8 +123,8 @@ const parseScore = (value: string): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const isValidEmail = (value: string): boolean => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const isValidUrl = (value: string): boolean => {
+  return /^https?:\/\//i.test(value);
 };
 
 const formatTokyoDate = (date: Date): string => {
@@ -134,19 +133,6 @@ const formatTokyoDate = (date: Date): string => {
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
-  }).format(date);
-};
-
-const formatTokyoDateTime = (date: Date): string => {
-  return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
   }).format(date);
 };
 
@@ -174,7 +160,7 @@ const toCandidate = (
   row: unknown[],
   rowNumber: number,
   minScore: number
-): { candidate?: SalesEmailCandidate; reason?: SkipReason } => {
+): { candidate?: FormCandidate; reason?: SkipReason } => {
   const leadId = cell(row, COL.leadId);
 
   if (!leadId) {
@@ -183,7 +169,7 @@ const toCandidate = (
 
   const status = cell(row, COL.status);
   const contactMethod = cell(row, COL.contactMethod);
-  const emailAddress = cell(row, COL.emailAddress);
+  const formUrl = cell(row, COL.formUrl);
   const salesMessageDraft = cell(row, COL.salesMessageDraft);
   const salesScore = parseScore(cell(row, COL.salesScore));
   const nextActionDate = cell(row, COL.nextActionDate);
@@ -196,12 +182,12 @@ const toCandidate = (
     return { reason: "次回対応日が未来" };
   }
 
-  if (contactMethod !== "メール") {
-    return { reason: "連絡方法がメールではない" };
+  if (contactMethod !== "問い合わせフォーム") {
+    return { reason: "連絡方法が問い合わせフォームではない" };
   }
 
-  if (!isValidEmail(emailAddress)) {
-    return { reason: "メールアドレスが空またはメール形式ではない" };
+  if (!isValidUrl(formUrl)) {
+    return { reason: "フォームURLが空またはURL形式ではない" };
   }
 
   if (!salesMessageDraft) {
@@ -214,7 +200,6 @@ const toCandidate = (
 
   const leadType = cell(row, COL.leadType);
   const recommendedApproach = cell(row, COL.recommendedApproach);
-  const subject = buildSalesSubject(leadType, recommendedApproach);
 
   return {
     candidate: {
@@ -222,12 +207,10 @@ const toCandidate = (
       leadId,
       companyName: cell(row, COL.companyName),
       leadType,
-      contactMethod,
-      emailAddress,
+      formUrl,
       salesScore,
       recommendedApproach,
-      salesMessageDraft,
-      subject,
+      subject: buildSalesSubject(leadType, recommendedApproach),
       body: buildSalesBody(salesMessageDraft)
     }
   };
@@ -237,10 +220,10 @@ const findCandidates = async (
   sheets: SheetsClient,
   limit: number,
   minScore: number
-): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
+): Promise<{ candidates: FormCandidate[]; skipped: Map<SkipReason, number> }> => {
   const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:Q1000`);
   const skipped = new Map<SkipReason, number>();
-  const candidates: SalesEmailCandidate[] = [];
+  const candidates: FormCandidate[] = [];
 
   rows.forEach((row, index) => {
     if (candidates.length >= limit) {
@@ -262,20 +245,41 @@ const findCandidates = async (
   return { candidates, skipped };
 };
 
-const printCandidates = (candidates: SalesEmailCandidate[], minScore: number): void => {
-  console.log(`Eligible email leads: ${candidates.length}`);
-  console.log(`Minimum sales score: ${minScore}`);
+const openUrl = async (url: string): Promise<void> => {
+  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
 
-  candidates.forEach((candidate, index) => {
-    console.log("");
-    console.log(`#${index + 1} ${candidate.leadId} ${candidate.companyName}`);
-    console.log(`Row: ${candidate.rowNumber}`);
-    console.log(`To: ${candidate.emailAddress}`);
-    console.log(`Score: ${candidate.salesScore}`);
-    console.log(`Subject: ${candidate.subject}`);
-    console.log("Message preview:");
-    console.log(candidate.body);
+  await new Promise<void>((resolve, reject) => {
+    execFile(command, args, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
   });
+};
+
+const printCandidate = (candidate: FormCandidate, index: number): void => {
+  console.log("");
+  console.log(`#${index + 1} ${candidate.leadId} ${candidate.companyName}`);
+  console.log(`Row: ${candidate.rowNumber}`);
+  console.log(`Score: ${candidate.salesScore}`);
+  console.log(`Form URL: ${candidate.formUrl}`);
+  console.log("");
+  console.log("Form fields:");
+  console.log(`会社名: ${CONTACT_SENDER.companyName}`);
+  console.log(`氏名: ${CONTACT_SENDER.name}`);
+  console.log(`メールアドレス: ${CONTACT_SENDER.email}`);
+  console.log(`電話番号: ${CONTACT_SENDER.tel}`);
+  console.log(`URL: ${CONTACT_SENDER.url}`);
+  console.log(`件名: ${candidate.subject}`);
+  console.log("");
+  console.log("本文:");
+  console.log(candidate.body);
+  console.log("");
+  console.log(`送信後: npm run forms:mark-sent -- --lead-id ${candidate.leadId}`);
 };
 
 const printSkippedSummary = (skipped: Map<SkipReason, number>): void => {
@@ -288,32 +292,6 @@ const printSkippedSummary = (skipped: Map<SkipReason, number>): void => {
   skipped.forEach((count, reason) => {
     console.log(`- ${reason}: ${count}`);
   });
-};
-
-const appendApproachHistory = async (
-  sheets: SheetsClient,
-  candidate: SalesEmailCandidate,
-  messageId: string,
-  sentAt: string
-): Promise<void> => {
-  await sheets.appendValues(`'${SHEETS.approachHistory}'!A:J`, [
-    [
-      candidate.leadId,
-      sentAt,
-      "メール",
-      candidate.emailAddress,
-      candidate.subject,
-      candidate.body,
-      "承認",
-      "送信済み",
-      "未返信",
-      `SMTP Message ID: ${messageId}`
-    ]
-  ]);
-};
-
-const markLeadAsSent = async (sheets: SheetsClient, rowNumber: number): Promise<void> => {
-  await sheets.updateValues(`'${SHEETS.salesManagement}'!N${rowNumber}:N${rowNumber}`, [["送信済み"]]);
 };
 
 const main = async (): Promise<void> => {
@@ -329,38 +307,17 @@ const main = async (): Promise<void> => {
   const minScore = await readMinScore(sheets, options.minScore);
   const { candidates, skipped } = await findCandidates(sheets, options.limit, minScore);
 
-  if (options.dryRun) {
-    console.log("Dry run: no emails will be sent and sheets will not be updated.");
-    printCandidates(candidates, minScore);
-    printSkippedSummary(skipped);
-    return;
-  }
+  console.log("Form submission todo: this command does not submit forms.");
+  console.log(`Eligible form leads: ${candidates.length}`);
+  console.log(`Minimum sales score: ${minScore}`);
 
-  if (candidates.length === 0) {
-    console.log("No eligible email leads found. Nothing was sent.");
-    printSkippedSummary(skipped);
-    return;
-  }
+  candidates.forEach(printCandidate);
+  printSkippedSummary(skipped);
 
-  const smtpConfig = requireSmtpConfig(config);
-  const mailer = createSmtpMailer(smtpConfig);
-
-  console.log(`Verifying SMTP connection for ${smtpConfig.user}...`);
-  await mailer.verify();
-
-  for (const candidate of candidates) {
-    console.log(`Sending ${candidate.leadId} ${candidate.companyName} to ${candidate.emailAddress}...`);
-    const result = await mailer.send({
-      to: candidate.emailAddress,
-      subject: candidate.subject,
-      text: candidate.body
-    });
-    const sentAt = formatTokyoDateTime(new Date());
-
-    await appendApproachHistory(sheets, candidate, result.messageId, sentAt);
-    await markLeadAsSent(sheets, candidate.rowNumber);
-
-    console.log(`Sent ${candidate.leadId}. Message ID: ${result.messageId}`);
+  if (options.open) {
+    for (const candidate of candidates) {
+      await openUrl(candidate.formUrl);
+    }
   }
 };
 

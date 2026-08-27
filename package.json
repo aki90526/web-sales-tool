@@ -9,6 +9,8 @@
     "test:sheets": "ts-node src/scripts/testSheetsConnection.ts",
     "collect": "ts-node src/scripts/collectLeads.ts",
     "collect:import": "ts-node src/scripts/importPreviewLeads.ts",
+    "forms:todo": "ts-node src/scripts/listFormSubmissions.ts",
+    "forms:mark-sent": "ts-node src/scripts/markFormSubmitted.ts",
     "send:emails": "ts-node src/scripts/sendSalesEmails.ts",
     "send:test-email": "ts-node src/scripts/sendTestEmail.ts"
   },
