@@ -1,5 +1,5 @@
 import { LeadType, SHEETS } from "../domain/lead";
-import { appendAnalysisLog } from "../google/analysisLogRepository";
+import { appendAnalysisData } from "../google/analysisDataRepository";
 import { appendSalesLead } from "../google/salesLeadRepository";
 import { SheetsClient } from "../google/sheetsClient";
 import { LeadCandidate, toSalesLeadInput } from "../openai/leadCandidateCollector";
@@ -15,7 +15,7 @@ export type ImportedLeadResult = {
   leadId: string;
   companyName: string;
   range?: string;
-  analysisLogRange?: string;
+  analysisDataRange?: string;
   rowNumber: number;
 };
 
@@ -23,15 +23,6 @@ export type LeadImportContext = {
   searchCondition?: string;
   searchTrace?: WebSearchTrace;
   acquiredAt?: string;
-};
-
-export const today = (): string => {
-  return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
 };
 
 export const readExistingLeadState = async (sheets: SheetsClient): Promise<ExistingLeadState> => {
@@ -98,7 +89,6 @@ export const nextLeadId = (numericId: number): string => {
 export const importLeadCandidates = async (
   sheets: SheetsClient,
   candidates: LeadCandidate[],
-  updatedAt = today(),
   context: LeadImportContext = {}
 ): Promise<ImportedLeadResult[]> => {
   const existing = await readExistingLeadState(sheets);
@@ -108,27 +98,48 @@ export const importLeadCandidates = async (
 
   for (const candidate of uniqueCandidates) {
     const leadId = nextLeadId(nextNumericId);
-    const lead = toSalesLeadInput(candidate, leadId, updatedAt);
+    const lead = toSalesLeadInput(candidate, leadId);
     const result = await appendSalesLead(sheets, lead);
-    const analysisLogResult = await appendAnalysisLog(sheets, {
+    const analysisDataResult = await appendAnalysisData(sheets, {
       leadId,
-      companyName: lead.companyName,
-      officialSiteUrl: lead.officialSiteUrl,
+      targetUrl: lead.officialSiteUrl,
       acquiredAt: context.acquiredAt ?? new Date().toISOString(),
-      targetPageUrl: lead.officialSiteUrl,
-      pageType: "検索結果",
-      mainImprovementPoint: lead.improvementPoints,
-      analysisMemo: "OpenAI web_search による候補取得ログ。詳細なサイトクロールは未実施。",
+      pageType: candidate.pageType,
+      analyzedAt: context.acquiredAt ?? new Date().toISOString(),
+      mobileResponsive: candidate.mobileResponsive,
+      seoBasics: candidate.seoBasics,
+      cta: candidate.cta,
+      contactFlow: candidate.contactFlow,
+      updateStatus: candidate.updateStatus,
+      ssl: candidate.ssl,
+      cms: candidate.cms,
+      improvementPoints: candidate.improvementPoints,
+      estimatedRenewalPeriod: candidate.estimatedRenewalPeriod,
+      renewalConfidence: candidate.renewalConfidence,
+      renewalEvidence: candidate.renewalEvidence,
+      aiAnalysis: candidate.aiAnalysis,
+      aiAdjustment: candidate.aiAdjustment,
+      aiAdjustmentReason: candidate.aiAdjustmentReason,
+      baseScore: candidate.baseScore,
+      salesScore: candidate.salesScore,
+      scoreBreakdown: candidate.scoreBreakdown,
+      exclusionReason: candidate.exclusionReason,
       searchCondition: context.searchCondition ?? "",
       searchQueries: context.searchTrace?.queries ?? [],
-      sourceUrls: context.searchTrace?.sourceUrls ?? []
+      sourceUrls: context.searchTrace?.sourceUrls ?? [],
+      capital: candidate.capital,
+      employeeCount: candidate.employeeCount,
+      annualRevenue: candidate.annualRevenue,
+      listingStatus: candidate.listingStatus,
+      companySizeCategory: candidate.companySizeCategory,
+      companySizeMemo: candidate.companySizeMemo
     });
 
     results.push({
       leadId,
       companyName: lead.companyName,
       range: result.range,
-      analysisLogRange: analysisLogResult.range,
+      analysisDataRange: analysisDataResult.range,
       rowNumber: result.rowNumber
     });
 

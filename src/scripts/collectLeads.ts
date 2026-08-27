@@ -162,14 +162,14 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const results = await importLeadCandidates(sheets, uniqueCandidates, undefined, {
+  const results = await importLeadCandidates(sheets, uniqueCandidates, {
     searchCondition: buildSearchCondition(options),
     searchTrace: collection.searchTrace
   });
 
   for (const result of results) {
     console.log(`Added ${result.leadId}: ${result.companyName} -> ${result.range ?? "(unknown)"}`);
-    console.log(`Logged search trace -> ${result.analysisLogRange ?? "(unknown)"}`);
+    console.log(`Logged analysis data -> ${result.analysisDataRange ?? "(unknown)"}`);
   }
 };
 
