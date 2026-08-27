@@ -285,12 +285,12 @@ const normalizeRecommendedApproach = (
 };
 
 const pickContactMethod = (contactUrl: string, email: string): ContactMethod => {
-  if (contactUrl) {
-    return "問い合わせフォーム";
-  }
-
   if (email) {
     return "メール";
+  }
+
+  if (contactUrl) {
+    return "問い合わせフォーム";
   }
 
   return "未定";
@@ -461,7 +461,7 @@ export const collectLeadCandidates = async (
 
 export const toSalesLeadInput = (candidate: LeadCandidate, leadId: string): SalesLeadInput => {
   const contactMethod = pickContactMethod(candidate.contactUrl, candidate.email);
-  const contact = candidate.contactUrl || candidate.email;
+  const contact = candidate.email || candidate.contactUrl;
   const memoParts = [
     candidate.memo,
     candidate.exclusionReason ? `除外理由: ${candidate.exclusionReason}` : "",

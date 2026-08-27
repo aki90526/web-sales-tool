@@ -421,7 +421,7 @@ export const calculateSalesScore = (input: ScoreInput): ScoreResult => {
 
   const salesScore = clamp(Math.round(baseScore + aiAdjustment), 0, 100);
   const status: Status =
-    input.recommendedApproach === "見送り" || salesScore < 50 ? "見送り" : "未確認";
+    input.recommendedApproach === "見送り" || salesScore < 50 ? "見送り" : "送信待ち";
 
   return {
     baseScore,
