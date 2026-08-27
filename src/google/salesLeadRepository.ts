@@ -30,7 +30,7 @@ export const appendSalesLead = async (
 ): Promise<AppendLeadResult> => {
   const rowNumber = await getNextRowNumber(sheets, SHEETS.salesManagement);
   const row = buildSalesLeadRow(lead, rowNumber);
-  const range = `'${SHEETS.salesManagement}'!A${rowNumber}:P${rowNumber}`;
+  const range = `'${SHEETS.salesManagement}'!A${rowNumber}:Q${rowNumber}`;
 
   const response = await sheets.updateValues(range, [row]);
 

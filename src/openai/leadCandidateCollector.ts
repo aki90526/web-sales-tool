@@ -461,7 +461,6 @@ export const collectLeadCandidates = async (
 
 export const toSalesLeadInput = (candidate: LeadCandidate, leadId: string): SalesLeadInput => {
   const contactMethod = pickContactMethod(candidate.contactUrl, candidate.email);
-  const contact = candidate.email || candidate.contactUrl;
   const memoParts = [
     candidate.memo,
     candidate.exclusionReason ? `除外理由: ${candidate.exclusionReason}` : "",
@@ -476,7 +475,8 @@ export const toSalesLeadInput = (candidate: LeadCandidate, leadId: string): Sale
     region: candidate.region,
     officialSiteUrl: candidate.officialSiteUrl,
     contactMethod,
-    contact,
+    contactFormUrl: candidate.contactUrl,
+    emailAddress: candidate.email,
     salesScore: candidate.salesScore,
     salesAngle: candidate.salesAngle,
     recommendedApproach: candidate.recommendedApproach,

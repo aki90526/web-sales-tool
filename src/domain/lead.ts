@@ -65,7 +65,8 @@ export type SalesLeadInput = {
   region: string;
   officialSiteUrl: string;
   contactMethod: ContactMethod;
-  contact: string;
+  contactFormUrl: string;
+  emailAddress: string;
   salesScore: number;
   salesAngle: string;
   recommendedApproach: RecommendedApproach;
@@ -87,14 +88,15 @@ export const buildSalesLeadRow = (lead: SalesLeadInput, rowNumber: number): unkn
     lead.region,
     lead.officialSiteUrl,
     lead.contactMethod,
-    lead.contact,
+    lead.contactFormUrl,
+    lead.emailAddress,
     lead.salesScore,
     lead.salesAngle,
     lead.recommendedApproach,
     lead.salesMessageDraft,
     lead.status,
     `=IF(A${rowNumber}="","",IFERROR(MAX(FILTER(${approachSentAtColumn},${approachLeadColumn}=A${rowNumber},${approachSendStatusColumn}="送信済み")),""))`,
-    `=IF(OR(A${rowNumber}="",N${rowNumber}=""),"",N${rowNumber}+${SETTINGS_CELLS.resendIntervalDays})`,
+    `=IF(OR(A${rowNumber}="",O${rowNumber}=""),"",O${rowNumber}+${SETTINGS_CELLS.resendIntervalDays})`,
     lead.memo
   ];
 };

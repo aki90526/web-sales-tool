@@ -16,7 +16,7 @@ type SalesEmailCandidate = {
   companyName: string;
   leadType: string;
   contactMethod: string;
-  contact: string;
+  emailAddress: string;
   salesScore: number;
   recommendedApproach: string;
   salesMessageDraft: string;
@@ -27,7 +27,7 @@ type SalesEmailCandidate = {
 type SkipReason =
   | "ステータスが送信待ちではない"
   | "連絡方法がメールではない"
-  | "連絡先がメール形式ではない"
+  | "メールアドレスが空またはメール形式ではない"
   | "営業メッセージ案が空"
   | "営業スコアが基準未満";
 
@@ -40,11 +40,11 @@ const COL = {
   companyName: 1,
   leadType: 2,
   contactMethod: 6,
-  contact: 7,
-  salesScore: 8,
-  recommendedApproach: 10,
-  salesMessageDraft: 11,
-  status: 12
+  emailAddress: 8,
+  salesScore: 9,
+  recommendedApproach: 11,
+  salesMessageDraft: 12,
+  status: 13
 } as const;
 
 const SIGNATURE = [
@@ -205,7 +205,7 @@ const toCandidate = (
 
   const status = cell(row, COL.status);
   const contactMethod = cell(row, COL.contactMethod);
-  const contact = cell(row, COL.contact);
+  const emailAddress = cell(row, COL.emailAddress);
   const salesMessageDraft = cell(row, COL.salesMessageDraft);
   const salesScore = parseScore(cell(row, COL.salesScore));
 
@@ -217,8 +217,8 @@ const toCandidate = (
     return { reason: "連絡方法がメールではない" };
   }
 
-  if (!isValidEmail(contact)) {
-    return { reason: "連絡先がメール形式ではない" };
+  if (!isValidEmail(emailAddress)) {
+    return { reason: "メールアドレスが空またはメール形式ではない" };
   }
 
   if (!salesMessageDraft) {
@@ -240,7 +240,7 @@ const toCandidate = (
       companyName: cell(row, COL.companyName),
       leadType,
       contactMethod,
-      contact,
+      emailAddress,
       salesScore,
       recommendedApproach,
       salesMessageDraft,
@@ -255,7 +255,7 @@ const findCandidates = async (
   limit: number,
   minScore: number
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
-  const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:P1000`);
+  const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:Q1000`);
   const skipped = new Map<SkipReason, number>();
   const candidates: SalesEmailCandidate[] = [];
 
@@ -287,7 +287,7 @@ const printCandidates = (candidates: SalesEmailCandidate[], minScore: number): v
     console.log("");
     console.log(`#${index + 1} ${candidate.leadId} ${candidate.companyName}`);
     console.log(`Row: ${candidate.rowNumber}`);
-    console.log(`To: ${candidate.contact}`);
+    console.log(`To: ${candidate.emailAddress}`);
     console.log(`Score: ${candidate.salesScore}`);
     console.log(`Subject: ${candidate.subject}`);
     console.log("Message preview:");
@@ -318,7 +318,7 @@ const appendApproachHistory = async (
       candidate.leadId,
       sentAt,
       "メール",
-      candidate.contact,
+      candidate.emailAddress,
       candidate.subject,
       candidate.body,
       "承認",
@@ -330,7 +330,7 @@ const appendApproachHistory = async (
 };
 
 const markLeadAsSent = async (sheets: SheetsClient, rowNumber: number): Promise<void> => {
-  await sheets.updateValues(`'${SHEETS.salesManagement}'!M${rowNumber}:M${rowNumber}`, [["送信済み"]]);
+  await sheets.updateValues(`'${SHEETS.salesManagement}'!N${rowNumber}:N${rowNumber}`, [["送信済み"]]);
 };
 
 const main = async (): Promise<void> => {
@@ -366,9 +366,9 @@ const main = async (): Promise<void> => {
   await mailer.verify();
 
   for (const candidate of candidates) {
-    console.log(`Sending ${candidate.leadId} ${candidate.companyName} to ${candidate.contact}...`);
+    console.log(`Sending ${candidate.leadId} ${candidate.companyName} to ${candidate.emailAddress}...`);
     const result = await mailer.send({
-      to: candidate.contact,
+      to: candidate.emailAddress,
       subject: candidate.subject,
       text: candidate.body
     });
