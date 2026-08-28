@@ -2,6 +2,7 @@ import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
 import { createSmtpMailer } from "../email/smtpMailer";
+import { readAnalysisRecommendedApproaches } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
   SalesManagementLead,
@@ -28,7 +29,6 @@ type SalesEmailCandidate = {
   emailAddress: string;
   salesScore: number;
   salesAngle: string;
-  recommendedApproach: string;
   salesMessageDraft: string;
   subject: string;
   body: string;
@@ -170,7 +170,8 @@ const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise
 const toCandidate = (
   lead: SalesManagementLead,
   minScore: number,
-  contentConfig: SalesContentConfig
+  contentConfig: SalesContentConfig,
+  recommendedApproach: string
 ): { candidate?: SalesEmailCandidate; reason?: SkipReason } => {
   if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
@@ -204,7 +205,7 @@ const toCandidate = (
       region: lead.region,
       officialSiteUrl: lead.officialSiteUrl,
       salesAngle: lead.salesAngle,
-      recommendedApproach: lead.recommendedApproach,
+      recommendedApproach,
       salesMessageDraft: lead.salesMessageDraft
     },
     contentConfig
@@ -223,7 +224,6 @@ const toCandidate = (
       emailAddress: lead.emailAddress,
       salesScore: lead.salesScore,
       salesAngle: lead.salesAngle,
-      recommendedApproach: lead.recommendedApproach,
       salesMessageDraft: lead.salesMessageDraft,
       subject: message.subject,
       body: message.body,
@@ -239,6 +239,7 @@ const findCandidates = async (
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
+  const recommendedApproaches = await readAnalysisRecommendedApproaches(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: SalesEmailCandidate[] = [];
 
@@ -247,7 +248,12 @@ const findCandidates = async (
       return;
     }
 
-    const result = toCandidate(lead, minScore, contentConfig);
+    const result = toCandidate(
+      lead,
+      minScore,
+      contentConfig,
+      recommendedApproaches.get(lead.leadId) ?? ""
+    );
 
     if (result.candidate) {
       candidates.push(result.candidate);

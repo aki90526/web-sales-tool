@@ -70,7 +70,6 @@ export type SalesLeadInput = {
   emailAddress: string;
   salesScore: number;
   salesAngle: string;
-  recommendedApproach: RecommendedApproach;
   salesMessageDraft: string;
   status: Status;
   memo: string;

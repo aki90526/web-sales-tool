@@ -14,6 +14,7 @@ export type AnalysisDataInput = {
   ssl: string;
   cms: string;
   improvementPoints: string;
+  recommendedApproach: string;
   estimatedRenewalPeriod: string;
   renewalConfidence: string;
   renewalEvidence: string;
@@ -62,12 +63,37 @@ const joinLimited = (values: string[], maxLength: number): string => {
   return joined.length > maxLength ? `${joined.slice(0, maxLength - 3)}...` : joined;
 };
 
+export const readAnalysisRecommendedApproaches = async (
+  sheets: SheetsClient
+): Promise<Map<string, string>> => {
+  const rows = await sheets.getValues(`'${SHEETS.analysisData}'!A1:AG1000`);
+  const headers = (rows[0] ?? []).map((value) => String(value ?? "").trim());
+  const leadIdColumn = headers.findIndex((header) => header === "リードID");
+  const recommendedApproachColumn = headers.findIndex((header) => header === "推奨アプローチ");
+  const approaches = new Map<string, string>();
+
+  if (leadIdColumn === -1 || recommendedApproachColumn === -1) {
+    return approaches;
+  }
+
+  rows.slice(1).forEach((row) => {
+    const leadId = String(row[leadIdColumn] ?? "").trim();
+    const recommendedApproach = String(row[recommendedApproachColumn] ?? "").trim();
+
+    if (leadId && recommendedApproach) {
+      approaches.set(leadId, recommendedApproach);
+    }
+  });
+
+  return approaches;
+};
+
 export const appendAnalysisData = async (
   sheets: SheetsClient,
   data: AnalysisDataInput
 ): Promise<{ range?: string; rowNumber: number }> => {
   const rowNumber = await getNextRowNumber(sheets, SHEETS.analysisData);
-  const range = `'${SHEETS.analysisData}'!A${rowNumber}:AF${rowNumber}`;
+  const range = `'${SHEETS.analysisData}'!A${rowNumber}:AG${rowNumber}`;
   const response = await sheets.updateValues(range, [
     [
       data.leadId,
@@ -101,7 +127,8 @@ export const appendAnalysisData = async (
       data.annualRevenue,
       data.listingStatus,
       data.companySizeCategory,
-      data.companySizeMemo
+      data.companySizeMemo,
+      data.recommendedApproach
     ]
   ]);
 

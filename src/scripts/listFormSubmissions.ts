@@ -7,6 +7,7 @@ import {
   SenderInfo
 } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
+import { readAnalysisRecommendedApproaches } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
   SalesManagementLead
@@ -31,7 +32,6 @@ type FormCandidate = {
   formUrl: string;
   salesScore: number;
   salesAngle: string;
-  recommendedApproach: string;
   subject: string;
   body: string;
   templateId: string;
@@ -160,7 +160,8 @@ const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise
 const toCandidate = (
   lead: SalesManagementLead,
   minScore: number,
-  contentConfig: SalesContentConfig
+  contentConfig: SalesContentConfig,
+  recommendedApproach: string
 ): { candidate?: FormCandidate; reason?: SkipReason } => {
   if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
@@ -194,7 +195,7 @@ const toCandidate = (
       region: lead.region,
       officialSiteUrl: lead.officialSiteUrl,
       salesAngle: lead.salesAngle,
-      recommendedApproach: lead.recommendedApproach,
+      recommendedApproach,
       salesMessageDraft: lead.salesMessageDraft
     },
     contentConfig
@@ -212,7 +213,6 @@ const toCandidate = (
       formUrl: lead.contactFormUrl,
       salesScore: lead.salesScore,
       salesAngle: lead.salesAngle,
-      recommendedApproach: lead.recommendedApproach,
       subject: message.subject,
       body: message.body,
       templateId: message.templateId
@@ -227,6 +227,7 @@ const findCandidates = async (
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: FormCandidate[]; skipped: Map<SkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
+  const recommendedApproaches = await readAnalysisRecommendedApproaches(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: FormCandidate[] = [];
 
@@ -235,7 +236,12 @@ const findCandidates = async (
       return;
     }
 
-    const result = toCandidate(lead, minScore, contentConfig);
+    const result = toCandidate(
+      lead,
+      minScore,
+      contentConfig,
+      recommendedApproaches.get(lead.leadId) ?? ""
+    );
 
     if (result.candidate) {
       candidates.push(result.candidate);
@@ -300,18 +306,6 @@ const printSkippedSummary = (skipped: Map<SkipReason, number>): void => {
   });
 };
 
-const printFieldAliases = (contentConfig: SalesContentConfig): void => {
-  console.log("");
-  console.log("Auto-fill field aliases:");
-  console.log(`会社名: ${contentConfig.formFieldAliases.companyName.join(" / ")}`);
-  console.log(`氏名: ${contentConfig.formFieldAliases.name.join(" / ")}`);
-  console.log(`メール: ${contentConfig.formFieldAliases.email.join(" / ")}`);
-  console.log(`電話: ${contentConfig.formFieldAliases.tel.join(" / ")}`);
-  console.log(`URL: ${contentConfig.formFieldAliases.url.join(" / ")}`);
-  console.log(`件名: ${contentConfig.formFieldAliases.subject.join(" / ")}`);
-  console.log(`本文: ${contentConfig.formFieldAliases.body.join(" / ")}`);
-};
-
 const main = async (): Promise<void> => {
   const options = parseArgs(process.argv.slice(2));
 
@@ -332,7 +326,6 @@ const main = async (): Promise<void> => {
 
   candidates.forEach((candidate, index) => printCandidate(candidate, index, contentConfig.sender));
   printSkippedSummary(skipped);
-  printFieldAliases(contentConfig);
 
   if (options.open) {
     for (const candidate of candidates) {

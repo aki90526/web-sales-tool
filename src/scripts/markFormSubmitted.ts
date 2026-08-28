@@ -1,6 +1,7 @@
 import { loadConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig } from "../contact/salesMessage";
 import { SHEETS, Status } from "../domain/lead";
+import { readAnalysisRecommendedApproaches } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
   SalesManagementLead,
@@ -189,6 +190,7 @@ const main = async (): Promise<void> => {
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
   const table = await readSalesManagementTable(sheets);
+  const recommendedApproaches = await readAnalysisRecommendedApproaches(sheets);
   const lead = table.leads.find((candidate) => candidate.leadId === options.leadId) ?? null;
 
   if (!lead) {
@@ -205,7 +207,7 @@ const main = async (): Promise<void> => {
       region: lead.region,
       officialSiteUrl: lead.officialSiteUrl,
       salesAngle: lead.salesAngle,
-      recommendedApproach: lead.recommendedApproach,
+      recommendedApproach: recommendedApproaches.get(lead.leadId) ?? "",
       salesMessageDraft: lead.salesMessageDraft
     },
     contentConfig

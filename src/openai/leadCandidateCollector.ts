@@ -479,7 +479,6 @@ export const toSalesLeadInput = (candidate: LeadCandidate, leadId: string): Sale
     emailAddress: candidate.email,
     salesScore: candidate.salesScore,
     salesAngle: candidate.salesAngle,
-    recommendedApproach: candidate.recommendedApproach,
     salesMessageDraft: candidate.salesMessageDraft,
     status: candidate.status,
     memo: memoParts.join("\n")

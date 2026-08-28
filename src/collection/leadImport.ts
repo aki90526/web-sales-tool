@@ -113,6 +113,7 @@ export const importLeadCandidates = async (
       ssl: candidate.ssl,
       cms: candidate.cms,
       improvementPoints: candidate.improvementPoints,
+      recommendedApproach: candidate.recommendedApproach,
       estimatedRenewalPeriod: candidate.estimatedRenewalPeriod,
       renewalConfidence: candidate.renewalConfidence,
       renewalEvidence: candidate.renewalEvidence,
