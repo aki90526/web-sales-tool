@@ -7,6 +7,10 @@ import {
   SenderInfo
 } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
+import {
+  readSalesManagementTable,
+  SalesManagementLead
+} from "../google/salesManagementRepository";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
@@ -44,23 +48,6 @@ type SkipReason =
 const DEFAULT_LIMIT = 3;
 const MAX_LIMIT = 10;
 const DEFAULT_MIN_SCORE = 50;
-
-const COL = {
-  leadId: 0,
-  companyName: 1,
-  leadType: 2,
-  industry: 3,
-  region: 4,
-  officialSiteUrl: 5,
-  contactMethod: 6,
-  formUrl: 7,
-  salesScore: 9,
-  salesAngle: 10,
-  recommendedApproach: 11,
-  salesMessageDraft: 12,
-  status: 13,
-  nextActionDate: 15
-} as const;
 
 const printHelp = (): void => {
   console.log(`Usage:
@@ -171,77 +158,61 @@ const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise
 };
 
 const toCandidate = (
-  row: unknown[],
-  rowNumber: number,
+  lead: SalesManagementLead,
   minScore: number,
   contentConfig: SalesContentConfig
 ): { candidate?: FormCandidate; reason?: SkipReason } => {
-  const leadId = cell(row, COL.leadId);
-
-  if (!leadId) {
-    return {};
-  }
-
-  const status = cell(row, COL.status);
-  const contactMethod = cell(row, COL.contactMethod);
-  const formUrl = cell(row, COL.formUrl);
-  const salesMessageDraft = cell(row, COL.salesMessageDraft);
-  const salesScore = parseScore(cell(row, COL.salesScore));
-  const nextActionDate = cell(row, COL.nextActionDate);
-
-  if (status !== "送信待ち") {
+  if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
   }
 
-  if (isFutureDate(nextActionDate)) {
+  if (isFutureDate(lead.nextActionDate)) {
     return { reason: "次回対応日が未来" };
   }
 
-  if (contactMethod !== "問い合わせフォーム") {
+  if (lead.contactMethod !== "問い合わせフォーム") {
     return { reason: "連絡方法が問い合わせフォームではない" };
   }
 
-  if (!isValidUrl(formUrl)) {
+  if (!isValidUrl(lead.contactFormUrl)) {
     return { reason: "フォームURLが空またはURL形式ではない" };
   }
 
-  if (!salesMessageDraft) {
+  if (!lead.salesMessageDraft) {
     return { reason: "営業メッセージ案が空" };
   }
 
-  if (salesScore < minScore) {
+  if (lead.salesScore < minScore) {
     return { reason: "営業スコアが基準未満" };
   }
 
-  const leadType = cell(row, COL.leadType);
-  const recommendedApproach = cell(row, COL.recommendedApproach);
   const message = buildSalesMessage(
     {
-      companyName: cell(row, COL.companyName),
-      leadType,
-      industry: cell(row, COL.industry),
-      region: cell(row, COL.region),
-      officialSiteUrl: cell(row, COL.officialSiteUrl),
-      salesAngle: cell(row, COL.salesAngle),
-      recommendedApproach,
-      salesMessageDraft
+      companyName: lead.companyName,
+      leadType: lead.leadType,
+      industry: lead.industry,
+      region: lead.region,
+      officialSiteUrl: lead.officialSiteUrl,
+      salesAngle: lead.salesAngle,
+      recommendedApproach: lead.recommendedApproach,
+      salesMessageDraft: lead.salesMessageDraft
     },
     contentConfig
   );
 
   return {
     candidate: {
-      rowNumber,
-      leadId,
-      companyName: cell(row, COL.companyName),
-      leadType,
-      industry: cell(row, COL.industry),
-      region: cell(row, COL.region),
-      officialSiteUrl: cell(row, COL.officialSiteUrl),
-      formUrl,
-      salesScore,
-      salesAngle: cell(row, COL.salesAngle),
-      recommendedApproach,
+      rowNumber: lead.rowNumber,
+      leadId: lead.leadId,
+      companyName: lead.companyName,
+      leadType: lead.leadType,
+      industry: lead.industry,
+      region: lead.region,
+      officialSiteUrl: lead.officialSiteUrl,
+      formUrl: lead.contactFormUrl,
+      salesScore: lead.salesScore,
+      salesAngle: lead.salesAngle,
+      recommendedApproach: lead.recommendedApproach,
       subject: message.subject,
       body: message.body,
       templateId: message.templateId
@@ -255,16 +226,16 @@ const findCandidates = async (
   minScore: number,
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: FormCandidate[]; skipped: Map<SkipReason, number> }> => {
-  const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:Q1000`);
+  const table = await readSalesManagementTable(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: FormCandidate[] = [];
 
-  rows.forEach((row, index) => {
+  table.leads.forEach((lead) => {
     if (candidates.length >= limit) {
       return;
     }
 
-    const result = toCandidate(row, index + 2, minScore, contentConfig);
+    const result = toCandidate(lead, minScore, contentConfig);
 
     if (result.candidate) {
       candidates.push(result.candidate);

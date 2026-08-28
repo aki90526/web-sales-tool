@@ -2,6 +2,11 @@ import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
 import { createSmtpMailer } from "../email/smtpMailer";
+import {
+  readSalesManagementTable,
+  SalesManagementLead,
+  statusRangeForRow
+} from "../google/salesManagementRepository";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
@@ -41,23 +46,6 @@ type SkipReason =
 const DEFAULT_LIMIT = 1;
 const MAX_LIMIT = 10;
 const DEFAULT_MIN_SCORE = 50;
-
-const COL = {
-  leadId: 0,
-  companyName: 1,
-  leadType: 2,
-  industry: 3,
-  region: 4,
-  officialSiteUrl: 5,
-  contactMethod: 6,
-  emailAddress: 8,
-  salesScore: 9,
-  salesAngle: 10,
-  recommendedApproach: 11,
-  salesMessageDraft: 12,
-  status: 13,
-  nextActionDate: 15
-} as const;
 
 const printHelp = (): void => {
   console.log(`Usage:
@@ -180,79 +168,63 @@ const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise
 };
 
 const toCandidate = (
-  row: unknown[],
-  rowNumber: number,
+  lead: SalesManagementLead,
   minScore: number,
   contentConfig: SalesContentConfig
 ): { candidate?: SalesEmailCandidate; reason?: SkipReason } => {
-  const leadId = cell(row, COL.leadId);
-
-  if (!leadId) {
-    return {};
-  }
-
-  const status = cell(row, COL.status);
-  const contactMethod = cell(row, COL.contactMethod);
-  const emailAddress = cell(row, COL.emailAddress);
-  const salesMessageDraft = cell(row, COL.salesMessageDraft);
-  const salesScore = parseScore(cell(row, COL.salesScore));
-  const nextActionDate = cell(row, COL.nextActionDate);
-
-  if (status !== "送信待ち") {
+  if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
   }
 
-  if (isFutureDate(nextActionDate)) {
+  if (isFutureDate(lead.nextActionDate)) {
     return { reason: "次回対応日が未来" };
   }
 
-  if (contactMethod !== "メール") {
+  if (lead.contactMethod !== "メール") {
     return { reason: "連絡方法がメールではない" };
   }
 
-  if (!isValidEmail(emailAddress)) {
+  if (!isValidEmail(lead.emailAddress)) {
     return { reason: "メールアドレスが空またはメール形式ではない" };
   }
 
-  if (!salesMessageDraft) {
+  if (!lead.salesMessageDraft) {
     return { reason: "営業メッセージ案が空" };
   }
 
-  if (salesScore < minScore) {
+  if (lead.salesScore < minScore) {
     return { reason: "営業スコアが基準未満" };
   }
 
-  const leadType = cell(row, COL.leadType);
-  const recommendedApproach = cell(row, COL.recommendedApproach);
   const message = buildSalesMessage(
     {
-      companyName: cell(row, COL.companyName),
-      leadType,
-      industry: cell(row, COL.industry),
-      region: cell(row, COL.region),
-      officialSiteUrl: cell(row, COL.officialSiteUrl),
-      salesAngle: cell(row, COL.salesAngle),
-      recommendedApproach,
-      salesMessageDraft
+      companyName: lead.companyName,
+      leadType: lead.leadType,
+      industry: lead.industry,
+      region: lead.region,
+      officialSiteUrl: lead.officialSiteUrl,
+      salesAngle: lead.salesAngle,
+      recommendedApproach: lead.recommendedApproach,
+      salesMessageDraft: lead.salesMessageDraft
     },
     contentConfig
   );
 
   return {
     candidate: {
-      rowNumber,
-      leadId,
-      companyName: cell(row, COL.companyName),
-      leadType,
-      industry: cell(row, COL.industry),
-      region: cell(row, COL.region),
-      officialSiteUrl: cell(row, COL.officialSiteUrl),
-      contactMethod,
-      emailAddress,
-      salesScore,
-      salesAngle: cell(row, COL.salesAngle),
-      recommendedApproach,
-      salesMessageDraft,
+      rowNumber: lead.rowNumber,
+      leadId: lead.leadId,
+      companyName: lead.companyName,
+      leadType: lead.leadType,
+      industry: lead.industry,
+      region: lead.region,
+      officialSiteUrl: lead.officialSiteUrl,
+      contactMethod: lead.contactMethod,
+      emailAddress: lead.emailAddress,
+      salesScore: lead.salesScore,
+      salesAngle: lead.salesAngle,
+      recommendedApproach: lead.recommendedApproach,
+      salesMessageDraft: lead.salesMessageDraft,
       subject: message.subject,
       body: message.body,
       templateId: message.templateId
@@ -266,16 +238,16 @@ const findCandidates = async (
   minScore: number,
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
-  const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:Q1000`);
+  const table = await readSalesManagementTable(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: SalesEmailCandidate[] = [];
 
-  rows.forEach((row, index) => {
+  table.leads.forEach((lead) => {
     if (candidates.length >= limit) {
       return;
     }
 
-    const result = toCandidate(row, index + 2, minScore, contentConfig);
+    const result = toCandidate(lead, minScore, contentConfig);
 
     if (result.candidate) {
       candidates.push(result.candidate);
@@ -342,7 +314,8 @@ const appendApproachHistory = async (
 };
 
 const markLeadAsSent = async (sheets: SheetsClient, rowNumber: number): Promise<void> => {
-  await sheets.updateValues(`'${SHEETS.salesManagement}'!N${rowNumber}:N${rowNumber}`, [["送信済み"]]);
+  const table = await readSalesManagementTable(sheets);
+  await sheets.updateValues(statusRangeForRow(table.columns, rowNumber), [["送信済み"]]);
 };
 
 const main = async (): Promise<void> => {

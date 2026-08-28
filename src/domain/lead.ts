@@ -75,29 +75,3 @@ export type SalesLeadInput = {
   status: Status;
   memo: string;
 };
-
-export const buildSalesLeadRow = (lead: SalesLeadInput, rowNumber: number): unknown[] => {
-  const approachLeadColumn = "'アプローチ履歴'!$A:$A";
-  const approachSentAtColumn = "'アプローチ履歴'!$B:$B";
-  const approachSendStatusColumn = "'アプローチ履歴'!$H:$H";
-
-  return [
-    lead.leadId,
-    lead.companyName,
-    lead.leadType,
-    lead.industry,
-    lead.region,
-    lead.officialSiteUrl,
-    lead.contactMethod,
-    lead.contactFormUrl,
-    lead.emailAddress,
-    lead.salesScore,
-    lead.salesAngle,
-    lead.recommendedApproach,
-    lead.salesMessageDraft,
-    lead.status,
-    `=IF(A${rowNumber}="","",IFERROR(MAX(FILTER(${approachSentAtColumn},${approachLeadColumn}=A${rowNumber},${approachSendStatusColumn}="送信済み")),""))`,
-    `=IF(OR(A${rowNumber}="",O${rowNumber}=""),"",O${rowNumber}+${SETTINGS_CELLS.resendIntervalDays})`,
-    lead.memo
-  ];
-};

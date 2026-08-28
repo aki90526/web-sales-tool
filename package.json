@@ -9,6 +9,7 @@
     "test:sheets": "ts-node src/scripts/testSheetsConnection.ts",
     "collect": "ts-node src/scripts/collectLeads.ts",
     "collect:import": "ts-node src/scripts/importPreviewLeads.ts",
+    "forms:assist": "ts-node src/scripts/assistFormSubmission.ts",
     "forms:todo": "ts-node src/scripts/listFormSubmissions.ts",
     "forms:mark-sent": "ts-node src/scripts/markFormSubmitted.ts",
     "send:emails": "ts-node src/scripts/sendSalesEmails.ts",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@types/node": "14.18.63",
     "@types/nodemailer": "^6.4.17",
+    "playwright-core": "^1.33.0",
     "ts-node": "10.9.1",
     "typescript": "4.9.5"
   }

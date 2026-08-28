@@ -1,6 +1,7 @@
-import { LeadType, SHEETS } from "../domain/lead";
+import { LeadType } from "../domain/lead";
 import { appendAnalysisData } from "../google/analysisDataRepository";
 import { appendSalesLead } from "../google/salesLeadRepository";
+import { readSalesManagementTable } from "../google/salesManagementRepository";
 import { SheetsClient } from "../google/sheetsClient";
 import { LeadCandidate, toSalesLeadInput } from "../openai/leadCandidateCollector";
 import { WebSearchTrace } from "../openai/openAIClient";
@@ -26,27 +27,25 @@ export type LeadImportContext = {
 };
 
 export const readExistingLeadState = async (sheets: SheetsClient): Promise<ExistingLeadState> => {
-  const values = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:F1000`);
+  const table = await readSalesManagementTable(sheets);
   const companies: string[] = [];
   const siteUrls: string[] = [];
   let maxNumericLeadId = 0;
 
-  for (const row of values) {
-    const leadId = String(row[0] ?? "").trim();
+  for (const lead of table.leads) {
+    const leadId = lead.leadId;
     const numericMatch = /^L-(\d+)$/.exec(leadId);
-    const company = String(row[1] ?? "").trim();
-    const siteUrl = String(row[5] ?? "").trim();
 
     if (numericMatch) {
       maxNumericLeadId = Math.max(maxNumericLeadId, Number(numericMatch[1]));
     }
 
-    if (company) {
-      companies.push(company);
+    if (lead.companyName) {
+      companies.push(lead.companyName);
     }
 
-    if (siteUrl) {
-      siteUrls.push(siteUrl);
+    if (lead.officialSiteUrl) {
+      siteUrls.push(lead.officialSiteUrl);
     }
   }
 

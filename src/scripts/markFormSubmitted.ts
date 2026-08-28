@@ -1,6 +1,11 @@
 import { loadConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig } from "../contact/salesMessage";
 import { SHEETS, Status } from "../domain/lead";
+import {
+  readSalesManagementTable,
+  SalesManagementLead,
+  statusRangeForRow
+} from "../google/salesManagementRepository";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
@@ -10,39 +15,6 @@ type CliOptions = {
   leadId: string;
   note: string;
 };
-
-type FormLead = {
-  rowNumber: number;
-  leadId: string;
-  companyName: string;
-  leadType: string;
-  industry: string;
-  region: string;
-  officialSiteUrl: string;
-  contactMethod: string;
-  formUrl: string;
-  salesAngle: string;
-  recommendedApproach: string;
-  salesMessageDraft: string;
-  status: string;
-  nextActionDate: string;
-};
-
-const COL = {
-  leadId: 0,
-  companyName: 1,
-  leadType: 2,
-  industry: 3,
-  region: 4,
-  officialSiteUrl: 5,
-  contactMethod: 6,
-  formUrl: 7,
-  salesAngle: 10,
-  recommendedApproach: 11,
-  salesMessageDraft: 12,
-  status: 13,
-  nextActionDate: 15
-} as const;
 
 const printHelp = (): void => {
   console.log(`Usage:
@@ -104,11 +76,6 @@ const parseArgs = (argv: string[]): CliOptions => {
   return options;
 };
 
-const cell = (row: unknown[], index: number): string => {
-  const value = row[index];
-  return value === undefined || value === null ? "" : String(value).trim();
-};
-
 const isValidUrl = (value: string): boolean => {
   return /^https?:\/\//i.test(value);
 };
@@ -143,39 +110,8 @@ const isFutureDate = (dateText: string): boolean => {
   return dateText > formatTokyoDate(new Date());
 };
 
-const readLead = async (sheets: SheetsClient, leadId: string): Promise<FormLead | null> => {
-  const rows = await sheets.getValues(`'${SHEETS.salesManagement}'!A2:Q1000`);
-
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = rows[index];
-
-    if (cell(row, COL.leadId) !== leadId) {
-      continue;
-    }
-
-    return {
-      rowNumber: index + 2,
-      leadId,
-      companyName: cell(row, COL.companyName),
-      leadType: cell(row, COL.leadType),
-      industry: cell(row, COL.industry),
-      region: cell(row, COL.region),
-      officialSiteUrl: cell(row, COL.officialSiteUrl),
-      contactMethod: cell(row, COL.contactMethod),
-      formUrl: cell(row, COL.formUrl),
-      salesAngle: cell(row, COL.salesAngle),
-      recommendedApproach: cell(row, COL.recommendedApproach),
-      salesMessageDraft: cell(row, COL.salesMessageDraft),
-      status: cell(row, COL.status),
-      nextActionDate: cell(row, COL.nextActionDate)
-    };
-  }
-
-  return null;
-};
-
-const validateLead = (lead: FormLead, force: boolean): void => {
-  if (!isValidUrl(lead.formUrl)) {
+const validateLead = (lead: SalesManagementLead, force: boolean): void => {
+  if (!isValidUrl(lead.contactFormUrl)) {
     throw new Error(`${lead.leadId} has no valid form URL`);
   }
 
@@ -198,7 +134,7 @@ const validateLead = (lead: FormLead, force: boolean): void => {
 
 const appendApproachHistory = async (
   sheets: SheetsClient,
-  lead: FormLead,
+  lead: SalesManagementLead,
   subject: string,
   body: string,
   note: string,
@@ -209,7 +145,7 @@ const appendApproachHistory = async (
       lead.leadId,
       sentAt,
       "問い合わせフォーム",
-      lead.formUrl,
+      lead.contactFormUrl,
       subject,
       body,
       "承認",
@@ -220,16 +156,21 @@ const appendApproachHistory = async (
   ]);
 };
 
-const updateLeadStatus = async (sheets: SheetsClient, rowNumber: number, status: Status): Promise<void> => {
-  await sheets.updateValues(`'${SHEETS.salesManagement}'!N${rowNumber}:N${rowNumber}`, [[status]]);
+const updateLeadStatus = async (
+  sheets: SheetsClient,
+  lead: SalesManagementLead,
+  status: Status
+): Promise<void> => {
+  const table = await readSalesManagementTable(sheets);
+  await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [[status]]);
 };
 
-const printRecord = (lead: FormLead, subject: string, body: string, sentAt: string, note: string): void => {
+const printRecord = (lead: SalesManagementLead, subject: string, body: string, sentAt: string, note: string): void => {
   console.log(`${lead.leadId} ${lead.companyName}`);
   console.log(`Row: ${lead.rowNumber}`);
   console.log(`Sent at: ${sentAt}`);
   console.log(`Method: 問い合わせフォーム`);
-  console.log(`Form URL: ${lead.formUrl}`);
+  console.log(`Form URL: ${lead.contactFormUrl}`);
   console.log(`Subject: ${subject}`);
   console.log("Message:");
   console.log(body);
@@ -247,7 +188,8 @@ const main = async (): Promise<void> => {
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
-  const lead = await readLead(sheets, options.leadId);
+  const table = await readSalesManagementTable(sheets);
+  const lead = table.leads.find((candidate) => candidate.leadId === options.leadId) ?? null;
 
   if (!lead) {
     throw new Error(`Lead not found: ${options.leadId}`);
@@ -279,7 +221,7 @@ const main = async (): Promise<void> => {
   }
 
   await appendApproachHistory(sheets, lead, subject, body, options.note, sentAt);
-  await updateLeadStatus(sheets, lead.rowNumber, "送信済み");
+  await updateLeadStatus(sheets, lead, "送信済み");
 
   console.log(`Marked form submission as sent: ${lead.leadId}`);
 };
