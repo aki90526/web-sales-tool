@@ -181,6 +181,65 @@ const buildSignature = (sender: SenderInfo): string => {
   ].join("\n");
 };
 
+const WEB_PARTNER_FALLBACK_TEMPLATE: MessageTemplate = {
+  templateId: "fallback-web-partner-template",
+  templateName: "標準テンプレート: 制作会社・広告代理店向け",
+  targetLeadTypes: ["広告代理店", "Web制作会社"],
+  recommendedApproaches: [],
+  subjectTemplate: "{会社名}｜Web制作・コーディング外部パートナーのご提案（aaWebCreate 阿部）",
+  bodyTemplate: `{会社名}
+ご担当者様
+
+突然のご連絡失礼いたします。
+{送信者_住所}にて「{送信者_会社名}」としてWeb制作を行っております、{送信者_氏名}と申します。
+
+{本文向け一言}
+
+Web業界で12年、個人事業主としては9年の経験があり、現在はWordPress構築やShopifyテーマ開発、フロントエンド実装をメインに行っております。
+
+■ 貢献できるポイント
+・大手案件の品質：電通や博報堂などの厳しい品質基準の案件にも多数対応しており、高精度なコーディングに自信があります。
+・ワンストップ対応：企画からWordPress/Shopify構築まで一気通貫で自走可能です。
+・即レス徹底：原則「0〜3時間以内」の迅速なレスポンスをお約束します。
+・その他：Web制作講師としての最新知見 / インボイス制度登録済
+
+■ 制作実績・ポートフォリオ
+1. 公式プロフィール
+https://aawebcreate.com/profile/
+
+2. 非公開実績（パスワード：aaWebCreate）
+https://aawebcreate.com/private-works/
+
+3. WP構築デモ（不動産会員ポータル）
+https://realestate.test-stg.com/
+
+リソース不足や技術的な課題がございましたら、ぜひ一度オンライン等でお話しする機会をいただけますと幸いです。
+何卒よろしくお願い申し上げます。`,
+  status: "使用中"
+};
+
+const DIRECT_CLIENT_FALLBACK_TEMPLATE: MessageTemplate = {
+  templateId: "fallback-direct-client-template",
+  templateName: "標準テンプレート: 直クライアント向け",
+  targetLeadTypes: ["直クライアント"],
+  recommendedApproaches: [],
+  subjectTemplate: "{会社名}｜Webサイト改善のご提案（aaWebCreate 阿部）",
+  bodyTemplate: `{会社名} ご担当者様
+
+突然のご連絡失礼いたします。
+{送信者_住所}にて「{送信者_会社名}」としてWeb制作を行っております、{送信者_氏名}と申します。
+
+{本文向け一言}
+
+現在はWordPressを中心としたWebサイト制作、フロントエンド実装、Shopify構築、既存サイト改修などを行っております。
+実績・対応領域はこちらにまとめております。
+https://aawebcreate.com/profile/
+
+もし今後、Webサイトの改善や更新をご検討される機会がございましたら、選択肢の一つとしてお声がけいただけますと幸いです。
+何卒よろしくお願いいたします。`,
+  status: "使用中"
+};
+
 export const buildSalesSubject = (leadType: string, recommendedApproach: string): string => {
   if (leadType === "広告代理店" || leadType === "Web制作会社") {
     return "Web制作・コーディングの外部パートナーについて";
@@ -326,6 +385,18 @@ const pickTemplate = (
   );
 };
 
+const pickFallbackTemplate = (input: SalesMessageInput): MessageTemplate | undefined => {
+  if (input.leadType === "広告代理店" || input.leadType === "Web制作会社") {
+    return WEB_PARTNER_FALLBACK_TEMPLATE;
+  }
+
+  if (input.leadType === "直クライアント") {
+    return DIRECT_CLIENT_FALLBACK_TEMPLATE;
+  }
+
+  return undefined;
+};
+
 const renderTemplate = (
   template: string,
   input: SalesMessageInput,
@@ -383,14 +454,15 @@ export const buildSalesMessage = (
 ): SalesMessage => {
   const sender = config?.sender ?? CONTACT_SENDER;
   const template = config ? pickTemplate(config.templates, input) : undefined;
+  const fallbackTemplate = template ?? pickFallbackTemplate(input);
   const autoInsertPreview = buildClientSpecificObservation(input);
 
-  if (template) {
+  if (fallbackTemplate) {
     return {
-      subject: renderTemplate(template.subjectTemplate, input, sender),
-      body: buildSalesBody(renderTemplate(template.bodyTemplate, input, sender), sender),
+      subject: renderTemplate(fallbackTemplate.subjectTemplate, input, sender),
+      body: buildSalesBody(renderTemplate(fallbackTemplate.bodyTemplate, input, sender), sender),
       autoInsertPreview,
-      templateId: template.templateId
+      templateId: fallbackTemplate.templateId
     };
   }
 
