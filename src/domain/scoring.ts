@@ -391,7 +391,7 @@ const calculateDirectClientBaseScore = (
 };
 
 export const scoreThresholdForLeadType = (leadType: string): number => {
-  return leadType === "Web制作会社" ? 40 : 50;
+  return leadType === "Web制作会社" || leadType === "広告代理店" ? 40 : 50;
 };
 
 export const calculateSalesScore = (input: ScoreInput): ScoreResult => {

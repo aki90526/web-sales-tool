@@ -275,7 +275,9 @@ const findCandidates = async (
 
 const printCandidates = (candidates: SalesEmailCandidate[], minScore: number): void => {
   console.log(`Eligible email leads: ${candidates.length}`);
-  console.log(`Minimum sales score: ${minScore} (Web制作会社: ${scoreThresholdForCandidate("Web制作会社", minScore)})`);
+  console.log(
+    `Minimum sales score: ${minScore} (Web制作会社/広告代理店: ${scoreThresholdForCandidate("Web制作会社", minScore)})`
+  );
 
   candidates.forEach((candidate, index) => {
     console.log("");

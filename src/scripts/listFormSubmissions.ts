@@ -327,7 +327,9 @@ const main = async (): Promise<void> => {
 
   console.log("Form submission todo: this command does not submit forms.");
   console.log(`Eligible form leads: ${candidates.length}`);
-  console.log(`Minimum sales score: ${minScore} (Web制作会社: ${scoreThresholdForCandidate("Web制作会社", minScore)})`);
+  console.log(
+    `Minimum sales score: ${minScore} (Web制作会社/広告代理店: ${scoreThresholdForCandidate("Web制作会社", minScore)})`
+  );
 
   candidates.forEach((candidate, index) => printCandidate(candidate, index, contentConfig.sender));
   printSkippedSummary(skipped);
