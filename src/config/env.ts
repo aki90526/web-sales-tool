@@ -14,6 +14,7 @@ export type AppConfig = {
     user: string;
     pass: string;
     from: string;
+    bcc?: string;
   };
 };
 
@@ -38,7 +39,8 @@ export const loadConfig = (): AppConfig => {
       process.env.SMTP_PORT ||
       process.env.SMTP_USER ||
       process.env.SMTP_PASS ||
-      process.env.SMTP_FROM
+      process.env.SMTP_FROM ||
+      process.env.SMTP_BCC
   );
 
   return {
@@ -58,7 +60,8 @@ export const loadConfig = (): AppConfig => {
                 })(),
           user: requiredEnv("SMTP_USER"),
           pass: requiredEnv("SMTP_PASS"),
-          from: requiredEnv("SMTP_FROM")
+          from: requiredEnv("SMTP_FROM"),
+          bcc: process.env.SMTP_BCC
         }
       : undefined
   };

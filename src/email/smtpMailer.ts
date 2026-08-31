@@ -6,6 +6,7 @@ export type SmtpConfig = {
   user: string;
   pass: string;
   from: string;
+  bcc?: string;
 };
 
 export type SendEmailInput = {
@@ -33,6 +34,7 @@ export const createSmtpMailer = (config: SmtpConfig) => {
       const result = await transporter.sendMail({
         from: config.from,
         to: input.to,
+        bcc: config.bcc,
         subject: input.subject,
         text: input.text
       });
