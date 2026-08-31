@@ -213,6 +213,7 @@ const trimSentenceEnd = (value: string): string => {
 const buildMessageAngle = (salesAngle: string): string => {
   return trimSentenceEnd(salesAngle)
     .replace(/^.+に対し、/, "")
+    .replace(/(.+)と連動する(.+)、キャンペーンサイト、Web更新作業を担当する.+$/, "$1と連動した$2・キャンペーンサイトの実装や、日々のWeb更新業務")
     .replace(/を担当できる.+$/, "での支援")
     .replace(/を担当する.+$/, "への対応")
     .replace(/を請け負う.+$/, "への対応")
@@ -223,10 +224,47 @@ const buildMessageAngle = (salesAngle: string): string => {
     .trim();
 };
 
+const splitIndustryParts = (industry: string): string[] => {
+  return industry
+    .split(/[・、,，／/]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+};
+
+const compactRepeatedSuffix = (parts: string[], suffix: string): string => {
+  if (parts.length <= 1 || !parts.every((part) => part.endsWith(suffix))) {
+    return parts.join("・");
+  }
+
+  return parts
+    .map((part, index) => (index === parts.length - 1 ? part : part.slice(0, -suffix.length)))
+    .join("・");
+};
+
+const formatIndustryObservation = (industry: string): string => {
+  const parts = splitIndustryParts(industry);
+
+  if (parts.length >= 4) {
+    const firstGroup = parts.slice(0, 2).join("・");
+    const secondGroup = compactRepeatedSuffix(parts.slice(2), "制作");
+    return `${firstGroup}から${secondGroup}まで幅広く展開されている事業内容`;
+  }
+
+  if (parts.length === 3) {
+    return `${parts[0]}から${compactRepeatedSuffix(parts.slice(1), "制作")}まで展開されている事業内容`;
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]}や${parts[1]}を展開されている事業内容`;
+  }
+
+  return industry ? `${industry}に関する事業内容` : "";
+};
+
 const buildClientSpecificObservation = (input: SalesMessageInput): string => {
   const industryText = input.industry
-    ? `貴社の「${input.industry}」に関する事業内容を拝見しました。`
-    : "貴社サイトを拝見しました。";
+    ? `貴社のHPにて、${formatIndustryObservation(input.industry)}を拝見いたしました。`
+    : "貴社のHPを拝見いたしました。";
   const messageAngle = buildMessageAngle(input.salesAngle);
 
   if (!messageAngle) {
@@ -236,7 +274,7 @@ const buildClientSpecificObservation = (input: SalesMessageInput): string => {
   return [
     industryText,
     toSentence(
-      `特に、${messageAngle}について、私のフロントエンド実装・WordPress構築の経験を活かせるのではないかと考え、ご連絡いたしました`
+      `特に、${messageAngle}において、私のフロントエンド実装およびWordPress構築の経験が必ずお役に立てると考え、ご連絡いたしました`
     )
   ].join("\n");
 };
