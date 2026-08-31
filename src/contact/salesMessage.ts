@@ -206,22 +206,39 @@ const toSentence = (value: string): string => {
   return /[。.!！?？]$/.test(text) ? text : `${text}。`;
 };
 
+const trimSentenceEnd = (value: string): string => {
+  return value.trim().replace(/[。.!！?？]+$/, "");
+};
+
+const buildMessageAngle = (salesAngle: string): string => {
+  return trimSentenceEnd(salesAngle)
+    .replace(/^.+に対し、/, "")
+    .replace(/を担当できる.+$/, "での支援")
+    .replace(/を担当する.+$/, "への対応")
+    .replace(/を請け負う.+$/, "への対応")
+    .replace(/の業務委託先として提案する$/, "の支援")
+    .replace(/として提案しやすい$/, "")
+    .replace(/として提案する$/, "")
+    .replace(/提案余地がある$/, "お力になれる余地")
+    .trim();
+};
+
 const buildClientSpecificObservation = (input: SalesMessageInput): string => {
   const industryText = input.industry
     ? `貴社の「${input.industry}」に関する事業内容を拝見しました。`
     : "貴社サイトを拝見しました。";
-  const angle = input.salesAngle.trim();
+  const messageAngle = buildMessageAngle(input.salesAngle);
 
-  if (!angle) {
+  if (!messageAngle) {
     return industryText;
   }
 
-  const messageAngle = angle
-    .replace(/として提案しやすい[。.]?$/, "としてお力になれる余地があると感じました。")
-    .replace(/として提案する[。.]?$/, "としてお力になれると考えました。")
-    .replace(/提案余地がある[。.]?$/, "お力になれる余地があると感じました。");
-
-  return [industryText, toSentence(messageAngle)].join("\n");
+  return [
+    industryText,
+    toSentence(
+      `特に、${messageAngle}について、私のフロントエンド実装・WordPress構築の経験を活かせるのではないかと考え、ご連絡いたしました`
+    )
+  ].join("\n");
 };
 
 export const buildSalesBody = (draft: string, sender: SenderInfo = CONTACT_SENDER): string => {
