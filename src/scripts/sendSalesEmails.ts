@@ -33,6 +33,7 @@ type SalesEmailCandidate = {
   salesMessageDraft: string;
   subject: string;
   body: string;
+  autoInsertPreview: string;
   templateId: string;
 };
 
@@ -232,6 +233,7 @@ const toCandidate = (
       salesMessageDraft: lead.salesMessageDraft,
       subject: message.subject,
       body: message.body,
+      autoInsertPreview: message.autoInsertPreview,
       templateId: message.templateId
     }
   };
@@ -287,8 +289,8 @@ const printCandidates = (candidates: SalesEmailCandidate[], minScore: number): v
     console.log(`Score: ${candidate.salesScore}`);
     console.log(`Template: ${candidate.templateId}`);
     console.log(`Subject: ${candidate.subject}`);
-    console.log("Message preview:");
-    console.log(candidate.body);
+    console.log("Auto insert preview:");
+    console.log(candidate.autoInsertPreview);
   });
 };
 

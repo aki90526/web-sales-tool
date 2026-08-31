@@ -52,6 +52,7 @@ export type SalesContentConfig = {
 export type SalesMessage = {
   subject: string;
   body: string;
+  autoInsertPreview: string;
   templateId: string;
 };
 
@@ -371,11 +372,13 @@ export const buildSalesMessage = (
 ): SalesMessage => {
   const sender = config?.sender ?? CONTACT_SENDER;
   const template = config ? pickTemplate(config.templates, input) : undefined;
+  const autoInsertPreview = buildClientSpecificObservation(input);
 
   if (template) {
     return {
       subject: renderTemplate(template.subjectTemplate, input, sender),
       body: buildSalesBody(renderTemplate(template.bodyTemplate, input, sender), sender),
+      autoInsertPreview,
       templateId: template.templateId
     };
   }
@@ -383,6 +386,7 @@ export const buildSalesMessage = (
   return {
     subject: buildSalesSubject(input.leadType, input.recommendedApproach),
     body: buildSalesBody(input.salesMessageDraft, sender),
+    autoInsertPreview,
     templateId: "fallback"
   };
 };
