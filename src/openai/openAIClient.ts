@@ -83,7 +83,10 @@ const shouldRetry = (error: RequestError): boolean => {
     return [408, 409, 429, 500, 502, 503, 504].includes(error.statusCode);
   }
 
-  return ["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND"].includes(error.code ?? "");
+  return (
+    ["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND"].includes(error.code ?? "") ||
+    /timed out/i.test(error.message)
+  );
 };
 
 const requestJsonOnce = async <T>(options: JsonRequestOptions): Promise<T> => {
@@ -128,7 +131,9 @@ const requestJsonOnce = async <T>(options: JsonRequestOptions): Promise<T> => {
 
     request.on("error", reject);
     request.setTimeout(options.timeoutMs ?? 120000, () => {
-      request.destroy(new Error("OpenAI API request timed out"));
+      const error = new Error("OpenAI API request timed out") as RequestError;
+      error.code = "ETIMEDOUT";
+      request.destroy(error);
     });
 
     request.write(body);
