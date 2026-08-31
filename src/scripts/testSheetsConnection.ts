@@ -31,8 +31,6 @@ const buildTestLead = (): SalesLeadInput => {
     contactFormUrl: "https://example.com/api-test/contact",
     emailAddress: "",
     salesScore: 50,
-    salesAngle: "API接続確認",
-    salesMessageDraft: "API接続確認用の営業メッセージ案です。",
     status: "未確認",
     memo: "npm run test:sheets による自動追加テスト"
   };

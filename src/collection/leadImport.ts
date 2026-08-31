@@ -132,7 +132,8 @@ export const importLeadCandidates = async (
       annualRevenue: candidate.annualRevenue,
       listingStatus: candidate.listingStatus,
       companySizeCategory: candidate.companySizeCategory,
-      companySizeMemo: candidate.companySizeMemo
+      companySizeMemo: candidate.companySizeMemo,
+      salesAngle: candidate.salesAngle
     });
 
     results.push({

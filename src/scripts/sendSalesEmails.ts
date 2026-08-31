@@ -3,7 +3,7 @@ import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from ".
 import { SHEETS } from "../domain/lead";
 import { scoreThresholdForLeadType } from "../domain/scoring";
 import { createSmtpMailer } from "../email/smtpMailer";
-import { readAnalysisRecommendedApproaches } from "../google/analysisDataRepository";
+import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
   SalesManagementLead,
@@ -30,7 +30,6 @@ type SalesEmailCandidate = {
   emailAddress: string;
   salesScore: number;
   salesAngle: string;
-  salesMessageDraft: string;
   subject: string;
   body: string;
   autoInsertPreview: string;
@@ -42,7 +41,6 @@ type SkipReason =
   | "次回対応日が未来"
   | "連絡方法がメールではない"
   | "メールアドレスが空またはメール形式ではない"
-  | "営業メッセージ案が空"
   | "営業スコアが基準未満";
 
 const DEFAULT_LIMIT = 1;
@@ -177,7 +175,8 @@ const toCandidate = (
   lead: SalesManagementLead,
   minScore: number,
   contentConfig: SalesContentConfig,
-  recommendedApproach: string
+  recommendedApproach: string,
+  salesAngle: string
 ): { candidate?: SalesEmailCandidate; reason?: SkipReason } => {
   if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
@@ -195,10 +194,6 @@ const toCandidate = (
     return { reason: "メールアドレスが空またはメール形式ではない" };
   }
 
-  if (!lead.salesMessageDraft) {
-    return { reason: "営業メッセージ案が空" };
-  }
-
   if (lead.salesScore < scoreThresholdForCandidate(lead.leadType, minScore)) {
     return { reason: "営業スコアが基準未満" };
   }
@@ -210,9 +205,9 @@ const toCandidate = (
       industry: lead.industry,
       region: lead.region,
       officialSiteUrl: lead.officialSiteUrl,
-      salesAngle: lead.salesAngle,
+      salesAngle,
       recommendedApproach,
-      salesMessageDraft: lead.salesMessageDraft
+      salesMessageDraft: ""
     },
     contentConfig
   );
@@ -229,8 +224,7 @@ const toCandidate = (
       contactMethod: lead.contactMethod,
       emailAddress: lead.emailAddress,
       salesScore: lead.salesScore,
-      salesAngle: lead.salesAngle,
-      salesMessageDraft: lead.salesMessageDraft,
+      salesAngle,
       subject: message.subject,
       body: message.body,
       autoInsertPreview: message.autoInsertPreview,
@@ -246,7 +240,7 @@ const findCandidates = async (
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
-  const recommendedApproaches = await readAnalysisRecommendedApproaches(sheets);
+  const salesContexts = await readAnalysisSalesContexts(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: SalesEmailCandidate[] = [];
 
@@ -259,7 +253,8 @@ const findCandidates = async (
       lead,
       minScore,
       contentConfig,
-      recommendedApproaches.get(lead.leadId) ?? ""
+      salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
+      salesContexts.get(lead.leadId)?.salesAngle ?? ""
     );
 
     if (result.candidate) {

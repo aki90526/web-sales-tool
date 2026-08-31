@@ -8,7 +8,7 @@ import {
 } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
 import { scoreThresholdForLeadType } from "../domain/scoring";
-import { readAnalysisRecommendedApproaches } from "../google/analysisDataRepository";
+import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
   SalesManagementLead
@@ -43,7 +43,6 @@ type SkipReason =
   | "次回対応日が未来"
   | "連絡方法が問い合わせフォームではない"
   | "フォームURLが空またはURL形式ではない"
-  | "営業メッセージ案が空"
   | "営業スコアが基準未満";
 
 const DEFAULT_LIMIT = 3;
@@ -166,7 +165,8 @@ const toCandidate = (
   lead: SalesManagementLead,
   minScore: number,
   contentConfig: SalesContentConfig,
-  recommendedApproach: string
+  recommendedApproach: string,
+  salesAngle: string
 ): { candidate?: FormCandidate; reason?: SkipReason } => {
   if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
@@ -184,10 +184,6 @@ const toCandidate = (
     return { reason: "フォームURLが空またはURL形式ではない" };
   }
 
-  if (!lead.salesMessageDraft) {
-    return { reason: "営業メッセージ案が空" };
-  }
-
   if (lead.salesScore < scoreThresholdForCandidate(lead.leadType, minScore)) {
     return { reason: "営業スコアが基準未満" };
   }
@@ -199,9 +195,9 @@ const toCandidate = (
       industry: lead.industry,
       region: lead.region,
       officialSiteUrl: lead.officialSiteUrl,
-      salesAngle: lead.salesAngle,
+      salesAngle,
       recommendedApproach,
-      salesMessageDraft: lead.salesMessageDraft
+      salesMessageDraft: ""
     },
     contentConfig
   );
@@ -217,7 +213,7 @@ const toCandidate = (
       officialSiteUrl: lead.officialSiteUrl,
       formUrl: lead.contactFormUrl,
       salesScore: lead.salesScore,
-      salesAngle: lead.salesAngle,
+      salesAngle,
       subject: message.subject,
       body: message.body,
       templateId: message.templateId
@@ -232,7 +228,7 @@ const findCandidates = async (
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: FormCandidate[]; skipped: Map<SkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
-  const recommendedApproaches = await readAnalysisRecommendedApproaches(sheets);
+  const salesContexts = await readAnalysisSalesContexts(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: FormCandidate[] = [];
 
@@ -245,7 +241,8 @@ const findCandidates = async (
       lead,
       minScore,
       contentConfig,
-      recommendedApproaches.get(lead.leadId) ?? ""
+      salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
+      salesContexts.get(lead.leadId)?.salesAngle ?? ""
     );
 
     if (result.candidate) {

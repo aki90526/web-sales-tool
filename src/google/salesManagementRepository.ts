@@ -13,8 +13,6 @@ export type SalesManagementLead = {
   contactFormUrl: string;
   emailAddress: string;
   salesScore: number;
-  salesAngle: string;
-  salesMessageDraft: string;
   status: string;
   lastApproachDate: string;
   nextActionDate: string;
@@ -32,8 +30,6 @@ export type SalesManagementColumnMap = {
   contactFormUrl: number;
   emailAddress: number;
   salesScore: number;
-  salesAngle: number;
-  salesMessageDraft: number;
   status: number;
   lastApproachDate: number;
   nextActionDate: number;
@@ -57,8 +53,6 @@ const HEADER_ALIASES: Record<keyof SalesManagementColumnMap, string[]> = {
   contactFormUrl: ["フォームURL", "問い合わせフォームURL", "連絡先"],
   emailAddress: ["メールアドレス", "メール"],
   salesScore: ["営業スコア"],
-  salesAngle: ["営業の切り口"],
-  salesMessageDraft: ["営業メッセージ案", "送信メッセージ"],
   status: ["ステータス"],
   lastApproachDate: ["最終アプローチ日"],
   nextActionDate: ["次回対応日"],
@@ -125,8 +119,6 @@ const toLead = (
     contactFormUrl: cell(row, columns.contactFormUrl),
     emailAddress: cell(row, columns.emailAddress),
     salesScore: parseScore(cell(row, columns.salesScore)),
-    salesAngle: cell(row, columns.salesAngle),
-    salesMessageDraft: cell(row, columns.salesMessageDraft),
     status: cell(row, columns.status),
     lastApproachDate: cell(row, columns.lastApproachDate),
     nextActionDate: cell(row, columns.nextActionDate),

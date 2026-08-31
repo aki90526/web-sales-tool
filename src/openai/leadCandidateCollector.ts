@@ -35,7 +35,6 @@ export type LeadCandidate = {
   improvementPoints: string;
   salesAngle: string;
   recommendedApproach: RecommendedApproach;
-  salesMessageDraft: string;
   status: Status;
   memo: string;
   pageType: string;
@@ -378,7 +377,6 @@ export const normalizeLeadCandidate = (value: unknown): LeadCandidate | null => 
     improvementPoints,
     salesAngle,
     recommendedApproach,
-    salesMessageDraft: text(value.salesMessageDraft, 2500),
     status: score.status,
     memo: text(value.memo, 600),
     pageType: text(value.pageType, 120) || "検索結果",
@@ -429,7 +427,7 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
     `既存候補のURL: ${excludedUrls}`,
     "返答はJSON配列のみ。Markdown、説明文、引用マーカーは不要。",
     "各要素のキーは必ず次の通りにしてください:",
-    "companyName, leadType, industry, region, officialSiteUrl, contactUrl, email, siteAnalysisSummary, improvementPoints, salesAngle, recommendedApproach, salesMessageDraft, memo, pageType, mobileResponsive, seoBasics, cta, contactFlow, updateStatus, ssl, cms, estimatedRenewalPeriod, renewalConfidence, renewalEvidence, aiAnalysis, aiAdjustment, aiAdjustmentReason, exclusionReason, scoreSignals, capital, employeeCount, annualRevenue, listingStatus, companySizeCategory, companySizeMemo",
+    "companyName, leadType, industry, region, officialSiteUrl, contactUrl, email, siteAnalysisSummary, improvementPoints, salesAngle, recommendedApproach, memo, pageType, mobileResponsive, seoBasics, cta, contactFlow, updateStatus, ssl, cms, estimatedRenewalPeriod, renewalConfidence, renewalEvidence, aiAnalysis, aiAdjustment, aiAdjustmentReason, exclusionReason, scoreSignals, capital, employeeCount, annualRevenue, listingStatus, companySizeCategory, companySizeMemo",
     `leadType は次のいずれかのみ: ${LEAD_TYPES.join(", ")}`,
     `recommendedApproach は次のいずれかのみ: ${RECOMMENDED_APPROACHES.join(", ")}`,
     `estimatedRenewalPeriod は次のいずれかのみ: ${RENEWAL_PERIODS.join(", ")}`,
@@ -441,7 +439,7 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
     "isOfficialSite, hasContactMethod, isTargetArea, isWebProductionBusiness, hasPartnerRecruiting, hasSubcontractorRecruiting, hasCoderRecruiting, handlesWordPress, handlesShopify, handlesMaintenance, complementarityScore, noOutsourcingPolicy, lowCollaborationFit, hasMobileIssue, hasWeakContactFlow, hasWeakCta, hasSeoIssue, hasStaleSite, hasWeakRecruitingPage, hasUnclearService, hasOldDesign, forbidsSalesContact, forbidsAdsMail, pastOptOut, reapproachForbidden, notOfficialSite, excludedIndustry",
     "contactUrl は問い合わせフォームURLが不明なら空文字。email は不明なら空文字。",
     "資本金、従業員数、売上高は公式サイトや信頼できる会社情報で確認できた場合のみ入れ、不明なら空文字。",
-    "salesMessageDraft は日本語で、送信前に人間が確認する前提の簡潔な下書きにしてください。"
+    "salesAngle はテンプレート本文の差し込みに使うため、営業の切り口を具体的かつ簡潔に1文で返してください。営業メール本文全体は作成しないでください。"
   ].join("\n");
 };
 
@@ -563,8 +561,6 @@ export const toSalesLeadInput = (candidate: LeadCandidate, leadId: string): Sale
     contactFormUrl: candidate.contactUrl,
     emailAddress: candidate.email,
     salesScore: candidate.salesScore,
-    salesAngle: candidate.salesAngle,
-    salesMessageDraft: candidate.salesMessageDraft,
     status: candidate.status,
     memo: memoParts.join("\n")
   };

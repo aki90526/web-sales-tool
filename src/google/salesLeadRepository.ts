@@ -53,8 +53,6 @@ const buildHeaderMappedSalesLeadRow = (
   setCell(row, columns, "contactFormUrl", lead.contactFormUrl);
   setCell(row, columns, "emailAddress", lead.emailAddress);
   setCell(row, columns, "salesScore", lead.salesScore);
-  setCell(row, columns, "salesAngle", lead.salesAngle);
-  setCell(row, columns, "salesMessageDraft", lead.salesMessageDraft);
   setCell(row, columns, "status", lead.status);
   setCell(
     row,

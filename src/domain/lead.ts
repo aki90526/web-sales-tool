@@ -69,8 +69,6 @@ export type SalesLeadInput = {
   contactFormUrl: string;
   emailAddress: string;
   salesScore: number;
-  salesAngle: string;
-  salesMessageDraft: string;
   status: Status;
   memo: string;
 };

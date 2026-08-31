@@ -1,7 +1,7 @@
 import { loadConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig } from "../contact/salesMessage";
 import { SHEETS, Status } from "../domain/lead";
-import { readAnalysisRecommendedApproaches } from "../google/analysisDataRepository";
+import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
   SalesManagementLead,
@@ -128,9 +128,6 @@ const validateLead = (lead: SalesManagementLead, force: boolean): void => {
     throw new Error(`${lead.leadId} next action date is ${lead.nextActionDate}. Use --force to override.`);
   }
 
-  if (!lead.salesMessageDraft) {
-    throw new Error(`${lead.leadId} has no sales message draft`);
-  }
 };
 
 const appendApproachHistory = async (
@@ -190,7 +187,7 @@ const main = async (): Promise<void> => {
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
   const table = await readSalesManagementTable(sheets);
-  const recommendedApproaches = await readAnalysisRecommendedApproaches(sheets);
+  const salesContexts = await readAnalysisSalesContexts(sheets);
   const lead = table.leads.find((candidate) => candidate.leadId === options.leadId) ?? null;
 
   if (!lead) {
@@ -206,9 +203,9 @@ const main = async (): Promise<void> => {
       industry: lead.industry,
       region: lead.region,
       officialSiteUrl: lead.officialSiteUrl,
-      salesAngle: lead.salesAngle,
-      recommendedApproach: recommendedApproaches.get(lead.leadId) ?? "",
-      salesMessageDraft: lead.salesMessageDraft
+      salesAngle: salesContexts.get(lead.leadId)?.salesAngle ?? "",
+      recommendedApproach: salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
+      salesMessageDraft: ""
     },
     contentConfig
   );

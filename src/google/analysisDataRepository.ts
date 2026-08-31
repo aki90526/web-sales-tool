@@ -35,6 +35,7 @@ export type AnalysisDataInput = {
   listingStatus: string;
   companySizeCategory: string;
   companySizeMemo: string;
+  salesAngle: string;
 };
 
 const getNextRowNumber = async (
@@ -63,29 +64,42 @@ const joinLimited = (values: string[], maxLength: number): string => {
   return joined.length > maxLength ? `${joined.slice(0, maxLength - 3)}...` : joined;
 };
 
-export const readAnalysisRecommendedApproaches = async (
+export type AnalysisSalesContext = {
+  recommendedApproach: string;
+  salesAngle: string;
+};
+
+export const readAnalysisSalesContexts = async (
   sheets: SheetsClient
-): Promise<Map<string, string>> => {
-  const rows = await sheets.getValues(`'${SHEETS.analysisData}'!A1:AG1000`);
+): Promise<Map<string, AnalysisSalesContext>> => {
+  const rows = await sheets.getValues(`'${SHEETS.analysisData}'!A1:AH1000`);
   const headers = (rows[0] ?? []).map((value) => String(value ?? "").trim());
   const leadIdColumn = headers.findIndex((header) => header === "リードID");
   const recommendedApproachColumn = headers.findIndex((header) => header === "推奨アプローチ");
-  const approaches = new Map<string, string>();
+  const salesAngleColumn = headers.findIndex((header) => header === "営業の切り口");
+  const contexts = new Map<string, AnalysisSalesContext>();
 
-  if (leadIdColumn === -1 || recommendedApproachColumn === -1) {
-    return approaches;
+  if (leadIdColumn === -1) {
+    return contexts;
   }
 
   rows.slice(1).forEach((row) => {
     const leadId = String(row[leadIdColumn] ?? "").trim();
-    const recommendedApproach = String(row[recommendedApproachColumn] ?? "").trim();
 
-    if (leadId && recommendedApproach) {
-      approaches.set(leadId, recommendedApproach);
+    if (!leadId) {
+      return;
     }
+
+    contexts.set(leadId, {
+      recommendedApproach:
+        recommendedApproachColumn === -1
+          ? ""
+          : String(row[recommendedApproachColumn] ?? "").trim(),
+      salesAngle: salesAngleColumn === -1 ? "" : String(row[salesAngleColumn] ?? "").trim()
+    });
   });
 
-  return approaches;
+  return contexts;
 };
 
 export const appendAnalysisData = async (
@@ -93,7 +107,7 @@ export const appendAnalysisData = async (
   data: AnalysisDataInput
 ): Promise<{ range?: string; rowNumber: number }> => {
   const rowNumber = await getNextRowNumber(sheets, SHEETS.analysisData);
-  const range = `'${SHEETS.analysisData}'!A${rowNumber}:AG${rowNumber}`;
+  const range = `'${SHEETS.analysisData}'!A${rowNumber}:AH${rowNumber}`;
   const response = await sheets.updateValues(range, [
     [
       data.leadId,
@@ -128,7 +142,8 @@ export const appendAnalysisData = async (
       data.listingStatus,
       data.companySizeCategory,
       data.companySizeMemo,
-      data.recommendedApproach
+      data.recommendedApproach,
+      data.salesAngle
     ]
   ]);
 
