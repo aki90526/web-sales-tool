@@ -449,7 +449,9 @@ const maxOutputTokensForLimit = (limit: number): number => {
   return Math.min(12000, Math.max(4000, 2500 + limit * 1000));
 };
 
-export const collectLeadCandidateCollection = async (
+const COLLECTION_CHUNK_SIZE = 5;
+
+const collectLeadCandidateChunk = async (
   openAI: OpenAIClient,
   options: CollectLeadCandidateOptions
 ): Promise<LeadCandidateCollectionResult> => {
@@ -471,6 +473,67 @@ export const collectLeadCandidateCollection = async (
   return {
     candidates,
     searchTrace: extractWebSearchTrace(response)
+  };
+};
+
+export const collectLeadCandidateCollection = async (
+  openAI: OpenAIClient,
+  options: CollectLeadCandidateOptions
+): Promise<LeadCandidateCollectionResult> => {
+  if (options.limit <= COLLECTION_CHUNK_SIZE) {
+    return collectLeadCandidateChunk(openAI, options);
+  }
+
+  const candidates: LeadCandidate[] = [];
+  const queries: string[] = [];
+  const sourceUrls: string[] = [];
+
+  while (candidates.length < options.limit) {
+    const remaining = options.limit - candidates.length;
+    const chunkLimit = Math.min(COLLECTION_CHUNK_SIZE, remaining);
+    console.log(`Collecting chunk: ${candidates.length + 1}-${candidates.length + chunkLimit} of ${options.limit}`);
+    const chunk = await collectLeadCandidateChunk(openAI, {
+      ...options,
+      limit: chunkLimit,
+      existingCompanies: [
+        ...options.existingCompanies,
+        ...candidates.map((candidate) => candidate.companyName)
+      ],
+      existingSiteUrls: [
+        ...options.existingSiteUrls,
+        ...candidates.map((candidate) => candidate.officialSiteUrl)
+      ]
+    });
+
+    queries.push(...chunk.searchTrace.queries);
+    sourceUrls.push(...chunk.searchTrace.sourceUrls);
+
+    const beforeCount = candidates.length;
+
+    chunk.candidates.forEach((candidate) => {
+      const duplicate = candidates.some((existing) => {
+        return (
+          existing.companyName === candidate.companyName ||
+          existing.officialSiteUrl === candidate.officialSiteUrl
+        );
+      });
+
+      if (!duplicate) {
+        candidates.push(candidate);
+      }
+    });
+
+    if (chunk.candidates.length === 0 || candidates.length === beforeCount) {
+      break;
+    }
+  }
+
+  return {
+    candidates: candidates.slice(0, options.limit),
+    searchTrace: {
+      queries: Array.from(new Set(queries)),
+      sourceUrls: Array.from(new Set(sourceUrls))
+    }
   };
 };
 
