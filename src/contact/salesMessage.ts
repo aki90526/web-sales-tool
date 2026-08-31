@@ -308,11 +308,22 @@ const matchesTemplate = (template: MessageTemplate, input: SalesMessageInput): b
   return leadTypeMatches && approachMatches;
 };
 
+const matchesLeadType = (template: MessageTemplate, input: SalesMessageInput): boolean => {
+  if (template.status && template.status !== "使用中") {
+    return false;
+  }
+
+  return template.targetLeadTypes.length === 0 || template.targetLeadTypes.includes(input.leadType);
+};
+
 const pickTemplate = (
   templates: MessageTemplate[],
   input: SalesMessageInput
 ): MessageTemplate | undefined => {
-  return templates.find((template) => matchesTemplate(template, input));
+  return (
+    templates.find((template) => matchesTemplate(template, input)) ??
+    templates.find((template) => matchesLeadType(template, input))
+  );
 };
 
 const renderTemplate = (
