@@ -196,6 +196,34 @@ export const buildSalesSubject = (leadType: string, recommendedApproach: string)
   return "貴社Webサイトの改善について";
 };
 
+const toSentence = (value: string): string => {
+  const text = value.trim();
+
+  if (!text) {
+    return "";
+  }
+
+  return /[。.!！?？]$/.test(text) ? text : `${text}。`;
+};
+
+const buildClientSpecificObservation = (input: SalesMessageInput): string => {
+  const industryText = input.industry
+    ? `貴社の「${input.industry}」に関する事業内容を拝見しました。`
+    : "貴社サイトを拝見しました。";
+  const angle = input.salesAngle.trim();
+
+  if (!angle) {
+    return industryText;
+  }
+
+  const messageAngle = angle
+    .replace(/として提案しやすい[。.]?$/, "としてお力になれる余地があると感じました。")
+    .replace(/として提案する[。.]?$/, "としてお力になれると考えました。")
+    .replace(/提案余地がある[。.]?$/, "お力になれる余地があると感じました。");
+
+  return [industryText, toSentence(messageAngle)].join("\n");
+};
+
 export const buildSalesBody = (draft: string, sender: SenderInfo = CONTACT_SENDER): string => {
   const parts = [draft.trim()];
 
@@ -236,6 +264,7 @@ const renderTemplate = (
   input: SalesMessageInput,
   sender: SenderInfo
 ): string => {
+  const clientSpecificObservation = buildClientSpecificObservation(input);
   const values = new Map<string, string>([
     ["companyName", input.companyName],
     ["会社名", input.companyName],
@@ -251,6 +280,9 @@ const renderTemplate = (
     ["salesAngle", input.salesAngle],
     ["営業の切り口", input.salesAngle],
     ["改善ポイント", input.salesAngle],
+    ["clientSpecificObservation", clientSpecificObservation],
+    ["本文向け一言", clientSpecificObservation],
+    ["具体的一言", clientSpecificObservation],
     ["recommendedApproach", input.recommendedApproach],
     ["推奨アプローチ", input.recommendedApproach],
     ["senderCompanyName", sender.companyName],
