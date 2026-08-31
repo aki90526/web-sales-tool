@@ -1,6 +1,7 @@
 import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
+import { scoreThresholdForLeadType } from "../domain/scoring";
 import { createSmtpMailer } from "../email/smtpMailer";
 import { readAnalysisRecommendedApproaches } from "../google/analysisDataRepository";
 import {
@@ -155,6 +156,10 @@ const isFutureDate = (dateText: string): boolean => {
   return dateText > formatTokyoDate(new Date());
 };
 
+const scoreThresholdForCandidate = (leadType: string, configuredMinScore: number): number => {
+  return Math.min(configuredMinScore, scoreThresholdForLeadType(leadType));
+};
+
 const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise<number> => {
   if (cliMinScore !== undefined) {
     return cliMinScore;
@@ -193,7 +198,7 @@ const toCandidate = (
     return { reason: "営業メッセージ案が空" };
   }
 
-  if (lead.salesScore < minScore) {
+  if (lead.salesScore < scoreThresholdForCandidate(lead.leadType, minScore)) {
     return { reason: "営業スコアが基準未満" };
   }
 
@@ -270,7 +275,7 @@ const findCandidates = async (
 
 const printCandidates = (candidates: SalesEmailCandidate[], minScore: number): void => {
   console.log(`Eligible email leads: ${candidates.length}`);
-  console.log(`Minimum sales score: ${minScore}`);
+  console.log(`Minimum sales score: ${minScore} (Web制作会社: ${scoreThresholdForCandidate("Web制作会社", minScore)})`);
 
   candidates.forEach((candidate, index) => {
     console.log("");
