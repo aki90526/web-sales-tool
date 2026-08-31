@@ -44,7 +44,7 @@ npm run collect -- --area "埼玉県春日部市" --target "制作会社,直ク�
 `--target "クライアント"` は `直クライアント` として扱います。
 メールアドレスと問い合わせフォームURLの両方が見つかった場合は、`フォームURL` と `メールアドレス` の両方へ保存し、メール送信を優先するため `連絡方法=メール` で登録します。
 通常候補の初期ステータスは `送信待ち`、低スコアや見送り判定は `見送り`、除外条件に該当するものは `除外` になります。
-`Web制作会社` は40点以上、それ以外は50点以上を `送信待ち` の目安にします。
+`Web制作会社` と `広告代理店` は40点以上、`直クライアント` は50点以上を `送信待ち` の目安にします。
 
 スプレッドシートへ追加せず、結果だけ確認する場合:
 
@@ -86,6 +86,49 @@ npm run send:emails -- --limit 1
 
 本送信後は `アプローチ履歴` に送信内容を追加し、対象行の `ステータス` を `送信済み` に更新します。
 `問い合わせフォーム` の行はこのコマンドでは送信しません。
+
+## Gmail返信同期
+
+Gmail API の読み取り権限を使うと、送信済みメールへの返信を検知し、`アプローチ履歴` の `返信状況` と `営業管理` の `ステータス` を `返信あり` に更新できます。
+OpenAI API は使わないため、返信同期でOpenAIトークンは消費しません。
+
+`.env` に Gmail OAuth 設定を追加します。
+
+```env
+GMAIL_CLIENT_ID=your-gmail-oauth-client-id
+GMAIL_CLIENT_SECRET=your-gmail-oauth-client-secret
+GMAIL_REDIRECT_URI=http://localhost:3000/oauth2callback
+GMAIL_REFRESH_TOKEN=your-gmail-refresh-token
+GMAIL_USER_EMAIL=abe@aawebcreate.com
+GMAIL_LOOKBACK_DAYS=30
+```
+
+認可URLを表示します。
+
+```bash
+npm run gmail:auth-url
+```
+
+ブラウザで許可後、リダイレクトURLに含まれる `code` を使って refresh token を取得します。
+
+```bash
+npm run gmail:exchange-code -- --code "4/xxxxxxxx"
+```
+
+取得した `GMAIL_REFRESH_TOKEN` を `.env` に設定します。
+まずは更新せずに検知だけ確認します。
+
+```bash
+npm run gmail:sync-replies -- --dry-run
+```
+
+問題なければ実更新します。
+
+```bash
+npm run gmail:sync-replies
+```
+
+判定は、`アプローチ履歴` のメール送信先、件名、SMTP Message ID と、Gmail受信メールの From、Subject、In-Reply-To、References を照合します。
 
 ## 問い合わせフォーム対応
 
@@ -137,6 +180,7 @@ npm run forms:mark-sent -- --lead-id L-0004
 - `営業管理`: リードID、企業名、営業先種別、連絡方法、フォームURL、メールアドレス、営業スコア、ステータスなど、人間が日常的に見る項目だけを管理します。
 - `分析データ`: サイト分析、改善ポイント、推奨アプローチ、推定リニューアル時期、AI補正、スコア内訳JSON、検索クエリ、参照URL、企業規模情報を保存します。
 - `アプローチ履歴`: 送信日時、連絡方法、宛先、件名、営業メッセージ、人間確認、送信ステータス、返信状況を履歴として保存します。
+- `月次集計`: `アプローチ履歴` と `営業管理` から、月別の総コンタクト件数、メール件数、フォーム件数、返信あり、商談中を集計します。
 - `設定`: 再送間隔、最低営業スコア、1日営業件数、除外業種、各種減点設定の目安を管理します。
 
 ## スコアリング
@@ -149,13 +193,14 @@ npm run forms:mark-sent -- --lead-id L-0004
 
 制作会社・広告代理店は外注・協業可能性を重視し、直クライアントはWebサイトの改善余地と営業タイミングを重視します。
 固定ロジックの内訳とAI補正理由は `分析データ` に保存します。
-ステータス判定は `Web制作会社` が40点以上、それ以外が50点以上を基本基準にします。
+ステータス判定は `Web制作会社` と `広告代理店` が40点以上、`直クライアント` が50点以上を基本基準にします。
 
 ## 現在の対象
 
 - Node.js
 - TypeScript
 - Google Sheets API
+- Gmail API
 - OpenAI Responses API
 - OpenAI web_search
 

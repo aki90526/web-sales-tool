@@ -12,7 +12,10 @@
     "forms:todo": "ts-node src/scripts/listFormSubmissions.ts",
     "forms:mark-sent": "ts-node src/scripts/markFormSubmitted.ts",
     "send:emails": "ts-node src/scripts/sendSalesEmails.ts",
-    "send:test-email": "ts-node src/scripts/sendTestEmail.ts"
+    "send:test-email": "ts-node src/scripts/sendTestEmail.ts",
+    "gmail:auth-url": "ts-node src/scripts/printGmailAuthUrl.ts",
+    "gmail:exchange-code": "ts-node src/scripts/exchangeGmailCode.ts",
+    "gmail:sync-replies": "ts-node src/scripts/syncGmailReplies.ts"
   },
   "engines": {
     "node": ">=14.16.0"
