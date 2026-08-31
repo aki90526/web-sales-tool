@@ -83,6 +83,12 @@ const stripCitationMarkers = (value: string): string => {
   return value.replace(/【[^】]*†[^】]*】/g, "").replace(/cite[^]+/g, "");
 };
 
+const stripMarkdownLink = (value: string): string => {
+  const markdownLink = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/i.exec(value.trim());
+
+  return markdownLink ? markdownLink[2] : value;
+};
+
 const extractJsonArray = (text: string): unknown => {
   const cleaned = stripCitationMarkers(text).trim();
   const withoutFence = cleaned
@@ -93,10 +99,19 @@ const extractJsonArray = (text: string): unknown => {
   const end = withoutFence.lastIndexOf("]");
 
   if (start === -1 || end === -1 || end <= start) {
-    throw new Error(`OpenAI response was not a JSON array: ${withoutFence.slice(0, 300)}`);
+    throw new Error(
+      `OpenAI response was not a complete JSON array. Try a smaller --limit if this repeats. Preview: ${withoutFence.slice(0, 300)}`
+    );
   }
 
-  return JSON.parse(withoutFence.slice(start, end + 1));
+  try {
+    return JSON.parse(withoutFence.slice(start, end + 1));
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `OpenAI response JSON could not be parsed (${message}). Try a smaller --limit if this repeats. Preview: ${withoutFence.slice(0, 300)}`
+    );
+  }
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
@@ -140,7 +155,7 @@ const text = (value: unknown, maxLength = 1200): string => {
 };
 
 const normalizeUrl = (value: unknown): string => {
-  const url = text(value, 500);
+  const url = stripMarkdownLink(text(value, 500));
 
   if (!url || !/^https?:\/\//i.test(url)) {
     return "";
@@ -430,11 +445,18 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
   ].join("\n");
 };
 
+const maxOutputTokensForLimit = (limit: number): number => {
+  return Math.min(12000, Math.max(4000, 2500 + limit * 1000));
+};
+
 export const collectLeadCandidateCollection = async (
   openAI: OpenAIClient,
   options: CollectLeadCandidateOptions
 ): Promise<LeadCandidateCollectionResult> => {
-  const response = await openAI.createWebSearchResponse(buildPrompt(options));
+  const response = await openAI.createWebSearchResponse(
+    buildPrompt(options),
+    maxOutputTokensForLimit(options.limit)
+  );
   const parsed = extractJsonArray(extractOutputText(response));
 
   if (!Array.isArray(parsed)) {
