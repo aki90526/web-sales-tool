@@ -150,6 +150,21 @@ npm run forms:todo -- --limit 3
 npm run forms:todo -- --limit 1 --open
 ```
 
+フォームをChromeで開き、判定できる項目へ自動入力する場合:
+
+```bash
+npm run forms:fill -- --limit 1
+```
+
+特定のリードIDだけ自動入力する場合:
+
+```bash
+npm run forms:fill -- --lead-id L-0004
+```
+
+`forms:fill` は送信ボタンを押しません。入力後にmacOS通知を出すので、内容と同意チェックを確認してから手動で送信してください。
+CAPTCHA、独自UI、特殊な必須項目があるフォームは手動調整が必要です。
+
 フォーム送信が終わったら、履歴に記録して `営業管理` のステータスを `送信済み` にします。
 
 ```bash

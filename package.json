@@ -10,6 +10,7 @@
     "collect": "ts-node src/scripts/collectLeads.ts",
     "collect:import": "ts-node src/scripts/importPreviewLeads.ts",
     "forms:todo": "ts-node src/scripts/listFormSubmissions.ts",
+    "forms:fill": "ts-node src/scripts/fillForms.ts",
     "forms:mark-sent": "ts-node src/scripts/markFormSubmitted.ts",
     "send:emails": "ts-node src/scripts/sendSalesEmails.ts",
     "send:test-email": "ts-node src/scripts/sendTestEmail.ts",
@@ -21,8 +22,9 @@
     "node": ">=14.16.0"
   },
   "dependencies": {
+    "chrome-remote-interface": "^0.33.3",
     "dotenv": "16.4.7",
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^9.1.1"
   },
   "devDependencies": {
     "@types/node": "14.18.63",
