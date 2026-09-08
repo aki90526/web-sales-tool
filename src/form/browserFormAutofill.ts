@@ -269,7 +269,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const builtinAliases: Record<string, string[]> = {
-    companyName: ["会社名", "貴社名", "法人名", "屋号", "組織名", "company", "organization"],
+    companyName: ["会社名", "貴社名", "法人名", "貴院名", "屋号", "組織名", "company", "organization", "org"],
     name: ["お名前", "氏名", "担当者名", "ご担当者名", "name", "your-name"],
     nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ", "kana", "furigana"],
     department: ["部署", "部署名", "所属部署", "所属部署名", "部門", "部門名", "department", "division", "section"],
@@ -336,6 +336,20 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
       if (controls <= 2 && text.length <= 160) {
         parts.push(text);
+      }
+    }
+
+    let context = element.parentElement;
+    for (let depth = 0; context && depth < 4; depth += 1, context = context.parentElement) {
+      const dataName = context.getAttribute("data-name");
+      if (dataName) {
+        parts.push(dataName);
+      }
+
+      const previousContext = context.previousElementSibling;
+      const previousText = previousContext?.textContent?.trim() ?? "";
+      if (previousText && previousText.length <= 160) {
+        parts.push(previousText);
       }
     }
 
