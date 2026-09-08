@@ -8,6 +8,7 @@ import {
 } from "../contact/formCandidates";
 import { readSalesContentConfig } from "../contact/salesMessage";
 import { fillCandidateFormsInBrowser } from "../form/browserFormAutofill";
+import { saveLastFormFillSession } from "../form/formFillSession";
 import { createSheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
@@ -189,13 +190,20 @@ const main = async (): Promise<void> => {
   );
 
   results.forEach(({ candidate, result }) => {
+    saveLastFormFillSession({
+      leadId: candidate.leadId,
+      companyName: candidate.companyName,
+      formUrl: candidate.formUrl,
+      filledAt: new Date().toISOString()
+    });
+
     console.log("");
     console.log(`Filled ${candidate.leadId} ${candidate.companyName}`);
     console.log(`Text fields: ${result.filled.length}`);
     console.log(`Selects: ${result.selected.length}`);
     console.log(`Consent checkboxes: ${result.checked.length}`);
     result.warnings.forEach((warning) => console.log(`Warning: ${warning}`));
-    console.log(`送信後: npm run forms:mark-sent -- --lead-id ${candidate.leadId}`);
+    console.log(`送信後: npm run forms:mark-sent`);
   });
 };
 

@@ -1,6 +1,7 @@
 import { loadConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig } from "../contact/salesMessage";
 import { SHEETS, Status } from "../domain/lead";
+import { readLastFormFillSession } from "../form/formFillSession";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
@@ -19,12 +20,13 @@ type CliOptions = {
 
 const printHelp = (): void => {
   console.log(`Usage:
+  npm run forms:mark-sent
   npm run forms:mark-sent -- --lead-id L-0004
   npm run forms:mark-sent -- --lead-id L-0004 --dry-run
   npm run forms:mark-sent -- --lead-id L-0004 --note "フォーム送信済み"
 
 Options:
-  --lead-id    送信済みにするリードID
+  --lead-id    送信済みにするリードID。省略時は最後に forms:fill で開いたリード
   --dry-run    Sheetsを更新せず、記録内容だけ表示します
   --note       アプローチ履歴のメモ
   --force      ステータスや次回対応日の警告を無視して記録します
@@ -68,10 +70,6 @@ const parseArgs = (argv: string[]): CliOptions => {
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
-  }
-
-  if (!options.help && !options.leadId) {
-    throw new Error("--lead-id is required");
   }
 
   return options;
@@ -188,10 +186,21 @@ const main = async (): Promise<void> => {
   const contentConfig = await readSalesContentConfig(sheets);
   const table = await readSalesManagementTable(sheets);
   const salesContexts = await readAnalysisSalesContexts(sheets);
-  const lead = table.leads.find((candidate) => candidate.leadId === options.leadId) ?? null;
+  const lastSession = options.leadId ? null : readLastFormFillSession();
+  const leadId = options.leadId || lastSession?.leadId || "";
+
+  if (!leadId) {
+    throw new Error("Lead ID is required. Run forms:fill first, or specify --lead-id.");
+  }
+
+  const lead = table.leads.find((candidate) => candidate.leadId === leadId) ?? null;
 
   if (!lead) {
-    throw new Error(`Lead not found: ${options.leadId}`);
+    throw new Error(`Lead not found: ${leadId}`);
+  }
+
+  if (lastSession && lead.contactFormUrl !== lastSession.formUrl && !options.force) {
+    throw new Error(`${lead.leadId} form URL has changed since forms:fill. Use --force to override.`);
   }
 
   validateLead(lead, options.force);
