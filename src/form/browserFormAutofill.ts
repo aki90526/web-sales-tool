@@ -348,7 +348,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
       const previousContext = context.previousElementSibling;
       const previousText = previousContext?.textContent?.trim() ?? "";
-      if (previousText && previousText.length <= 160) {
+      const previousControlCount = previousContext?.querySelectorAll("input, textarea, select").length ?? 0;
+      if (previousText && previousText.length <= 160 && previousControlCount === 0) {
         parts.push(previousText);
       }
     }
