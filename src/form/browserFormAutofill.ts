@@ -506,16 +506,20 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
         return 0;
       }
 
-      if (/(その他|other)/i.test(text)) {
-        return 50;
+      if (/(協業|パートナー|提携|業務委託|外注)/i.test(text)) {
+        return 60;
       }
 
-      if (/(協業|パートナー|業務委託|外注)/i.test(text)) {
-        return 45;
+      if (/(プロジェクト|案件|仕事|ご相談|相談)/i.test(text)) {
+        return 50;
       }
 
       if (/(web|ウェブ|制作|相談)/i.test(text)) {
         return 40;
+      }
+
+      if (/(その他|other)/i.test(text)) {
+        return 30;
       }
 
       if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
@@ -709,16 +713,20 @@ const pageFindSelectKeyboardTarget = (): SelectKeyboardTarget | null => {
       return 0;
     }
 
-    if (/(その他|other)/i.test(text)) {
-      return 50;
+    if (/(協業|パートナー|提携|業務委託|外注)/i.test(text)) {
+      return 60;
     }
 
-    if (/(協業|パートナー|業務委託|外注)/i.test(text)) {
-      return 45;
+    if (/(プロジェクト|案件|仕事|ご相談|相談)/i.test(text)) {
+      return 50;
     }
 
     if (/(web|ウェブ|制作|相談)/i.test(text)) {
       return 40;
+    }
+
+    if (/(その他|other)/i.test(text)) {
+      return 30;
     }
 
     if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
