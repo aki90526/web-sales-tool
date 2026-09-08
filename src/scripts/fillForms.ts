@@ -200,7 +200,7 @@ const main = async (): Promise<void> => {
     console.log("");
     console.log(`Filled ${candidate.leadId} ${candidate.companyName}`);
     console.log(`Text fields: ${result.filled.length}`);
-    console.log(`Selects: ${result.selected.length}`);
+    console.log(`Selects/radios: ${result.selected.length}`);
     console.log(`Consent checkboxes: ${result.checked.length}`);
     result.warnings.forEach((warning) => console.log(`Warning: ${warning}`));
     console.log(`送信後: npm run forms:mark-sent`);

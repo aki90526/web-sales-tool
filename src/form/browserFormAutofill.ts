@@ -485,8 +485,44 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
   };
 
+  const scoreChoiceText = (text: string): number => {
+    if (/(協業|パートナー|提携|業務委託|外注)/i.test(text)) {
+      return 60;
+    }
+
+    if (/(プロジェクト|案件|仕事|ご相談|相談)/i.test(text)) {
+      return 50;
+    }
+
+    if (/(web|ウェブ|制作|相談)/i.test(text)) {
+      return 40;
+    }
+
+    if (/(その他|other)/i.test(text)) {
+      return 30;
+    }
+
+    if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
+      return 10;
+    }
+
+    return 1;
+  };
+
+  const scoreOption = (option: HTMLOptionElement): number => {
+    if (!option.value) {
+      return 0;
+    }
+
+    return scoreChoiceText(normalize(option.textContent || option.value));
+  };
+
+  const isInquiryChoiceLabel = (text: string): boolean => {
+    return /(お問い合わせ|お問合せ|問い合わせ|項目|種別|用件|ご用件|contact|inquiry|type|category)/i.test(text);
+  };
+
   const fillSelect = (element: HTMLSelectElement): void => {
-    if (element.disabled) {
+    if (element.disabled || !isInquiryChoiceLabel(labelFor(element))) {
       return;
     }
 
@@ -498,36 +534,6 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       });
       return;
     }
-
-    const scoreOption = (option: HTMLOptionElement): number => {
-      const text = normalize(option.textContent || option.value);
-
-      if (!option.value) {
-        return 0;
-      }
-
-      if (/(協業|パートナー|提携|業務委託|外注)/i.test(text)) {
-        return 60;
-      }
-
-      if (/(プロジェクト|案件|仕事|ご相談|相談)/i.test(text)) {
-        return 50;
-      }
-
-      if (/(web|ウェブ|制作|相談)/i.test(text)) {
-        return 40;
-      }
-
-      if (/(その他|other)/i.test(text)) {
-        return 30;
-      }
-
-      if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
-        return 10;
-      }
-
-      return 1;
-    };
 
     const preferred = Array.from(element.options)
       .map((option) => ({ option, score: scoreOption(option) }))
@@ -549,6 +555,166 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     } else {
       result.warnings.push(`${shortLabelFor(element)} は手動選択が必要です。`);
     }
+  };
+
+  const labelElementFor = (element: HTMLInputElement): HTMLElement | null => {
+    const id = element.getAttribute("id");
+
+    if (id) {
+      const explicitLabel = document.querySelector<HTMLElement>(`label[for="${CSS.escape(id)}"]`);
+      if (explicitLabel) {
+        return explicitLabel;
+      }
+    }
+
+    return element.closest<HTMLElement>("label");
+  };
+
+  const radioOptionLabelFor = (element: HTMLInputElement): string => {
+    const parts: string[] = [];
+    const label = labelElementFor(element);
+    const next = element.nextElementSibling;
+    const parent = element.parentElement;
+
+    if (label?.textContent) {
+      parts.push(label.textContent);
+    }
+
+    if (next?.textContent) {
+      parts.push(next.textContent);
+    }
+
+    if (parent && parent.querySelectorAll("input[type='radio']").length <= 1 && parent.textContent) {
+      parts.push(parent.textContent);
+    }
+
+    ["aria-label", "value", "name", "id"].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      if (value) {
+        parts.push(value);
+      }
+    });
+
+    return Array.from(new Set(parts.map((part) => part.trim()).filter(Boolean))).join(" ").slice(0, 120);
+  };
+
+  const radioGroupLabelFor = (elements: HTMLInputElement[]): string => {
+    const first = elements[0];
+
+    if (first.name) {
+      return normalize(first.name);
+    }
+
+    const fieldset = first.closest("fieldset");
+    const legend = fieldset?.querySelector("legend");
+
+    if (legend?.textContent) {
+      return normalize(legend.textContent);
+    }
+
+    let parent = first.parentElement;
+    for (let depth = 0; parent && depth < 4; depth += 1, parent = parent.parentElement) {
+      const radioCount = parent.querySelectorAll("input[type='radio']").length;
+      const text = parent.textContent?.trim() ?? "";
+
+      if (radioCount === elements.length && text.length <= 240) {
+        return normalize(text);
+      }
+    }
+
+    return normalize(first.getAttribute("name") || first.getAttribute("id") || "radio");
+  };
+
+  const radioVisible = (element: HTMLInputElement): boolean => {
+    const label = labelElementFor(element);
+    return visible(element) || Boolean(label && visible(label));
+  };
+
+  const isInquiryRadioGroup = (elements: HTMLInputElement[]): boolean => {
+    return isInquiryChoiceLabel(radioGroupLabelFor(elements));
+  };
+
+  const checkRadio = (element: HTMLInputElement): void => {
+    const label = labelElementFor(element);
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
+
+    element.focus();
+    (label || element).click();
+
+    if (!element.checked) {
+      if (descriptor?.set) {
+        descriptor.set.call(element, true);
+      } else {
+        element.checked = true;
+      }
+    }
+
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  const fillRadioGroups = (): void => {
+    const groups = new Map<string, HTMLInputElement[]>();
+
+    document
+      .querySelectorAll<HTMLInputElement>("input[type='radio']")
+      .forEach((element) => {
+        if (element.disabled || !radioVisible(element)) {
+          return;
+        }
+
+        const formKey = element.form?.id || element.form?.getAttribute("name") || "form";
+        const fieldsetKey = element.closest("fieldset")?.textContent?.slice(0, 80) || "fieldset";
+        const key = element.name
+          ? `${formKey}:name:${element.name}`
+          : `${formKey}:fieldset:${fieldsetKey}`;
+        const current = groups.get(key) ?? [];
+        current.push(element);
+        groups.set(key, current);
+      });
+
+    groups.forEach((elements) => {
+      if (!isInquiryRadioGroup(elements)) {
+        return;
+      }
+
+      if (elements.some((element) => element.checked)) {
+        const checked = elements.find((element) => element.checked);
+        if (checked) {
+          result.selected.push({
+            label: radioGroupLabelFor(elements),
+            option: radioOptionLabelFor(checked)
+          });
+        }
+        return;
+      }
+
+      const choices = elements
+        .map((element) => ({
+          element,
+          optionLabel: radioOptionLabelFor(element),
+          score: scoreChoiceText(normalize(radioOptionLabelFor(element)))
+        }))
+        .filter((choice) => choice.score > 1)
+        .sort((a, b) => b.score - a.score);
+
+      const preferred = choices[0];
+
+      if (!preferred) {
+        return;
+      }
+
+      checkRadio(preferred.element);
+
+      if (preferred.element.checked) {
+        result.selected.push({
+          label: radioGroupLabelFor(elements),
+          option: preferred.optionLabel
+        });
+      } else {
+        result.warnings.push(`${radioGroupLabelFor(elements)} は手動選択が必要です。`);
+      }
+    });
   };
 
   const fillTextControl = (element: HTMLInputElement | HTMLTextAreaElement): void => {
@@ -606,6 +772,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     .querySelectorAll<HTMLSelectElement>("select")
     .forEach((element) => fillSelect(element));
 
+  fillRadioGroups();
+
   document
     .querySelectorAll<HTMLInputElement>("input[type='checkbox']")
     .forEach((element) => checkConsent(element));
@@ -627,6 +795,22 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
         result.warnings.push(`${shortLabelFor(element)} は手動確認が必要です。`);
       }
     });
+
+  const requiredRadioNames = new Set<string>();
+  document
+    .querySelectorAll<HTMLInputElement>("input[type='radio'][required], input[type='radio'][aria-required='true']")
+    .forEach((element) => {
+      if (element.name) {
+        requiredRadioNames.add(element.name);
+      }
+    });
+
+  requiredRadioNames.forEach((name) => {
+    const group = Array.from(document.querySelectorAll<HTMLInputElement>(`input[type='radio'][name="${CSS.escape(name)}"]`));
+    if (group.length > 0 && !group.some((element) => element.checked)) {
+      result.warnings.push(`${radioGroupLabelFor(group)} は手動選択が必要です。`);
+    }
+  });
 
   if (result.filled.length === 0) {
     result.warnings.push("入力できる項目を自動判定できませんでした。フォーム項目名を確認してください。");
@@ -736,12 +920,16 @@ const pageFindSelectKeyboardTarget = (): SelectKeyboardTarget | null => {
     return 1;
   };
 
+  const isInquiryChoiceLabel = (text: string): boolean => {
+    return /(お問い合わせ|お問合せ|問い合わせ|項目|種別|用件|ご用件|contact|inquiry|type|category)/i.test(text);
+  };
+
   const selects = Array.from(document.querySelectorAll<HTMLSelectElement>("select"));
 
   for (let selectIndex = 0; selectIndex < selects.length; selectIndex += 1) {
     const element = selects[selectIndex];
 
-    if (!visible(element) || element.disabled || element.value) {
+    if (!visible(element) || element.disabled || element.value || !isInquiryChoiceLabel(labelFor(element))) {
       continue;
     }
 
