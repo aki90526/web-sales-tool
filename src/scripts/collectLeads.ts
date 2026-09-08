@@ -169,6 +169,9 @@ const main = async (): Promise<void> => {
 
   for (const result of results) {
     console.log(`Added ${result.leadId}: ${result.companyName} -> ${result.range ?? "(unknown)"}`);
+    if (result.companyNameCorrection) {
+      console.log(`Corrected company name: ${result.companyNameCorrection}`);
+    }
     console.log(`Logged analysis data -> ${result.analysisDataRange ?? "(unknown)"}`);
   }
 };

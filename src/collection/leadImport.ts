@@ -5,6 +5,7 @@ import { readSalesManagementTable } from "../google/salesManagementRepository";
 import { SheetsClient } from "../google/sheetsClient";
 import { LeadCandidate, toSalesLeadInput } from "../openai/leadCandidateCollector";
 import { WebSearchTrace } from "../openai/openAIClient";
+import { verifyCompanyName } from "./companyNameVerifier";
 
 export type ExistingLeadState = {
   maxNumericLeadId: number;
@@ -15,6 +16,7 @@ export type ExistingLeadState = {
 export type ImportedLeadResult = {
   leadId: string;
   companyName: string;
+  companyNameCorrection?: string;
   range?: string;
   analysisDataRange?: string;
   rowNumber: number;
@@ -97,48 +99,53 @@ export const importLeadCandidates = async (
 
   for (const candidate of uniqueCandidates) {
     const leadId = nextLeadId(nextNumericId);
-    const lead = toSalesLeadInput(candidate, leadId);
+    const verification = await verifyCompanyName(candidate);
+    const verifiedCandidate = verification.candidate;
+    const lead = toSalesLeadInput(verifiedCandidate, leadId);
     const result = await appendSalesLead(sheets, lead);
     const analysisDataResult = await appendAnalysisData(sheets, {
       leadId,
       targetUrl: lead.officialSiteUrl,
       acquiredAt: context.acquiredAt ?? new Date().toISOString(),
-      pageType: candidate.pageType,
+      pageType: verifiedCandidate.pageType,
       analyzedAt: context.acquiredAt ?? new Date().toISOString(),
-      mobileResponsive: candidate.mobileResponsive,
-      seoBasics: candidate.seoBasics,
-      cta: candidate.cta,
-      contactFlow: candidate.contactFlow,
-      updateStatus: candidate.updateStatus,
-      ssl: candidate.ssl,
-      cms: candidate.cms,
-      improvementPoints: candidate.improvementPoints,
-      recommendedApproach: candidate.recommendedApproach,
-      estimatedRenewalPeriod: candidate.estimatedRenewalPeriod,
-      renewalConfidence: candidate.renewalConfidence,
-      renewalEvidence: candidate.renewalEvidence,
-      aiAnalysis: candidate.aiAnalysis,
-      aiAdjustment: candidate.aiAdjustment,
-      aiAdjustmentReason: candidate.aiAdjustmentReason,
-      baseScore: candidate.baseScore,
-      salesScore: candidate.salesScore,
-      scoreBreakdown: candidate.scoreBreakdown,
-      exclusionReason: candidate.exclusionReason,
+      mobileResponsive: verifiedCandidate.mobileResponsive,
+      seoBasics: verifiedCandidate.seoBasics,
+      cta: verifiedCandidate.cta,
+      contactFlow: verifiedCandidate.contactFlow,
+      updateStatus: verifiedCandidate.updateStatus,
+      ssl: verifiedCandidate.ssl,
+      cms: verifiedCandidate.cms,
+      improvementPoints: verifiedCandidate.improvementPoints,
+      recommendedApproach: verifiedCandidate.recommendedApproach,
+      estimatedRenewalPeriod: verifiedCandidate.estimatedRenewalPeriod,
+      renewalConfidence: verifiedCandidate.renewalConfidence,
+      renewalEvidence: verifiedCandidate.renewalEvidence,
+      aiAnalysis: verifiedCandidate.aiAnalysis,
+      aiAdjustment: verifiedCandidate.aiAdjustment,
+      aiAdjustmentReason: verifiedCandidate.aiAdjustmentReason,
+      baseScore: verifiedCandidate.baseScore,
+      salesScore: verifiedCandidate.salesScore,
+      scoreBreakdown: verifiedCandidate.scoreBreakdown,
+      exclusionReason: verifiedCandidate.exclusionReason,
       searchCondition: context.searchCondition ?? "",
       searchQueries: context.searchTrace?.queries ?? [],
       sourceUrls: context.searchTrace?.sourceUrls ?? [],
-      capital: candidate.capital,
-      employeeCount: candidate.employeeCount,
-      annualRevenue: candidate.annualRevenue,
-      listingStatus: candidate.listingStatus,
-      companySizeCategory: candidate.companySizeCategory,
-      companySizeMemo: candidate.companySizeMemo,
-      salesAngle: candidate.salesAngle
+      capital: verifiedCandidate.capital,
+      employeeCount: verifiedCandidate.employeeCount,
+      annualRevenue: verifiedCandidate.annualRevenue,
+      listingStatus: verifiedCandidate.listingStatus,
+      companySizeCategory: verifiedCandidate.companySizeCategory,
+      companySizeMemo: verifiedCandidate.companySizeMemo,
+      salesAngle: verifiedCandidate.salesAngle
     });
 
     results.push({
       leadId,
       companyName: lead.companyName,
+      companyNameCorrection: verification.correction
+        ? `${verification.correction.from} -> ${verification.correction.to} (${verification.correction.sourceUrl})`
+        : undefined,
       range: result.range,
       analysisDataRange: analysisDataResult.range,
       rowNumber: result.rowNumber
