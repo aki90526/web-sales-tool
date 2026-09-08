@@ -262,6 +262,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     email: payload.sender.email,
     tel: payload.sender.tel,
     url: payload.sender.url,
+    address: payload.sender.formAddress,
     subject: payload.candidate.subject,
     japanCapital: "東京",
     body: payload.candidate.body
@@ -277,6 +278,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     email: ["メールアドレス", "Email", "E-mail", "mail", "メール"],
     tel: ["電話番号", "TEL", "Tel", "tel", "phone", "mobile"],
     url: ["URL", "ホームページ", "Webサイト", "サイトURL", "website", "site"],
+    address: ["住所", "所在地", "ご住所", "住所地", "address", "location"],
     subject: ["件名", "タイトル", "題名", "subject", "title"],
     japanCapital: ["日本の首都", "首都は", "スパム対策"],
     body: ["お問い合わせ内容", "内容", "本文", "メッセージ", "詳細", "message", "body", "textarea"]
@@ -291,6 +293,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     email: [...builtinAliases.email, ...payload.formFieldAliases.email],
     tel: [...builtinAliases.tel, ...payload.formFieldAliases.tel],
     url: [...builtinAliases.url, ...payload.formFieldAliases.url],
+    address: [...builtinAliases.address, ...payload.formFieldAliases.address],
     subject: [...builtinAliases.subject, ...payload.formFieldAliases.subject],
     body: [...builtinAliases.body, ...payload.formFieldAliases.body]
   };
@@ -452,6 +455,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "department")) {
       return "department";
+    }
+
+    if (matches(text, "address")) {
+      return "address";
     }
 
     if (matches(text, "companyName")) {

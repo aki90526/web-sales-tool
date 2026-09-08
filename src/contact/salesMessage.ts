@@ -12,6 +12,7 @@ export type SenderInfo = {
   email: string;
   url: string;
   address: string;
+  formAddress: string;
 };
 
 export type FormFieldAliases = {
@@ -22,6 +23,7 @@ export type FormFieldAliases = {
   email: string[];
   tel: string[];
   url: string[];
+  address: string[];
   subject: string[];
   body: string[];
 };
@@ -70,7 +72,8 @@ export const CONTACT_SENDER: SenderInfo = {
   chatworkId: "abeAawc",
   email: "abe@aawebcreate.com",
   url: "https://aawebcreate.com/",
-  address: "埼玉県春日部市"
+  address: "埼玉県春日部市",
+  formAddress: "埼玉県春日部市西金野井1074-10"
 } as const;
 
 const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
@@ -81,6 +84,7 @@ const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
   email: ["メールアドレス", "Email", "E-mail", "mail"],
   tel: ["電話番号", "TEL", "Tel", "tel"],
   url: ["URL", "ホームページ", "Webサイト", "サイトURL"],
+  address: ["住所", "所在地", "ご住所", "住所地", "address", "location"],
   subject: ["件名", "タイトル", "お問い合わせ種別", "題名"],
   body: ["お問い合わせ内容", "内容", "メッセージ", "本文", "詳細"]
 };
@@ -131,7 +135,8 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     chatworkId: setting(settings, "送信者_チャットワークID", CONTACT_SENDER.chatworkId),
     email: setting(settings, "送信者_メール", CONTACT_SENDER.email),
     url: setting(settings, "送信者_URL", CONTACT_SENDER.url),
-    address: setting(settings, "送信者_住所", CONTACT_SENDER.address)
+    address: setting(settings, "送信者_住所", CONTACT_SENDER.address),
+    formAddress: setting(settings, "送信者_フォーム住所", CONTACT_SENDER.formAddress)
   };
 };
 
@@ -149,6 +154,7 @@ const readFormFieldAliases = (settings: Map<string, string>): FormFieldAliases =
     email: readAliases("フォーム項目_メール", DEFAULT_FORM_FIELD_ALIASES.email),
     tel: readAliases("フォーム項目_電話番号", DEFAULT_FORM_FIELD_ALIASES.tel),
     url: readAliases("フォーム項目_URL", DEFAULT_FORM_FIELD_ALIASES.url),
+    address: readAliases("フォーム項目_住所", DEFAULT_FORM_FIELD_ALIASES.address),
     subject: readAliases("フォーム項目_件名", DEFAULT_FORM_FIELD_ALIASES.subject),
     body: readAliases("フォーム項目_本文", DEFAULT_FORM_FIELD_ALIASES.body)
   };
@@ -456,6 +462,8 @@ const renderTemplate = (
     ["送信者_URL", sender.url],
     ["senderAddress", sender.address],
     ["送信者_住所", sender.address],
+    ["senderFormAddress", sender.formAddress],
+    ["送信者_フォーム住所", sender.formAddress],
     ["senderChatworkId", sender.chatworkId],
     ["送信者_チャットワークID", sender.chatworkId]
   ]);
