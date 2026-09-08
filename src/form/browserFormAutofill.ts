@@ -614,7 +614,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const isInquiryChoiceLabel = (text: string): boolean => {
-    return /(お問い合わせ|お問合せ|問い合わせ|項目|種別|用件|ご用件|contact|inquiry|type|category)/i.test(text);
+    return /(お問い合わせ|お問合せ|問い合わせ|項目|種別|カテゴリ|カテゴリー|用件|ご用件|contact|inquiry|type|category)/i.test(text);
   };
 
   const fillSelect = (element: HTMLSelectElement): void => {
@@ -1032,7 +1032,7 @@ const pageFindSelectKeyboardTarget = (): SelectKeyboardTarget | null => {
   };
 
   const isInquiryChoiceLabel = (text: string): boolean => {
-    return /(お問い合わせ|お問合せ|問い合わせ|項目|種別|用件|ご用件|contact|inquiry|type|category)/i.test(text);
+    return /(お問い合わせ|お問合せ|問い合わせ|項目|種別|カテゴリ|カテゴリー|用件|ご用件|contact|inquiry|type|category)/i.test(text);
   };
 
   const selects = Array.from(document.querySelectorAll<HTMLSelectElement>("select"));
