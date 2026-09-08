@@ -11,6 +11,10 @@ type ChromeRemoteInterface = {
 };
 
 type ChromeClient = {
+  Input: {
+    dispatchKeyEvent: (options: Record<string, unknown>) => Promise<void>;
+    dispatchMouseEvent: (options: Record<string, unknown>) => Promise<void>;
+  };
   Page: {
     enable: () => Promise<void>;
     loadEventFired: () => Promise<void>;
@@ -53,6 +57,22 @@ export type BrowserFillResult = {
 type BrowserFillOptions = {
   chromePort: number;
   timeoutMs: number;
+};
+
+type SelectKeyboardTarget = {
+  label: string;
+  option: string;
+  optionIndex: number;
+  selectedIndex: number;
+  selectIndex: number;
+  x: number;
+  y: number;
+};
+
+type SelectStatus = {
+  label: string;
+  option: string;
+  value: string;
 };
 
 const chromeUserDataDir = path.resolve(process.cwd(), ".tmp", "chrome-form-fill-profile");
@@ -186,23 +206,34 @@ const mergeAutofillResults = (results: FormAutofillResult[]): FormAutofillResult
     return unique;
   };
 
-  return {
-    filled: uniqueBy(
+  const filled = uniqueBy(
       results.flatMap((result) => result.filled),
       (value) => `${value.field}:${value.valueName}`
-    ),
-    checked: uniqueBy(
+    );
+  const checked = uniqueBy(
       results.flatMap((result) => result.checked),
       (value) => value.label
-    ),
-    selected: uniqueBy(
+    );
+  const selected = uniqueBy(
       results.flatMap((result) => result.selected),
       (value) => `${value.label}:${value.option}`
-    ),
-    warnings: uniqueBy(
+    );
+  const warnings = uniqueBy(
       results.flatMap((result) => result.warnings),
       (value) => value
-    )
+    ).filter((warning) => {
+      if (!warning.includes("手動選択")) {
+        return true;
+      }
+
+      return !selected.some((value) => value.label && warning.includes(value.label));
+    });
+
+  return {
+    filled,
+    checked,
+    selected,
+    warnings
   };
 };
 
@@ -450,7 +481,16 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const fillSelect = (element: HTMLSelectElement): void => {
-    if (element.disabled || element.value) {
+    if (element.disabled) {
+      return;
+    }
+
+    if (element.value) {
+      const selectedOption = element.options[element.selectedIndex];
+      result.selected.push({
+        label: shortLabelFor(element),
+        option: selectedOption?.textContent?.trim() || element.value
+      });
       return;
     }
 
@@ -586,6 +626,153 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   return result;
 };
 
+const pageFindSelectKeyboardTarget = (): SelectKeyboardTarget | null => {
+  const normalize = (value: string): string => {
+    return value
+      .replace(/\s+/g, " ")
+      .replace(/[：:＊*必須]/g, " ")
+      .trim()
+      .toLowerCase();
+  };
+
+  const visible = (element: HTMLElement): boolean => {
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  };
+
+  const labelFor = (element: HTMLElement): string => {
+    const parts: string[] = [];
+    const id = element.getAttribute("id");
+    const name = element.getAttribute("name");
+
+    if (id) {
+      const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+      if (label?.textContent) {
+        parts.push(label.textContent);
+      }
+    }
+
+    const closestLabel = element.closest("label");
+    if (closestLabel?.textContent) {
+      parts.push(closestLabel.textContent);
+    }
+
+    let parent = element.parentElement;
+    for (let depth = 0; parent && depth < 3; depth += 1, parent = parent.parentElement) {
+      const controls = parent.querySelectorAll("input, textarea, select").length;
+      const text = parent.textContent?.trim() ?? "";
+
+      if (controls <= 2 && text.length <= 160) {
+        parts.push(text);
+      }
+    }
+
+    const previous = element.previousElementSibling;
+    if (previous?.textContent) {
+      parts.push(previous.textContent.slice(0, 120));
+    }
+
+    ["aria-label", "placeholder", "name", "id"].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      if (value) {
+        parts.push(value);
+      }
+    });
+
+    if (name) {
+      parts.push(name);
+    }
+
+    return normalize(Array.from(new Set(parts)).join(" "));
+  };
+
+  const shortLabelFor = (element: HTMLElement): string => {
+    const text = labelFor(element);
+
+    if (text.includes("お問い合わせ種別")) {
+      return "お問い合わせ種別";
+    }
+
+    return text.slice(0, 80) || element.getAttribute("name") || element.getAttribute("id") || element.tagName.toLowerCase();
+  };
+
+  const scoreOption = (option: HTMLOptionElement): number => {
+    const text = normalize(option.textContent || option.value);
+
+    if (!option.value) {
+      return 0;
+    }
+
+    if (/(その他|other)/i.test(text)) {
+      return 50;
+    }
+
+    if (/(協業|パートナー|業務委託|外注)/i.test(text)) {
+      return 45;
+    }
+
+    if (/(web|ウェブ|制作|相談)/i.test(text)) {
+      return 40;
+    }
+
+    if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
+      return 10;
+    }
+
+    return 1;
+  };
+
+  const selects = Array.from(document.querySelectorAll<HTMLSelectElement>("select"));
+
+  for (let selectIndex = 0; selectIndex < selects.length; selectIndex += 1) {
+    const element = selects[selectIndex];
+
+    if (!visible(element) || element.disabled || element.value) {
+      continue;
+    }
+
+    const preferred = Array.from(element.options)
+      .map((option) => ({ option, score: scoreOption(option) }))
+      .sort((a, b) => b.score - a.score)[0];
+
+    if (!preferred || preferred.score <= 0) {
+      continue;
+    }
+
+    element.scrollIntoView({ block: "center", inline: "nearest" });
+    const rect = element.getBoundingClientRect();
+
+    return {
+      label: shortLabelFor(element),
+      option: preferred.option.textContent?.trim() || preferred.option.value,
+      optionIndex: preferred.option.index,
+      selectedIndex: element.selectedIndex,
+      selectIndex,
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+  }
+
+  return null;
+};
+
+const pageReadSelectStatus = (selectIndex: number): SelectStatus | null => {
+  const element = Array.from(document.querySelectorAll<HTMLSelectElement>("select"))[selectIndex];
+
+  if (!element) {
+    return null;
+  }
+
+  const selectedOption = element.options[element.selectedIndex];
+
+  return {
+    label: element.getAttribute("aria-label") || element.getAttribute("name") || element.getAttribute("id") || "select",
+    option: selectedOption?.textContent?.trim() || element.value,
+    value: element.value
+  };
+};
+
 const runInPage = async (
   client: ChromeClient,
   payload: FormAutofillPayload
@@ -598,6 +785,113 @@ const runInPage = async (
   });
 
   return response.result?.value as FormAutofillResult;
+};
+
+const findSelectKeyboardTarget = async (client: ChromeClient): Promise<SelectKeyboardTarget | null> => {
+  const response = await client.Runtime.evaluate({
+    expression: `(${pageFindSelectKeyboardTarget.toString()})()`,
+    awaitPromise: true,
+    returnByValue: true
+  });
+
+  return (response.result?.value as SelectKeyboardTarget | null) ?? null;
+};
+
+const readSelectStatus = async (
+  client: ChromeClient,
+  selectIndex: number
+): Promise<SelectStatus | null> => {
+  const response = await client.Runtime.evaluate({
+    expression: `(${pageReadSelectStatus.toString()})(${selectIndex})`,
+    awaitPromise: true,
+    returnByValue: true
+  });
+
+  return (response.result?.value as SelectStatus | null) ?? null;
+};
+
+const dispatchKey = async (client: ChromeClient, key: "ArrowDown" | "Enter"): Promise<void> => {
+  const keyMap = {
+    ArrowDown: {
+      key: "ArrowDown",
+      code: "ArrowDown",
+      windowsVirtualKeyCode: 40,
+      nativeVirtualKeyCode: 125
+    },
+    Enter: {
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13,
+      nativeVirtualKeyCode: 36
+    }
+  };
+  const options = keyMap[key];
+
+  await client.Input.dispatchKeyEvent({ type: "keyDown", ...options });
+  await client.Input.dispatchKeyEvent({ type: "keyUp", ...options });
+};
+
+const selectDropdownsWithKeyboard = async (client: ChromeClient): Promise<FormAutofillResult> => {
+  const result: FormAutofillResult = {
+    filled: [],
+    checked: [],
+    selected: [],
+    warnings: []
+  };
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const target = await findSelectKeyboardTarget(client);
+
+    if (!target) {
+      break;
+    }
+
+    await client.Input.dispatchMouseEvent({
+      type: "mousePressed",
+      x: target.x,
+      y: target.y,
+      button: "left",
+      clickCount: 1
+    });
+    await client.Input.dispatchMouseEvent({
+      type: "mouseReleased",
+      x: target.x,
+      y: target.y,
+      button: "left",
+      clickCount: 1
+    });
+    await sleep(300);
+
+    const steps = Math.max(
+      1,
+      target.selectedIndex >= 0
+        ? target.optionIndex - target.selectedIndex
+        : target.optionIndex + 1
+    );
+
+    for (let step = 0; step < steps; step += 1) {
+      await dispatchKey(client, "ArrowDown");
+      await sleep(50);
+    }
+
+    await dispatchKey(client, "Enter");
+    await sleep(500);
+
+    const status = await readSelectStatus(client, target.selectIndex);
+
+    if (status?.value) {
+      result.selected.push({
+        label: target.label,
+        option: status.option || target.option
+      });
+      continue;
+    }
+
+    result.warnings.push(`${target.label} は手動選択が必要です。`);
+    break;
+  }
+
+  return result;
 };
 
 export const fillCandidateFormsInBrowser = async (
@@ -647,6 +941,8 @@ export const fillCandidateFormsInBrowser = async (
 
       await sleep(1000);
       passResults.push(await runInPage(client, payload));
+
+      passResults.push(await selectDropdownsWithKeyboard(client));
 
       await sleep(500);
       passResults.push(await runInPage(client, payload));
