@@ -249,6 +249,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     companyName: payload.sender.companyName,
     name: payload.sender.name,
     nameKana: payload.sender.nameKana,
+    department: payload.sender.department,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
     firstName: payload.sender.name.split(/\s+/).slice(1).join(" ") || payload.sender.name,
@@ -263,6 +264,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     companyName: ["会社名", "貴社名", "法人名", "屋号", "組織名", "company", "organization"],
     name: ["お名前", "氏名", "担当者名", "ご担当者名", "name", "your-name"],
     nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ", "kana", "furigana"],
+    department: ["部署", "部署名", "所属部署", "所属部署名", "部門", "部門名", "department", "division", "section"],
     lastName: ["last name", "family name", "sei"],
     firstName: ["first name", "given name", "mei"],
     email: ["メールアドレス", "Email", "E-mail", "mail", "メール"],
@@ -277,6 +279,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     companyName: [...builtinAliases.companyName, ...payload.formFieldAliases.companyName],
     name: [...builtinAliases.name, ...payload.formFieldAliases.name],
     nameKana: [...builtinAliases.nameKana, ...payload.formFieldAliases.nameKana],
+    department: [...builtinAliases.department, ...payload.formFieldAliases.department],
     email: [...builtinAliases.email, ...payload.formFieldAliases.email],
     tel: [...builtinAliases.tel, ...payload.formFieldAliases.tel],
     url: [...builtinAliases.url, ...payload.formFieldAliases.url],
@@ -412,6 +415,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "nameKana")) {
       return "nameKana";
+    }
+
+    if (matches(text, "department")) {
+      return "department";
     }
 
     if (matches(text, "companyName")) {
