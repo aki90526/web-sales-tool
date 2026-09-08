@@ -248,6 +248,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   const values: Record<string, string> = {
     companyName: payload.sender.companyName,
     name: payload.sender.name,
+    nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
     firstName: payload.sender.name.split(/\s+/).slice(1).join(" ") || payload.sender.name,
     email: payload.sender.email,
@@ -407,6 +408,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
 
     if (matches(text, "companyName")) {
+      if (text.includes("屋号") && matches(text, "name")) {
+        return "nameWithCompanyName";
+      }
+
       return "companyName";
     }
 
