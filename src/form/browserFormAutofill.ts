@@ -169,6 +169,43 @@ const notify = async (title: string, message: string): Promise<void> => {
   });
 };
 
+const mergeAutofillResults = (results: FormAutofillResult[]): FormAutofillResult => {
+  const uniqueBy = <T>(values: T[], keyFor: (value: T) => string): T[] => {
+    const seen = new Set<string>();
+    const unique: T[] = [];
+
+    values.forEach((value) => {
+      const key = keyFor(value);
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(value);
+      }
+    });
+
+    return unique;
+  };
+
+  return {
+    filled: uniqueBy(
+      results.flatMap((result) => result.filled),
+      (value) => `${value.field}:${value.valueName}`
+    ),
+    checked: uniqueBy(
+      results.flatMap((result) => result.checked),
+      (value) => value.label
+    ),
+    selected: uniqueBy(
+      results.flatMap((result) => result.selected),
+      (value) => `${value.label}:${value.option}`
+    ),
+    warnings: uniqueBy(
+      results.flatMap((result) => result.warnings),
+      (value) => value
+    )
+  };
+};
+
 const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   const result: FormAutofillResult = {
     filled: [],
@@ -192,8 +229,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   const builtinAliases: Record<string, string[]> = {
     companyName: ["会社名", "貴社名", "法人名", "屋号", "組織名", "company", "organization"],
     name: ["お名前", "氏名", "担当者名", "ご担当者名", "name", "your-name"],
-    lastName: ["姓", "last name", "family name", "sei"],
-    firstName: ["名", "first name", "given name", "mei"],
+    lastName: ["last name", "family name", "sei"],
+    firstName: ["first name", "given name", "mei"],
     email: ["メールアドレス", "Email", "E-mail", "mail", "メール"],
     tel: ["電話番号", "TEL", "Tel", "tel", "phone", "mobile"],
     url: ["URL", "ホームページ", "Webサイト", "サイトURL", "website", "site"],
@@ -243,9 +280,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       parts.push(closestLabel.textContent);
     }
 
-    const parent = element.parentElement;
-    if (parent?.textContent) {
-      parts.push(parent.textContent.slice(0, 160));
+    let parent = element.parentElement;
+    for (let depth = 0; parent && depth < 3; depth += 1, parent = parent.parentElement) {
+      const controls = parent.querySelectorAll("input, textarea, select").length;
+      const text = parent.textContent?.trim() ?? "";
+
+      if (controls <= 2 && text.length <= 160) {
+        parts.push(text);
+      }
     }
 
     const previous = element.previousElementSibling;
@@ -278,6 +320,43 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return aliases[key].some((alias) => text.includes(normalize(alias)));
   };
 
+  const shortLabelFor = (element: HTMLElement): string => {
+    const text = labelFor(element);
+
+    if (text.includes("お問い合わせ種別")) {
+      return "お問い合わせ種別";
+    }
+
+    if (text.includes("プライバシー")) {
+      return "プライバシーポリシー同意";
+    }
+
+    if (text.includes("個人情報")) {
+      return "個人情報同意";
+    }
+
+    return text.slice(0, 80) || element.getAttribute("name") || element.getAttribute("id") || element.tagName.toLowerCase();
+  };
+
+  const hasStandaloneJapaneseField = (text: string, value: string): boolean => {
+    const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(^|[\\s\\[\\]（）()【】「」:：_\\-/／])${escaped}($|[\\s\\[\\]（）()【】「」:：_\\-/／])`);
+
+    return pattern.test(text);
+  };
+
+  const matchesLastName = (text: string, autocomplete: string): boolean => {
+    return /family-name/.test(autocomplete) || matches(text, "lastName") || hasStandaloneJapaneseField(text, "姓");
+  };
+
+  const matchesFirstName = (text: string, autocomplete: string): boolean => {
+    if (text.includes("会社名") || text.includes("法人名") || text.includes("お名前") || text.includes("氏名")) {
+      return /given-name/.test(autocomplete) || matches(text, "firstName");
+    }
+
+    return /given-name/.test(autocomplete) || matches(text, "firstName") || hasStandaloneJapaneseField(text, "名");
+  };
+
   const inferKey = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): string => {
     const text = labelFor(element);
     const tagName = element.tagName.toLowerCase();
@@ -296,31 +375,47 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "body";
     }
 
-    if (/family-name/.test(autocomplete) || matches(text, "lastName")) {
-      return "lastName";
-    }
-
-    if (/given-name/.test(autocomplete) || matches(text, "firstName")) {
-      return "firstName";
-    }
-
-    if (matches(text, "subject")) {
-      return "subject";
-    }
-
     if (matches(text, "companyName")) {
       return "companyName";
-    }
-
-    if (matches(text, "url")) {
-      return "url";
     }
 
     if (matches(text, "name")) {
       return "name";
     }
 
+    if (matches(text, "subject")) {
+      return "subject";
+    }
+
+    if (matchesLastName(text, autocomplete)) {
+      return "lastName";
+    }
+
+    if (matchesFirstName(text, autocomplete)) {
+      return "firstName";
+    }
+
+    if (matches(text, "url")) {
+      return "url";
+    }
+
     return "";
+  };
+
+  const setNativeValue = (
+    element: HTMLInputElement | HTMLTextAreaElement,
+    value: string
+  ): void => {
+    const prototype = element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+
+    if (descriptor?.set) {
+      descriptor.set.call(element, value);
+    } else {
+      element.value = value;
+    }
   };
 
   const setValue = (
@@ -329,41 +424,86 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     valueName: string
   ): void => {
     element.focus();
-    element.value = value;
-    element.dispatchEvent(new Event("input", { bubbles: true }));
+    if (element instanceof HTMLTextAreaElement) {
+      element.value = "";
+    }
+    setNativeValue(element, value);
+    if (element instanceof HTMLTextAreaElement && element.value !== value) {
+      element.select();
+      document.execCommand("insertText", false, value);
+    }
+    element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
-    result.filled.push({
+    element.blur();
+
+    const filled = {
       field: element.getAttribute("name") || element.getAttribute("id") || element.tagName.toLowerCase(),
       valueName,
       label: labelFor(element).slice(0, 120)
-    });
+    };
+
+    result.filled.push(filled);
+
+    if (element.value !== value) {
+      result.warnings.push(`${filled.label || filled.field} に ${valueName} を反映できませんでした。手動で確認してください。`);
+    }
   };
 
   const fillSelect = (element: HTMLSelectElement): void => {
-    if (!visible(element) || element.disabled || element.value) {
+    if (element.disabled || element.value) {
       return;
     }
 
-    const preferred = Array.from(element.options).find((option) => {
+    const scoreOption = (option: HTMLOptionElement): number => {
       const text = normalize(option.textContent || option.value);
-      return Boolean(option.value) && /(お問い合わせ|お問合せ|その他|協業|パートナー|業務委託|web|制作|相談)/i.test(text);
-    });
 
-    if (!preferred) {
+      if (!option.value) {
+        return 0;
+      }
+
+      if (/(その他|other)/i.test(text)) {
+        return 50;
+      }
+
+      if (/(協業|パートナー|業務委託|外注)/i.test(text)) {
+        return 45;
+      }
+
+      if (/(web|ウェブ|制作|相談)/i.test(text)) {
+        return 40;
+      }
+
+      if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
+        return 10;
+      }
+
+      return 1;
+    };
+
+    const preferred = Array.from(element.options)
+      .map((option) => ({ option, score: scoreOption(option) }))
+      .sort((a, b) => b.score - a.score)[0];
+
+    if (!preferred || preferred.score <= 0) {
       return;
     }
 
-    element.value = preferred.value;
+    element.value = preferred.option.value;
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
-    result.selected.push({
-      label: labelFor(element).slice(0, 120),
-      option: preferred.textContent?.trim() || preferred.value
-    });
+
+    if (element.value === preferred.option.value) {
+      result.selected.push({
+        label: shortLabelFor(element),
+        option: preferred.option.textContent?.trim() || preferred.option.value
+      });
+    } else {
+      result.warnings.push(`${shortLabelFor(element)} は手動選択が必要です。`);
+    }
   };
 
   const fillTextControl = (element: HTMLInputElement | HTMLTextAreaElement): void => {
-    if (!visible(element) || element.disabled || element.readOnly || element.value.trim()) {
+    if (!visible(element) || element.disabled || element.readOnly) {
       return;
     }
 
@@ -381,7 +521,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const checkConsent = (element: HTMLInputElement): void => {
-    if (!visible(element) || element.disabled || element.type !== "checkbox" || element.checked) {
+    if (element.disabled || element.type !== "checkbox" || element.checked) {
       return;
     }
 
@@ -390,7 +530,22 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return;
     }
 
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
+    if (descriptor?.set) {
+      descriptor.set.call(element, true);
+    } else {
+      element.checked = true;
+    }
     element.click();
+    if (!element.checked) {
+      if (descriptor?.set) {
+        descriptor.set.call(element, true);
+      } else {
+        element.checked = true;
+      }
+    }
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
     result.checked.push({ label: text.slice(0, 120) });
   };
 
@@ -405,6 +560,24 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   document
     .querySelectorAll<HTMLInputElement>("input[type='checkbox']")
     .forEach((element) => checkConsent(element));
+
+  document
+    .querySelectorAll<HTMLSelectElement>("select[required], select[aria-required='true']")
+    .forEach((element) => {
+      if (!element.value) {
+        result.warnings.push(`${shortLabelFor(element)} は手動選択が必要です。`);
+      }
+    });
+
+  document
+    .querySelectorAll<HTMLInputElement>("input[type='checkbox']")
+    .forEach((element) => {
+      const text = labelFor(element);
+
+      if (/(同意|確認|プライバシー|個人情報|規約|privacy|policy)/i.test(text) && !element.checked) {
+        result.warnings.push(`${shortLabelFor(element)} は手動確認が必要です。`);
+      }
+    });
 
   if (result.filled.length === 0) {
     result.warnings.push("入力できる項目を自動判定できませんでした。フォーム項目名を確認してください。");
@@ -456,7 +629,9 @@ export const fillCandidateFormsInBrowser = async (
         await sleep(2000);
       }
 
-      const result = await runInPage(client, {
+      await sleep(1500);
+
+      const payload = {
         sender,
         formFieldAliases,
         candidate: {
@@ -465,7 +640,18 @@ export const fillCandidateFormsInBrowser = async (
           subject: candidate.subject,
           body: candidate.body
         }
-      });
+      };
+      const passResults = [
+        await runInPage(client, payload)
+      ];
+
+      await sleep(1000);
+      passResults.push(await runInPage(client, payload));
+
+      await sleep(500);
+      passResults.push(await runInPage(client, payload));
+
+      const result = mergeAutofillResults(passResults);
 
       results.push({ candidate, result });
       await notify(
