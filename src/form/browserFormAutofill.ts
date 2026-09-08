@@ -26,7 +26,9 @@ type ChromeClient = {
       expression: string;
       awaitPromise?: boolean;
       returnByValue?: boolean;
+      contextId?: number;
     }) => Promise<{ result?: { value?: unknown } }>;
+    executionContextCreated?: (callback: (event: { context?: { id?: number } }) => void) => void;
   };
   close: () => Promise<void>;
 };
@@ -222,6 +224,10 @@ const mergeAutofillResults = (results: FormAutofillResult[]): FormAutofillResult
       results.flatMap((result) => result.warnings),
       (value) => value
     ).filter((warning) => {
+      if (filled.length > 0 && warning.includes("入力できる項目を自動判定できませんでした")) {
+        return false;
+      }
+
       if (!warning.includes("手動選択")) {
         return true;
       }
@@ -429,20 +435,20 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "companyName";
     }
 
-    if (matches(text, "name")) {
-      return "name";
-    }
-
-    if (matches(text, "subject")) {
-      return "subject";
-    }
-
     if (matchesLastName(text, autocomplete)) {
       return "lastName";
     }
 
     if (matchesFirstName(text, autocomplete)) {
       return "firstName";
+    }
+
+    if (matches(text, "name")) {
+      return "name";
+    }
+
+    if (matches(text, "subject")) {
+      return "subject";
     }
 
     if (matches(text, "url")) {
@@ -786,7 +792,21 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
 
     const type = (element.getAttribute("type") || "text").toLowerCase();
-    if (["hidden", "password", "file", "submit", "button", "reset", "image"].includes(type)) {
+    if (
+      [
+        "hidden",
+        "password",
+        "file",
+        "submit",
+        "button",
+        "reset",
+        "image",
+        "checkbox",
+        "radio",
+        "range",
+        "color"
+      ].includes(type)
+    ) {
       return;
     }
 
@@ -1043,16 +1063,46 @@ const pageReadSelectStatus = (selectIndex: number): SelectStatus | null => {
 
 const runInPage = async (
   client: ChromeClient,
-  payload: FormAutofillPayload
+  payload: FormAutofillPayload,
+  contextId?: number
 ): Promise<FormAutofillResult> => {
   const expression = `(${pageAutofill.toString()})(${JSON.stringify(payload)})`;
   const response = await client.Runtime.evaluate({
     expression,
     awaitPromise: true,
-    returnByValue: true
+    returnByValue: true,
+    contextId
   });
 
   return response.result?.value as FormAutofillResult;
+};
+
+const runInAvailablePageContexts = async (
+  client: ChromeClient,
+  payload: FormAutofillPayload,
+  contextIds: Set<number>
+): Promise<FormAutofillResult[]> => {
+  const results: FormAutofillResult[] = [];
+  const targets: Array<number | undefined> = [undefined, ...Array.from(contextIds)];
+  const seen = new Set<string>();
+
+  for (const contextId of targets) {
+    const key = contextId === undefined ? "main" : String(contextId);
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+
+    try {
+      results.push(await runInPage(client, payload, contextId));
+    } catch {
+      // Iframes can navigate or disappear while HubSpot and other embeds initialize.
+    }
+  }
+
+  return results;
 };
 
 const findSelectKeyboardTarget = async (client: ChromeClient): Promise<SelectKeyboardTarget | null> => {
@@ -1177,9 +1227,17 @@ export const fillCandidateFormsInBrowser = async (
     const target = await CDP.New({ port: options.chromePort, url: "about:blank" });
     await CDP.Activate({ port: options.chromePort, id: target.id });
     const client = await CDP({ port: options.chromePort, target });
+    const contextIds = new Set<number>();
 
     try {
       await client.Page.enable();
+      client.Runtime.executionContextCreated?.((event) => {
+        const contextId = event.context?.id;
+
+        if (contextId !== undefined) {
+          contextIds.add(contextId);
+        }
+      });
       await client.Runtime.enable();
       const loaded = client.Page.loadEventFired();
       await client.Page.navigate({ url: candidate.formUrl });
@@ -1203,17 +1261,15 @@ export const fillCandidateFormsInBrowser = async (
           body: candidate.body
         }
       };
-      const passResults = [
-        await runInPage(client, payload)
-      ];
+      const passResults = await runInAvailablePageContexts(client, payload, contextIds);
 
       await sleep(1000);
-      passResults.push(await runInPage(client, payload));
+      passResults.push(...await runInAvailablePageContexts(client, payload, contextIds));
 
       passResults.push(await selectDropdownsWithKeyboard(client));
 
       await sleep(500);
-      passResults.push(await runInPage(client, payload));
+      passResults.push(...await runInAvailablePageContexts(client, payload, contextIds));
 
       const result = mergeAutofillResults(passResults);
 
