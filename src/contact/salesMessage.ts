@@ -4,6 +4,7 @@ import { SheetsClient } from "../google/sheetsClient";
 export type SenderInfo = {
   companyName: string;
   name: string;
+  nameKana: string;
   nameRoman: string;
   tel: string;
   chatworkId: string;
@@ -15,6 +16,7 @@ export type SenderInfo = {
 export type FormFieldAliases = {
   companyName: string[];
   name: string[];
+  nameKana: string[];
   email: string[];
   tel: string[];
   url: string[];
@@ -59,6 +61,7 @@ export type SalesMessage = {
 export const CONTACT_SENDER: SenderInfo = {
   companyName: "aaWebCreate",
   name: "阿部 祥士",
+  nameKana: "アベ アキヒト",
   nameRoman: "Abe Akihito",
   tel: "09062121580",
   chatworkId: "abeAawc",
@@ -70,6 +73,7 @@ export const CONTACT_SENDER: SenderInfo = {
 const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
   companyName: ["会社名", "貴社名", "法人名", "屋号"],
   name: ["お名前", "氏名", "担当者名", "ご担当者名"],
+  nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ"],
   email: ["メールアドレス", "Email", "E-mail", "mail"],
   tel: ["電話番号", "TEL", "Tel", "tel"],
   url: ["URL", "ホームページ", "Webサイト", "サイトURL"],
@@ -116,6 +120,7 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
   return {
     companyName: setting(settings, "送信者_会社名", CONTACT_SENDER.companyName),
     name: setting(settings, "送信者_氏名", CONTACT_SENDER.name),
+    nameKana: settings.get("送信者_氏名カナ") || settings.get("送信者_フリガナ") || CONTACT_SENDER.nameKana,
     nameRoman: setting(settings, "送信者_ローマ字", CONTACT_SENDER.nameRoman),
     tel: setting(settings, "送信者_電話番号", CONTACT_SENDER.tel),
     chatworkId: setting(settings, "送信者_チャットワークID", CONTACT_SENDER.chatworkId),
@@ -134,6 +139,7 @@ const readFormFieldAliases = (settings: Map<string, string>): FormFieldAliases =
   return {
     companyName: readAliases("フォーム項目_会社名", DEFAULT_FORM_FIELD_ALIASES.companyName),
     name: readAliases("フォーム項目_氏名", DEFAULT_FORM_FIELD_ALIASES.name),
+    nameKana: readAliases("フォーム項目_氏名カナ", DEFAULT_FORM_FIELD_ALIASES.nameKana),
     email: readAliases("フォーム項目_メール", DEFAULT_FORM_FIELD_ALIASES.email),
     tel: readAliases("フォーム項目_電話番号", DEFAULT_FORM_FIELD_ALIASES.tel),
     url: readAliases("フォーム項目_URL", DEFAULT_FORM_FIELD_ALIASES.url),
@@ -429,6 +435,9 @@ const renderTemplate = (
     ["senderName", sender.name],
     ["送信者_氏名", sender.name],
     ["送信者氏名", sender.name],
+    ["senderNameKana", sender.nameKana],
+    ["送信者_氏名カナ", sender.nameKana],
+    ["送信者_フリガナ", sender.nameKana],
     ["senderNameRoman", sender.nameRoman],
     ["送信者_ローマ字", sender.nameRoman],
     ["senderTel", sender.tel],

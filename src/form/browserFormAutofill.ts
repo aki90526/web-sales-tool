@@ -248,6 +248,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   const values: Record<string, string> = {
     companyName: payload.sender.companyName,
     name: payload.sender.name,
+    nameKana: payload.sender.nameKana,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
     firstName: payload.sender.name.split(/\s+/).slice(1).join(" ") || payload.sender.name,
@@ -261,6 +262,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   const builtinAliases: Record<string, string[]> = {
     companyName: ["会社名", "貴社名", "法人名", "屋号", "組織名", "company", "organization"],
     name: ["お名前", "氏名", "担当者名", "ご担当者名", "name", "your-name"],
+    nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ", "kana", "furigana"],
     lastName: ["last name", "family name", "sei"],
     firstName: ["first name", "given name", "mei"],
     email: ["メールアドレス", "Email", "E-mail", "mail", "メール"],
@@ -274,6 +276,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     ...builtinAliases,
     companyName: [...builtinAliases.companyName, ...payload.formFieldAliases.companyName],
     name: [...builtinAliases.name, ...payload.formFieldAliases.name],
+    nameKana: [...builtinAliases.nameKana, ...payload.formFieldAliases.nameKana],
     email: [...builtinAliases.email, ...payload.formFieldAliases.email],
     tel: [...builtinAliases.tel, ...payload.formFieldAliases.tel],
     url: [...builtinAliases.url, ...payload.formFieldAliases.url],
@@ -407,6 +410,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "body";
     }
 
+    if (matches(text, "nameKana")) {
+      return "nameKana";
+    }
+
     if (matches(text, "companyName")) {
       if (text.includes("屋号") && matches(text, "name")) {
         return "nameWithCompanyName";
@@ -436,6 +443,55 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
 
     return "";
+  };
+
+  const digitsOnly = (value: string): string => {
+    return value.replace(/\D/g, "");
+  };
+
+  const splitJapaneseTel = (value: string): string[] => {
+    const digits = digitsOnly(value);
+
+    if (digits.length === 11) {
+      return [digits.slice(0, 3), digits.slice(3, 7), digits.slice(7)];
+    }
+
+    if (digits.length === 10) {
+      return [digits.slice(0, 2), digits.slice(2, 6), digits.slice(6)];
+    }
+
+    return [digits];
+  };
+
+  const telLike = (element: HTMLInputElement): boolean => {
+    const type = (element.getAttribute("type") || "").toLowerCase();
+    const text = labelFor(element);
+    return type === "tel" || matches(text, "tel");
+  };
+
+  const telValueForElement = (element: HTMLInputElement): string => {
+    const parts = splitJapaneseTel(payload.sender.tel);
+
+    if (parts.length < 2) {
+      return payload.sender.tel;
+    }
+
+    let parent = element.parentElement;
+    for (let depth = 0; parent && depth < 5; depth += 1, parent = parent.parentElement) {
+      const controls = Array.from(parent.querySelectorAll<HTMLInputElement>("input"))
+        .filter((input) => input !== element || telLike(input))
+        .filter((input) => !input.disabled && !input.readOnly && visible(input) && telLike(input));
+
+      if (controls.length >= 2 && controls.length <= 4) {
+        const index = controls.indexOf(element);
+
+        if (index >= 0 && index < parts.length) {
+          return parts[index];
+        }
+      }
+    }
+
+    return payload.sender.tel;
   };
 
   const setNativeValue = (
@@ -732,7 +788,11 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return;
     }
 
-    setValue(element, values[key], key);
+    const value = key === "tel" && element instanceof HTMLInputElement
+      ? telValueForElement(element)
+      : values[key];
+
+    setValue(element, value, key);
   };
 
   const checkConsent = (element: HTMLInputElement): void => {
