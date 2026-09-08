@@ -439,7 +439,9 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
     "aiAdjustment は -10〜10 の整数。固定ロジックでは判断しづらい定性的な補正だけを入れてください。不明なら0。",
     "scoreSignals はJSONオブジェクトで、次のboolean/numberを可能な範囲で返してください:",
     "isOfficialSite, hasContactMethod, isTargetArea, isWebProductionBusiness, hasPartnerRecruiting, hasSubcontractorRecruiting, hasCoderRecruiting, handlesWordPress, handlesShopify, handlesMaintenance, complementarityScore, noOutsourcingPolicy, lowCollaborationFit, hasMobileIssue, hasWeakContactFlow, hasWeakCta, hasSeoIssue, hasStaleSite, hasWeakRecruitingPage, hasUnclearService, hasOldDesign, forbidsSalesContact, forbidsAdsMail, pastOptOut, reapproachForbidden, notOfficialSite, excludedIndustry",
-    "contactUrl は問い合わせフォームURLが不明なら空文字。email は不明なら空文字。",
+    "contactUrl は実際に入力欄がある問い合わせフォームURLを入れてください。/contact/ のような入口ページに複数の窓口リンクがある場合は、対象に最も合う詳細フォームURLを選んでください。",
+    "contactUrl は、制作会社・広告代理店では制作パートナー、協業、提携、業務委託、営業向け窓口を優先してください。直クライアントでは一般問い合わせ、見積、相談フォームを優先してください。不明なら空文字。",
+    "email は不明なら空文字。",
     "資本金、従業員数、売上高は公式サイトや信頼できる会社情報で確認できた場合のみ入れ、不明なら空文字。",
     "salesAngle はテンプレート本文の差し込みに使うため、営業の切り口を具体的かつ簡潔に1文で返してください。営業メール本文全体は作成しないでください。"
   ].join("\n");

@@ -6,6 +6,7 @@ import { SheetsClient } from "../google/sheetsClient";
 import { LeadCandidate, toSalesLeadInput } from "../openai/leadCandidateCollector";
 import { WebSearchTrace } from "../openai/openAIClient";
 import { verifyCompanyName } from "./companyNameVerifier";
+import { verifyContactUrl } from "./contactUrlVerifier";
 
 export type ExistingLeadState = {
   maxNumericLeadId: number;
@@ -17,6 +18,7 @@ export type ImportedLeadResult = {
   leadId: string;
   companyName: string;
   companyNameCorrection?: string;
+  contactUrlCorrection?: string;
   range?: string;
   analysisDataRange?: string;
   rowNumber: number;
@@ -100,7 +102,8 @@ export const importLeadCandidates = async (
   for (const candidate of uniqueCandidates) {
     const leadId = nextLeadId(nextNumericId);
     const verification = await verifyCompanyName(candidate);
-    const verifiedCandidate = verification.candidate;
+    const contactVerification = await verifyContactUrl(verification.candidate);
+    const verifiedCandidate = contactVerification.candidate;
     const lead = toSalesLeadInput(verifiedCandidate, leadId);
     const result = await appendSalesLead(sheets, lead);
     const analysisDataResult = await appendAnalysisData(sheets, {
@@ -145,6 +148,9 @@ export const importLeadCandidates = async (
       companyName: lead.companyName,
       companyNameCorrection: verification.correction
         ? `${verification.correction.from} -> ${verification.correction.to} (${verification.correction.sourceUrl})`
+        : undefined,
+      contactUrlCorrection: contactVerification.correction
+        ? `${contactVerification.correction.from} -> ${contactVerification.correction.to} (${contactVerification.correction.reason})`
         : undefined,
       range: result.range,
       analysisDataRange: analysisDataResult.range,

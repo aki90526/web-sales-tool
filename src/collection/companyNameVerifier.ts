@@ -56,7 +56,7 @@ const isSameCompanyCore = (candidateName: string, officialName: string): boolean
   return candidateCore.length >= 2 && officialCore.length >= 2 && candidateCore === officialCore;
 };
 
-const decodeHtmlEntities = (value: string): string => {
+export const decodeHtmlEntities = (value: string): string => {
   return value
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
@@ -66,7 +66,7 @@ const decodeHtmlEntities = (value: string): string => {
     .replace(/&#39;/g, "'");
 };
 
-const htmlToText = (html: string): string => {
+export const htmlToText = (html: string): string => {
   return decodeHtmlEntities(
     html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -76,7 +76,7 @@ const htmlToText = (html: string): string => {
   );
 };
 
-const fetchText = async (url: string, redirects = 0): Promise<string> => {
+export const fetchText = async (url: string, redirects = 0): Promise<string> => {
   return new Promise<string>((resolve, reject) => {
     const parsed = new URL(url);
     const transport = parsed.protocol === "http:" ? http : https;

@@ -100,6 +100,9 @@ const main = async (): Promise<void> => {
     if (result.companyNameCorrection) {
       console.log(`Corrected company name: ${result.companyNameCorrection}`);
     }
+    if (result.contactUrlCorrection) {
+      console.log(`Corrected contact URL: ${result.contactUrlCorrection}`);
+    }
     console.log(`Logged analysis data -> ${result.analysisDataRange ?? "(unknown)"}`);
   }
 };
