@@ -263,6 +263,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     tel: payload.sender.tel,
     url: payload.sender.url,
     subject: payload.candidate.subject,
+    japanCapital: "東京",
     body: payload.candidate.body
   };
 
@@ -277,6 +278,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     tel: ["電話番号", "TEL", "Tel", "tel", "phone", "mobile"],
     url: ["URL", "ホームページ", "Webサイト", "サイトURL", "website", "site"],
     subject: ["件名", "タイトル", "題名", "subject", "title"],
+    japanCapital: ["日本の首都", "首都は", "スパム対策"],
     body: ["お問い合わせ内容", "内容", "本文", "メッセージ", "詳細", "message", "body", "textarea"]
   };
 
@@ -360,6 +362,27 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return normalize(Array.from(new Set(parts)).join(" "));
   };
 
+  const surroundingTextFor = (element: HTMLElement): string => {
+    const parts = [labelFor(element)];
+    const container = element.closest<HTMLElement>("dd, tr, li, p, div, label");
+
+    if (container?.textContent) {
+      parts.push(container.textContent);
+    }
+
+    const previous = container?.previousElementSibling;
+    if (previous?.textContent) {
+      parts.push(previous.textContent);
+    }
+
+    const parentPrevious = container?.parentElement?.previousElementSibling;
+    if (parentPrevious?.textContent) {
+      parts.push(parentPrevious.textContent);
+    }
+
+    return normalize(Array.from(new Set(parts)).join(" "));
+  };
+
   const matches = (text: string, key: string): boolean => {
     return aliases[key].some((alias) => text.includes(normalize(alias)));
   };
@@ -417,6 +440,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (tagName === "textarea" || matches(text, "body")) {
       return "body";
+    }
+
+    if (matches(text, "japanCapital")) {
+      return "japanCapital";
     }
 
     if (matches(text, "nameKana")) {
@@ -827,18 +854,15 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return;
     }
 
-    const text = labelFor(element);
-    if (!/(同意|確認|プライバシー|個人情報|規約|privacy|policy)/i.test(text)) {
+    const text = surroundingTextFor(element);
+    if (!/(同意|承諾|確認|プライバシー|個人情報|個人情報保護|規約|privacy|policy)/i.test(text)) {
       return;
     }
 
     const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
-    if (descriptor?.set) {
-      descriptor.set.call(element, true);
-    } else {
-      element.checked = true;
-    }
-    element.click();
+    const label = labelElementFor(element);
+    (label || element).click();
+
     if (!element.checked) {
       if (descriptor?.set) {
         descriptor.set.call(element, true);
@@ -876,7 +900,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   document
     .querySelectorAll<HTMLInputElement>("input[type='checkbox']")
     .forEach((element) => {
-      const text = labelFor(element);
+      const text = surroundingTextFor(element);
 
       if (/(同意|確認|プライバシー|個人情報|規約|privacy|policy)/i.test(text) && !element.checked) {
         result.warnings.push(`${shortLabelFor(element)} は手動確認が必要です。`);
