@@ -263,6 +263,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     tel: payload.sender.tel,
     url: payload.sender.url,
     address: payload.sender.formAddress,
+    postalCode: payload.sender.postalCode,
+    prefecture: payload.sender.prefecture,
     subject: payload.candidate.subject,
     japanCapital: "東京",
     body: payload.candidate.body
@@ -279,6 +281,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     tel: ["電話番号", "TEL", "Tel", "tel", "phone", "mobile"],
     url: ["URL", "ホームページ", "Webサイト", "サイトURL", "website", "site"],
     address: ["住所", "所在地", "ご住所", "住所地", "address", "location"],
+    postalCode: ["郵便番号", "郵便", "〒", "zip", "postal"],
+    prefecture: ["都道府県", "都道府県名", "prefecture"],
     subject: ["件名", "タイトル", "題名", "subject", "title"],
     japanCapital: ["日本の首都", "首都は", "スパム対策"],
     body: ["お問い合わせ内容", "内容", "本文", "メッセージ", "詳細", "message", "body", "textarea"]
@@ -294,6 +298,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     tel: [...builtinAliases.tel, ...payload.formFieldAliases.tel],
     url: [...builtinAliases.url, ...payload.formFieldAliases.url],
     address: [...builtinAliases.address, ...payload.formFieldAliases.address],
+    postalCode: [...builtinAliases.postalCode, ...payload.formFieldAliases.postalCode],
+    prefecture: [...builtinAliases.prefecture, ...payload.formFieldAliases.prefecture],
     subject: [...builtinAliases.subject, ...payload.formFieldAliases.subject],
     body: [...builtinAliases.body, ...payload.formFieldAliases.body]
   };
@@ -480,6 +486,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "department";
     }
 
+    if (matches(text, "postalCode")) {
+      return "postalCode";
+    }
+
+    if (matches(text, "prefecture")) {
+      return "prefecture";
+    }
+
     if (matches(text, "address")) {
       return "address";
     }
@@ -537,10 +551,25 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return [digits];
   };
 
+  const splitJapanesePostalCode = (value: string): string[] => {
+    const digits = digitsOnly(value);
+
+    if (digits.length === 7) {
+      return [digits.slice(0, 3), digits.slice(3)];
+    }
+
+    return [value];
+  };
+
   const telLike = (element: HTMLInputElement): boolean => {
     const type = (element.getAttribute("type") || "").toLowerCase();
     const text = labelFor(element);
     return type === "tel" || matches(text, "tel");
+  };
+
+  const postalCodeLike = (element: HTMLInputElement): boolean => {
+    const text = labelFor(element);
+    return matches(text, "postalCode");
   };
 
   const telValueForElement = (element: HTMLInputElement): string => {
@@ -566,6 +595,31 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
 
     return payload.sender.tel;
+  };
+
+  const postalCodeValueForElement = (element: HTMLInputElement): string => {
+    const parts = splitJapanesePostalCode(payload.sender.postalCode);
+
+    if (parts.length < 2) {
+      return payload.sender.postalCode;
+    }
+
+    let parent = element.parentElement;
+    for (let depth = 0; parent && depth < 5; depth += 1, parent = parent.parentElement) {
+      const controls = Array.from(parent.querySelectorAll<HTMLInputElement>("input"))
+        .filter((input) => input !== element || postalCodeLike(input))
+        .filter((input) => !input.disabled && !input.readOnly && visible(input) && postalCodeLike(input));
+
+      if (controls.length === 2) {
+        const index = controls.indexOf(element);
+
+        if (index >= 0 && index < parts.length) {
+          return parts[index];
+        }
+      }
+    }
+
+    return payload.sender.postalCode;
   };
 
   const setNativeValue = (
@@ -651,7 +705,57 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return /(お問い合わせ|お問合せ|問い合わせ|項目|種別|カテゴリ|カテゴリー|用件|ご用件|contact|inquiry|type|category)/i.test(text);
   };
 
+  const fillPrefectureSelect = (element: HTMLSelectElement): boolean => {
+    if (element.disabled || !matches(labelFor(element), "prefecture")) {
+      return false;
+    }
+
+    if (element.value) {
+      const selectedOption = element.options[element.selectedIndex];
+      result.selected.push({
+        label: shortLabelFor(element),
+        option: selectedOption?.textContent?.trim() || element.value
+      });
+      return true;
+    }
+
+    const prefecture = normalize(payload.sender.prefecture);
+    const preferred = Array.from(element.options).find((option) => {
+      if (!option.value) {
+        return false;
+      }
+
+      const text = normalize(option.textContent || "");
+      const value = normalize(option.value);
+      return text === prefecture || value === prefecture || text.includes(prefecture);
+    });
+
+    if (!preferred) {
+      result.warnings.push(`${shortLabelFor(element)} は手動選択が必要です。`);
+      return true;
+    }
+
+    element.value = preferred.value;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+
+    if (element.value === preferred.value) {
+      result.selected.push({
+        label: shortLabelFor(element),
+        option: preferred.textContent?.trim() || preferred.value
+      });
+    } else {
+      result.warnings.push(`${shortLabelFor(element)} は手動選択が必要です。`);
+    }
+
+    return true;
+  };
+
   const fillSelect = (element: HTMLSelectElement): void => {
+    if (fillPrefectureSelect(element)) {
+      return;
+    }
+
     if (element.disabled || !isInquiryChoiceLabel(labelFor(element))) {
       return;
     }
@@ -876,9 +980,11 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return;
     }
 
-    const value = key === "tel" && element instanceof HTMLInputElement
+    const value = element instanceof HTMLInputElement && key === "tel"
       ? telValueForElement(element)
-      : values[key];
+      : element instanceof HTMLInputElement && key === "postalCode"
+        ? postalCodeValueForElement(element)
+        : values[key];
 
     setValue(element, value, key);
   };

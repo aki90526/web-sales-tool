@@ -13,6 +13,8 @@ export type SenderInfo = {
   url: string;
   address: string;
   formAddress: string;
+  postalCode: string;
+  prefecture: string;
 };
 
 export type FormFieldAliases = {
@@ -24,6 +26,8 @@ export type FormFieldAliases = {
   tel: string[];
   url: string[];
   address: string[];
+  postalCode: string[];
+  prefecture: string[];
   subject: string[];
   body: string[];
 };
@@ -73,7 +77,9 @@ export const CONTACT_SENDER: SenderInfo = {
   email: "abe@aawebcreate.com",
   url: "https://aawebcreate.com/",
   address: "埼玉県春日部市",
-  formAddress: "埼玉県春日部市西金野井1074-10"
+  formAddress: "埼玉県春日部市西金野井1074-10",
+  postalCode: "344-0112",
+  prefecture: "埼玉県"
 } as const;
 
 const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
@@ -85,6 +91,8 @@ const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
   tel: ["電話番号", "TEL", "Tel", "tel"],
   url: ["URL", "ホームページ", "Webサイト", "サイトURL"],
   address: ["住所", "所在地", "ご住所", "住所地", "address", "location"],
+  postalCode: ["郵便番号", "郵便", "〒", "zip", "postal"],
+  prefecture: ["都道府県", "都道府県名", "prefecture"],
   subject: ["件名", "タイトル", "お問い合わせ種別", "題名"],
   body: ["お問い合わせ内容", "内容", "メッセージ", "本文", "詳細"]
 };
@@ -136,7 +144,9 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     email: setting(settings, "送信者_メール", CONTACT_SENDER.email),
     url: setting(settings, "送信者_URL", CONTACT_SENDER.url),
     address: setting(settings, "送信者_住所", CONTACT_SENDER.address),
-    formAddress: setting(settings, "送信者_フォーム住所", CONTACT_SENDER.formAddress)
+    formAddress: setting(settings, "送信者_フォーム住所", CONTACT_SENDER.formAddress),
+    postalCode: setting(settings, "送信者_郵便番号", CONTACT_SENDER.postalCode),
+    prefecture: setting(settings, "送信者_都道府県", CONTACT_SENDER.prefecture)
   };
 };
 
@@ -155,6 +165,8 @@ const readFormFieldAliases = (settings: Map<string, string>): FormFieldAliases =
     tel: readAliases("フォーム項目_電話番号", DEFAULT_FORM_FIELD_ALIASES.tel),
     url: readAliases("フォーム項目_URL", DEFAULT_FORM_FIELD_ALIASES.url),
     address: readAliases("フォーム項目_住所", DEFAULT_FORM_FIELD_ALIASES.address),
+    postalCode: readAliases("フォーム項目_郵便番号", DEFAULT_FORM_FIELD_ALIASES.postalCode),
+    prefecture: readAliases("フォーム項目_都道府県", DEFAULT_FORM_FIELD_ALIASES.prefecture),
     subject: readAliases("フォーム項目_件名", DEFAULT_FORM_FIELD_ALIASES.subject),
     body: readAliases("フォーム項目_本文", DEFAULT_FORM_FIELD_ALIASES.body)
   };
@@ -464,6 +476,10 @@ const renderTemplate = (
     ["送信者_住所", sender.address],
     ["senderFormAddress", sender.formAddress],
     ["送信者_フォーム住所", sender.formAddress],
+    ["senderPostalCode", sender.postalCode],
+    ["送信者_郵便番号", sender.postalCode],
+    ["senderPrefecture", sender.prefecture],
+    ["送信者_都道府県", sender.prefecture],
     ["senderChatworkId", sender.chatworkId],
     ["送信者_チャットワークID", sender.chatworkId]
   ]);
