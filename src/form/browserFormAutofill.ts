@@ -597,6 +597,28 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return matches(text, "postalCode");
   };
 
+  const splitPostalPartLike = (element: HTMLInputElement): boolean => {
+    const label = [
+      element.getAttribute("aria-label"),
+      element.getAttribute("placeholder"),
+      element.getAttribute("name"),
+      element.getAttribute("id"),
+      element.getAttribute("autocomplete"),
+      element.className
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const maxLength = Number(element.getAttribute("maxlength") || 0);
+    const size = Number(element.getAttribute("size") || 0);
+
+    return (
+      /(zip|postal|postcode|post-code|郵便|yubin|addr_zip|zip_code).*(1|2|01|02|a|b)|(^|[_-])(1|2|01|02|a|b)($|[_-])/i.test(label) ||
+      (maxLength > 0 && maxLength <= 4) ||
+      (size > 0 && size <= 4)
+    );
+  };
+
   const telValueForElement = (element: HTMLInputElement): string => {
     const parts = splitJapaneseTel(payload.sender.tel);
 
@@ -635,7 +657,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
         .filter((input) => input !== element || postalCodeLike(input))
         .filter((input) => !input.disabled && !input.readOnly && visible(input) && postalCodeLike(input));
 
-      if (controls.length === 2) {
+      if (controls.length === 2 && controls.every((input) => splitPostalPartLike(input))) {
         const index = controls.indexOf(element);
 
         if (index >= 0 && index < parts.length) {
