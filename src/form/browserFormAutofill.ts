@@ -601,6 +601,28 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return matches(text, "postalCode");
   };
 
+  const splitTelPartLike = (element: HTMLInputElement): boolean => {
+    const label = [
+      element.getAttribute("aria-label"),
+      element.getAttribute("placeholder"),
+      element.getAttribute("name"),
+      element.getAttribute("id"),
+      element.getAttribute("autocomplete"),
+      element.className
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const maxLength = Number(element.getAttribute("maxlength") || 0);
+    const size = Number(element.getAttribute("size") || 0);
+
+    return (
+      /(tel|phone|mobile|電話).*(1|2|3|01|02|03|a|b|c)|(^|[_-])(1|2|3|01|02|03|a|b|c)($|[_-])/i.test(label) ||
+      (maxLength > 0 && maxLength <= 4) ||
+      (size > 0 && size <= 4)
+    );
+  };
+
   const splitPostalPartLike = (element: HTMLInputElement): boolean => {
     const label = [
       element.getAttribute("aria-label"),
@@ -636,7 +658,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
         .filter((input) => input !== element || telLike(input))
         .filter((input) => !input.disabled && !input.readOnly && visible(input) && telLike(input));
 
-      if (controls.length >= 2 && controls.length <= 4) {
+      if (controls.length === parts.length && controls.every((input) => splitTelPartLike(input))) {
         const index = controls.indexOf(element);
 
         if (index >= 0 && index < parts.length) {
