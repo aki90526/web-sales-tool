@@ -336,6 +336,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     const parts: string[] = [];
     const id = element.getAttribute("id");
     const name = element.getAttribute("name");
+    const isLikelyFieldLabel = (candidate: Element): boolean => {
+      const tagName = candidate.tagName.toLowerCase();
+      return tagName === "label" || tagName === "dt" || tagName === "th" || candidate.getAttribute("role") === "label";
+    };
 
     if (id) {
       const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
@@ -369,7 +373,13 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       const previousContext = context.previousElementSibling;
       const previousText = previousContext?.textContent?.trim() ?? "";
       const previousControlCount = previousContext?.querySelectorAll("input, textarea, select").length ?? 0;
-      if (previousText && previousText.length <= 160 && previousControlCount === 0) {
+      if (
+        previousContext &&
+        isLikelyFieldLabel(previousContext) &&
+        previousText &&
+        previousText.length <= 160 &&
+        previousControlCount === 0
+      ) {
         parts.push(previousText);
       }
     }
@@ -382,6 +392,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     [
       "aria-label",
       "placeholder",
+      "title",
       "name",
       "id",
       "autocomplete",
@@ -438,6 +449,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     [
       "aria-label",
       "placeholder",
+      "title",
       "name",
       "id",
       "autocomplete",
