@@ -256,6 +256,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     name: payload.sender.name,
     nameKana: payload.sender.nameKana,
     nameHiragana: payload.sender.nameHiragana,
+    lastNameHiragana: payload.sender.nameHiragana.split(/\s+/)[0] || payload.sender.nameHiragana,
+    firstNameHiragana: payload.sender.nameHiragana.split(/\s+/).slice(1).join(" ") || payload.sender.nameHiragana,
     department: payload.sender.department,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
@@ -457,6 +459,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return /given-name/.test(autocomplete) || matches(text, "firstName") || hasStandaloneJapaneseField(text, "名");
   };
 
+  const matchesLastNameHiragana = (text: string): boolean => {
+    return /(かな|ふりがな)/.test(text) && hasStandaloneJapaneseField(text, "姓");
+  };
+
+  const matchesFirstNameHiragana = (text: string): boolean => {
+    return /(かな|ふりがな)/.test(text) && hasStandaloneJapaneseField(text, "名");
+  };
+
   const matchesFullNameOnly = (text: string): boolean => {
     if (!/(お名前|氏名|担当者名|ご担当者名)/.test(text)) {
       return false;
@@ -493,6 +503,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "japanCapital")) {
       return "japanCapital";
+    }
+
+    if (matchesLastNameHiragana(text)) {
+      return "lastNameHiragana";
+    }
+
+    if (matchesFirstNameHiragana(text)) {
+      return "firstNameHiragana";
     }
 
     if (matches(text, "nameHiragana")) {
@@ -743,6 +761,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const scoreChoiceText = (text: string): number => {
+    if (/(弊社webサイトを見て|webサイトを見て|ホームページを見て|公式サイト|website)/i.test(text)) {
+      return 70;
+    }
+
     if (/(協業|パートナー|提携|業務委託|外注)/i.test(text)) {
       return 60;
     }
@@ -941,7 +963,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return isInquiryChoiceLabel(radioGroupLabelFor(elements));
   };
 
-  const checkRadio = (element: HTMLInputElement): void => {
+  const checkInput = (element: HTMLInputElement): void => {
     const label = labelElementFor(element);
     const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
 
@@ -958,6 +980,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  const checkRadio = (element: HTMLInputElement): void => {
+    checkInput(element);
   };
 
   const fillRadioGroups = (): void => {
@@ -1020,6 +1046,122 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
         });
       } else {
         result.warnings.push(`${radioGroupLabelFor(elements)} は手動選択が必要です。`);
+      }
+    });
+  };
+
+  const checkboxOptionLabelFor = (element: HTMLInputElement): string => {
+    const parts: string[] = [];
+    const label = labelElementFor(element);
+    const next = element.nextElementSibling;
+    const parent = element.parentElement;
+
+    if (label?.textContent) {
+      parts.push(label.textContent);
+    }
+
+    if (next?.textContent) {
+      parts.push(next.textContent);
+    }
+
+    if (parent && parent.querySelectorAll("input[type='checkbox']").length <= 1 && parent.textContent) {
+      parts.push(parent.textContent);
+    }
+
+    ["aria-label", "value", "name", "id"].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      if (value) {
+        parts.push(value);
+      }
+    });
+
+    return Array.from(new Set(parts.map((part) => part.trim()).filter(Boolean))).join(" ").slice(0, 120);
+  };
+
+  const checkboxGroupLabelFor = (elements: HTMLInputElement[]): string => {
+    const first = elements[0];
+    const formKey = first.name ? normalize(first.name.replace(/\[.*$/, "")) : "";
+
+    let parent = first.parentElement;
+    for (let depth = 0; parent && depth < 5; depth += 1, parent = parent.parentElement) {
+      const groupCount = parent.querySelectorAll(`input[type='checkbox'][name="${CSS.escape(first.name)}"]`).length;
+      const text = parent.textContent?.trim() ?? "";
+
+      if (groupCount === elements.length && text.length <= 600) {
+        const heading = Array.from(parent.children)
+          .map((child) => child.textContent?.trim() ?? "")
+          .find((textContent) => {
+            return textContent && !textContent.includes(checkboxOptionLabelFor(first));
+          });
+
+        if (heading) {
+          return normalize(`${heading} ${formKey}`);
+        }
+
+        return normalize(`${text} ${formKey}`);
+      }
+    }
+
+    return formKey || normalize(first.getAttribute("name") || first.getAttribute("id") || "checkbox");
+  };
+
+  const isContactTopicCheckboxGroup = (text: string): boolean => {
+    return /(ご相談内容|相談内容|お問い合わせ内容|お問合せ内容|問い合わせ内容|用件|ご用件|title)/i.test(text);
+  };
+
+  const isReferralSourceCheckboxGroup = (text: string): boolean => {
+    return /(知ったきっかけ|きっかけ|流入|紹介|認知|acc|referral|source)/i.test(text);
+  };
+
+  const fillCheckboxGroups = (): void => {
+    const groups = new Map<string, HTMLInputElement[]>();
+
+    document
+      .querySelectorAll<HTMLInputElement>("input[type='checkbox']")
+      .forEach((element) => {
+        if (element.disabled || !radioVisible(element) || !element.name) {
+          return;
+        }
+
+        const formKey = element.form?.id || element.form?.getAttribute("name") || "form";
+        const key = `${formKey}:name:${element.name}`;
+        const current = groups.get(key) ?? [];
+        current.push(element);
+        groups.set(key, current);
+      });
+
+    groups.forEach((elements) => {
+      if (elements.some((element) => element.checked)) {
+        return;
+      }
+
+      const groupLabel = checkboxGroupLabelFor(elements);
+      if (!isContactTopicCheckboxGroup(groupLabel) && !isReferralSourceCheckboxGroup(groupLabel)) {
+        return;
+      }
+
+      const preferred = elements
+        .map((element) => ({
+          element,
+          optionLabel: checkboxOptionLabelFor(element),
+          score: scoreChoiceText(normalize(checkboxOptionLabelFor(element)))
+        }))
+        .filter((choice) => choice.score > 1)
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (!preferred) {
+        return;
+      }
+
+      checkInput(preferred.element);
+
+      if (preferred.element.checked) {
+        result.selected.push({
+          label: groupLabel,
+          option: preferred.optionLabel
+        });
+      } else {
+        result.warnings.push(`${groupLabel} は手動選択が必要です。`);
       }
     });
   };
@@ -1097,6 +1239,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     .forEach((element) => fillSelect(element));
 
   fillRadioGroups();
+
+  fillCheckboxGroups();
 
   document
     .querySelectorAll<HTMLInputElement>("input[type='checkbox']")
