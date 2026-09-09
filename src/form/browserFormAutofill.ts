@@ -256,6 +256,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     name: payload.sender.name,
     nameKana: payload.sender.nameKana,
     nameHiragana: payload.sender.nameHiragana,
+    lastNameKana: payload.sender.nameKana.split(/\s+/)[0] || payload.sender.nameKana,
+    firstNameKana: payload.sender.nameKana.split(/\s+/).slice(1).join(" ") || payload.sender.nameKana,
     lastNameHiragana: payload.sender.nameHiragana.split(/\s+/)[0] || payload.sender.nameHiragana,
     firstNameHiragana: payload.sender.nameHiragana.split(/\s+/).slice(1).join(" ") || payload.sender.nameHiragana,
     department: payload.sender.department,
@@ -266,6 +268,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     tel: payload.sender.tel,
     url: payload.sender.url,
     address: payload.sender.formAddress,
+    cityStreetAddress: `${payload.sender.city}${payload.sender.streetAddress}`,
     postalCode: payload.sender.postalCode,
     prefecture: payload.sender.prefecture,
     city: payload.sender.city,
@@ -418,6 +421,37 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return normalize(Array.from(new Set(parts)).join(" "));
   };
 
+  const fieldSpecificTextFor = (element: HTMLElement): string => {
+    const parts: string[] = [];
+
+    let parent = element.parentElement;
+    for (let depth = 0; parent && depth < 4; depth += 1, parent = parent.parentElement) {
+      const controls = parent.querySelectorAll("input, textarea, select").length;
+      const text = parent.textContent?.trim() ?? "";
+
+      if (controls === 1 && text.length <= 120) {
+        parts.push(text);
+        break;
+      }
+    }
+
+    [
+      "aria-label",
+      "placeholder",
+      "name",
+      "id",
+      "autocomplete",
+      "type"
+    ].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      if (value) {
+        parts.push(value);
+      }
+    });
+
+    return normalize(Array.from(new Set(parts)).join(" "));
+  };
+
   const matches = (text: string, key: string): boolean => {
     return aliases[key].some((alias) => text.includes(normalize(alias)));
   };
@@ -459,6 +493,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return /given-name/.test(autocomplete) || matches(text, "firstName") || hasStandaloneJapaneseField(text, "名");
   };
 
+  const matchesLastNameKana = (text: string): boolean => {
+    return /(フリガナ|カナ|セイ|kana|furigana)/i.test(text) && (hasStandaloneJapaneseField(text, "姓") || hasStandaloneJapaneseField(text, "セイ"));
+  };
+
+  const matchesFirstNameKana = (text: string): boolean => {
+    return /(フリガナ|カナ|メイ|kana|furigana)/i.test(text) && (hasStandaloneJapaneseField(text, "名") || hasStandaloneJapaneseField(text, "メイ"));
+  };
+
   const matchesLastNameHiragana = (text: string): boolean => {
     return /(かな|ふりがな)/.test(text) && hasStandaloneJapaneseField(text, "姓");
   };
@@ -475,8 +517,17 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return !hasStandaloneJapaneseField(text, "姓") && !hasStandaloneJapaneseField(text, "名");
   };
 
+  const matchesCityStreetAddress = (text: string): boolean => {
+    return /(市区町村|市町村|区市町村|市区郡町村).*(番地|住所)|(番地).*(市区町村|市町村|区市町村|市区郡町村)/.test(text);
+  };
+
+  const matchesOptionalBuilding = (text: string): boolean => {
+    return /(マンション|ビル名|建物名|建物|部屋番号|号室|apartment|building|room)/i.test(text);
+  };
+
   const inferKey = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): string => {
     const text = labelFor(element);
+    const fieldText = fieldSpecificTextFor(element);
     const tagName = element.tagName.toLowerCase();
     const type = (element.getAttribute("type") || "").toLowerCase();
     const autocomplete = (element.getAttribute("autocomplete") || "").toLowerCase();
@@ -505,11 +556,19 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "japanCapital";
     }
 
-    if (matchesLastNameHiragana(text)) {
+    if (matchesLastNameKana(fieldText)) {
+      return "lastNameKana";
+    }
+
+    if (matchesFirstNameKana(fieldText)) {
+      return "firstNameKana";
+    }
+
+    if (matchesLastNameHiragana(fieldText)) {
       return "lastNameHiragana";
     }
 
-    if (matchesFirstNameHiragana(text)) {
+    if (matchesFirstNameHiragana(fieldText)) {
       return "firstNameHiragana";
     }
 
@@ -527,6 +586,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "prefecture")) {
       return "prefecture";
+    }
+
+    if (matchesOptionalBuilding(text)) {
+      return "";
+    }
+
+    if (matchesCityStreetAddress(text)) {
+      return "cityStreetAddress";
     }
 
     if (matches(text, "city")) {
@@ -553,11 +620,11 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "name";
     }
 
-    if (matchesLastName(text, autocomplete)) {
+    if (matchesLastName(fieldText, autocomplete)) {
       return "lastName";
     }
 
-    if (matchesFirstName(text, autocomplete)) {
+    if (matchesFirstName(fieldText, autocomplete)) {
       return "firstName";
     }
 
