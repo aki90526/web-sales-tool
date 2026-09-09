@@ -255,6 +255,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     companyName: payload.sender.companyName,
     name: payload.sender.name,
     nameKana: payload.sender.nameKana,
+    nameHiragana: payload.sender.nameHiragana,
     department: payload.sender.department,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
@@ -265,6 +266,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     address: payload.sender.formAddress,
     postalCode: payload.sender.postalCode,
     prefecture: payload.sender.prefecture,
+    city: payload.sender.city,
+    streetAddress: payload.sender.streetAddress,
     subject: payload.candidate.subject,
     japanCapital: "東京",
     body: payload.candidate.body
@@ -274,6 +277,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     companyName: ["会社名", "貴社名", "法人名", "貴院名", "屋号", "組織名", "company", "organization", "org"],
     name: ["お名前", "氏名", "担当者名", "ご担当者名", "name", "your-name"],
     nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ", "kana", "furigana"],
+    nameHiragana: ["ふりがな", "氏名かな", "お名前かな", "ご担当者名ふりがな"],
     department: ["部署", "部署名", "所属部署", "所属部署名", "部門", "部門名", "department", "division", "section"],
     lastName: ["last name", "family name", "sei"],
     firstName: ["first name", "given name", "mei"],
@@ -283,6 +287,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     address: ["住所", "所在地", "ご住所", "住所地", "address", "location"],
     postalCode: ["郵便番号", "郵便", "〒", "zip", "postal"],
     prefecture: ["都道府県", "都道府県名", "prefecture"],
+    city: ["市区町村", "市町村", "区市町村", "市区郡町村", "city", "municipality"],
+    streetAddress: ["以降の住所", "以降住所", "番地", "町名番地", "丁目番地", "street", "address2"],
     subject: ["件名", "タイトル", "題名", "subject", "title"],
     japanCapital: ["日本の首都", "首都は", "スパム対策"],
     body: ["お問い合わせ内容", "内容", "本文", "メッセージ", "詳細", "message", "body", "textarea"]
@@ -293,6 +299,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     companyName: [...builtinAliases.companyName, ...payload.formFieldAliases.companyName],
     name: [...builtinAliases.name, ...payload.formFieldAliases.name],
     nameKana: [...builtinAliases.nameKana, ...payload.formFieldAliases.nameKana],
+    nameHiragana: [...builtinAliases.nameHiragana, ...payload.formFieldAliases.nameHiragana],
     department: [...builtinAliases.department, ...payload.formFieldAliases.department],
     email: [...builtinAliases.email, ...payload.formFieldAliases.email],
     tel: [...builtinAliases.tel, ...payload.formFieldAliases.tel],
@@ -300,6 +307,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     address: [...builtinAliases.address, ...payload.formFieldAliases.address],
     postalCode: [...builtinAliases.postalCode, ...payload.formFieldAliases.postalCode],
     prefecture: [...builtinAliases.prefecture, ...payload.formFieldAliases.prefecture],
+    city: [...builtinAliases.city, ...payload.formFieldAliases.city],
+    streetAddress: [...builtinAliases.streetAddress, ...payload.formFieldAliases.streetAddress],
     subject: [...builtinAliases.subject, ...payload.formFieldAliases.subject],
     body: [...builtinAliases.body, ...payload.formFieldAliases.body]
   };
@@ -466,16 +475,16 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "email";
     }
 
-    if (type === "tel" || autocomplete === "tel" || matches(text, "tel")) {
-      return "tel";
-    }
-
     if (tagName === "textarea" || matches(text, "body")) {
       return "body";
     }
 
     if (matches(text, "japanCapital")) {
       return "japanCapital";
+    }
+
+    if (matches(text, "nameHiragana")) {
+      return "nameHiragana";
     }
 
     if (matches(text, "nameKana")) {
@@ -492,6 +501,18 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "prefecture")) {
       return "prefecture";
+    }
+
+    if (matches(text, "city")) {
+      return "city";
+    }
+
+    if (matches(text, "streetAddress")) {
+      return "streetAddress";
+    }
+
+    if (type === "tel" || autocomplete === "tel" || matches(text, "tel")) {
+      return "tel";
     }
 
     if (matches(text, "address")) {
@@ -564,6 +585,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   const telLike = (element: HTMLInputElement): boolean => {
     const type = (element.getAttribute("type") || "").toLowerCase();
     const text = labelFor(element);
+    if (matches(text, "postalCode")) {
+      return false;
+    }
+
     return type === "tel" || matches(text, "tel");
   };
 
