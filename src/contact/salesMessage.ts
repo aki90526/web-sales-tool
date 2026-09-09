@@ -8,6 +8,7 @@ export type SenderInfo = {
   nameHiragana: string;
   department: string;
   nameRoman: string;
+  age: string;
   tel: string;
   chatworkId: string;
   email: string;
@@ -25,6 +26,7 @@ export type FormFieldAliases = {
   name: string[];
   nameKana: string[];
   nameHiragana: string[];
+  age: string[];
   department: string[];
   email: string[];
   tel: string[];
@@ -79,6 +81,7 @@ export const CONTACT_SENDER: SenderInfo = {
   nameHiragana: "あべ あきひと",
   department: "代表",
   nameRoman: "Abe Akihito",
+  age: "36",
   tel: "09062121580",
   chatworkId: "abeAawc",
   email: "abe@aawebcreate.com",
@@ -96,6 +99,7 @@ const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
   name: ["お名前", "氏名", "担当者名", "ご担当者名"],
   nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ"],
   nameHiragana: ["ふりがな", "氏名かな", "お名前かな", "ご担当者名ふりがな"],
+  age: ["年齢", "歳", "age"],
   department: ["部署", "部署名", "所属部署", "所属部署名", "部門", "部門名", "department", "division", "section"],
   email: ["メールアドレス", "Email", "E-mail", "mail"],
   tel: ["電話番号", "TEL", "Tel", "tel"],
@@ -152,6 +156,7 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     nameHiragana: setting(settings, "送信者_氏名ひらがな", CONTACT_SENDER.nameHiragana),
     department: setting(settings, "送信者_部署名", CONTACT_SENDER.department),
     nameRoman: setting(settings, "送信者_ローマ字", CONTACT_SENDER.nameRoman),
+    age: setting(settings, "送信者_年齢", CONTACT_SENDER.age),
     tel: setting(settings, "送信者_電話番号", CONTACT_SENDER.tel),
     chatworkId: setting(settings, "送信者_チャットワークID", CONTACT_SENDER.chatworkId),
     email: setting(settings, "送信者_メール", CONTACT_SENDER.email),
@@ -176,6 +181,7 @@ const readFormFieldAliases = (settings: Map<string, string>): FormFieldAliases =
     name: readAliases("フォーム項目_氏名", DEFAULT_FORM_FIELD_ALIASES.name),
     nameKana: readAliases("フォーム項目_氏名カナ", DEFAULT_FORM_FIELD_ALIASES.nameKana),
     nameHiragana: readAliases("フォーム項目_氏名ひらがな", DEFAULT_FORM_FIELD_ALIASES.nameHiragana),
+    age: readAliases("フォーム項目_年齢", DEFAULT_FORM_FIELD_ALIASES.age),
     department: readAliases("フォーム項目_部署名", DEFAULT_FORM_FIELD_ALIASES.department),
     email: readAliases("フォーム項目_メール", DEFAULT_FORM_FIELD_ALIASES.email),
     tel: readAliases("フォーム項目_電話番号", DEFAULT_FORM_FIELD_ALIASES.tel),
@@ -486,6 +492,8 @@ const renderTemplate = (
     ["送信者_部署名", sender.department],
     ["senderNameRoman", sender.nameRoman],
     ["送信者_ローマ字", sender.nameRoman],
+    ["senderAge", sender.age],
+    ["送信者_年齢", sender.age],
     ["senderTel", sender.tel],
     ["送信者_電話番号", sender.tel],
     ["senderEmail", sender.email],

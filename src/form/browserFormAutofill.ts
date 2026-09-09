@@ -261,6 +261,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     lastNameHiragana: payload.sender.nameHiragana.split(/\s+/)[0] || payload.sender.nameHiragana,
     firstNameHiragana: payload.sender.nameHiragana.split(/\s+/).slice(1).join(" ") || payload.sender.nameHiragana,
     department: payload.sender.department,
+    age: payload.sender.age,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
     firstName: payload.sender.name.split(/\s+/).slice(1).join(" ") || payload.sender.name,
@@ -284,6 +285,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ", "kana", "furigana"],
     nameHiragana: ["ふりがな", "氏名かな", "お名前かな", "ご担当者名ふりがな"],
     department: ["部署", "部署名", "所属部署", "所属部署名", "部門", "部門名", "department", "division", "section"],
+    age: ["年齢", "歳", "age"],
     lastName: ["last name", "family name", "sei"],
     firstName: ["first name", "given name", "mei"],
     email: ["メールアドレス", "Email", "E-mail", "mail", "メール"],
@@ -306,6 +308,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     nameKana: [...builtinAliases.nameKana, ...payload.formFieldAliases.nameKana],
     nameHiragana: [...builtinAliases.nameHiragana, ...payload.formFieldAliases.nameHiragana],
     department: [...builtinAliases.department, ...payload.formFieldAliases.department],
+    age: [...builtinAliases.age, ...payload.formFieldAliases.age],
     email: [...builtinAliases.email, ...payload.formFieldAliases.email],
     tel: [...builtinAliases.tel, ...payload.formFieldAliases.tel],
     url: [...builtinAliases.url, ...payload.formFieldAliases.url],
@@ -324,6 +327,25 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       .replace(/[：:＊*必須]/g, " ")
       .trim()
       .toLowerCase();
+  };
+
+  const isPlaceholderOption = (option: HTMLOptionElement | undefined | null): boolean => {
+    if (!option) {
+      return true;
+    }
+
+    const value = normalize(option.value || "");
+    const text = normalize(option.textContent || "");
+
+    return (
+      !value ||
+      /^(none|null|undefined|-+)$/.test(value) ||
+      /(選択してください|選択して下さい|選択|お選びください|お選び下さい|please select)/i.test(text)
+    );
+  };
+
+  const hasMeaningfulSelectValue = (element: HTMLSelectElement): boolean => {
+    return element.value !== "" && !isPlaceholderOption(element.options[element.selectedIndex]);
   };
 
   const visible = (element: HTMLElement): boolean => {
@@ -594,6 +616,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "department")) {
       return "department";
+    }
+
+    if (matches(text, "age")) {
+      return "age";
     }
 
     if (matches(text, "prefecture")) {
@@ -868,7 +894,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const scoreOption = (option: HTMLOptionElement): number => {
-    if (!option.value) {
+    if (isPlaceholderOption(option)) {
       return 0;
     }
 
@@ -884,7 +910,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return false;
     }
 
-    if (element.value) {
+    if (hasMeaningfulSelectValue(element)) {
       const selectedOption = element.options[element.selectedIndex];
       result.selected.push({
         label: shortLabelFor(element),
@@ -895,7 +921,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     const prefecture = normalize(payload.sender.prefecture);
     const preferred = Array.from(element.options).find((option) => {
-      if (!option.value) {
+      if (isPlaceholderOption(option)) {
         return false;
       }
 
@@ -934,7 +960,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return;
     }
 
-    if (element.value) {
+    if (hasMeaningfulSelectValue(element)) {
       const selectedOption = element.options[element.selectedIndex];
       result.selected.push({
         label: shortLabelFor(element),
