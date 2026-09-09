@@ -442,6 +442,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return /given-name/.test(autocomplete) || matches(text, "firstName") || hasStandaloneJapaneseField(text, "名");
   };
 
+  const matchesFullNameOnly = (text: string): boolean => {
+    if (!/(お名前|氏名|担当者名|ご担当者名)/.test(text)) {
+      return false;
+    }
+
+    return !hasStandaloneJapaneseField(text, "姓") && !hasStandaloneJapaneseField(text, "名");
+  };
+
   const inferKey = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): string => {
     const text = labelFor(element);
     const tagName = element.tagName.toLowerCase();
@@ -482,6 +490,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       }
 
       return "companyName";
+    }
+
+    if (matchesFullNameOnly(text) && matches(text, "name")) {
+      return "name";
     }
 
     if (matchesLastName(text, autocomplete)) {
