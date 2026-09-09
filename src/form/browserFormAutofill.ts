@@ -471,7 +471,19 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     const type = (element.getAttribute("type") || "").toLowerCase();
     const autocomplete = (element.getAttribute("autocomplete") || "").toLowerCase();
 
-    if (type === "email" || autocomplete === "email" || matches(text, "email")) {
+    if (type === "email" || autocomplete === "email") {
+      return "email";
+    }
+
+    if (matches(text, "postalCode")) {
+      return "postalCode";
+    }
+
+    if (type === "tel" || autocomplete === "tel" || matches(text, "tel")) {
+      return "tel";
+    }
+
+    if (matches(text, "email")) {
       return "email";
     }
 
@@ -495,10 +507,6 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "department";
     }
 
-    if (matches(text, "postalCode")) {
-      return "postalCode";
-    }
-
     if (matches(text, "prefecture")) {
       return "prefecture";
     }
@@ -509,10 +517,6 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "streetAddress")) {
       return "streetAddress";
-    }
-
-    if (type === "tel" || autocomplete === "tel" || matches(text, "tel")) {
-      return "tel";
     }
 
     if (matches(text, "address")) {
