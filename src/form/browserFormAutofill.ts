@@ -429,7 +429,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       const controls = parent.querySelectorAll("input, textarea, select").length;
       const text = parent.textContent?.trim() ?? "";
 
-      if (controls === 1 && text.length <= 120) {
+      if (controls === 1 && text && text.length <= 120) {
         parts.push(text);
         break;
       }
