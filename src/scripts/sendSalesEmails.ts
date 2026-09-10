@@ -16,6 +16,7 @@ type CliOptions = {
   help: boolean;
   limit: number;
   minScore?: number;
+  testTo?: string;
 };
 
 type SalesEmailCandidate = {
@@ -51,11 +52,13 @@ const printHelp = (): void => {
   console.log(`Usage:
   npm run send:emails -- --dry-run --limit 3
   npm run send:emails -- --limit 1
+  npm run send:emails -- --test-to "aki90526@gmail.com" --limit 1
 
 Options:
   --dry-run       送信せず、対象候補だけ表示します
   --limit         送信または表示する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
   --min-score     最低営業スコア。省略時は 設定 シートの値、未設定時は ${DEFAULT_MIN_SCORE}
+  --test-to       実際の営業メール本文を指定アドレスへテスト送信します。Sheets は更新しません
 `);
 };
 
@@ -99,6 +102,9 @@ const parseArgs = (argv: string[]): CliOptions => {
     } else if (arg === "--min-score") {
       options.minScore = parsePositiveInteger(nextValue(argv, index, "--min-score"), "--min-score");
       index += 1;
+    } else if (arg === "--test-to") {
+      options.testTo = nextValue(argv, index, "--test-to");
+      index += 1;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -106,6 +112,14 @@ const parseArgs = (argv: string[]): CliOptions => {
 
   if (options.limit > MAX_LIMIT) {
     throw new Error(`--limit must be ${MAX_LIMIT} or less`);
+  }
+
+  if (options.testTo && !isValidEmail(options.testTo)) {
+    throw new Error("--test-to must be a valid email address");
+  }
+
+  if (options.dryRun && options.testTo) {
+    throw new Error("--dry-run and --test-to cannot be used together");
   }
 
   return options;
@@ -360,6 +374,24 @@ const main = async (): Promise<void> => {
 
   console.log(`Verifying SMTP connection for ${smtpConfig.user}...`);
   await mailer.verify();
+
+  if (options.testTo) {
+    for (const candidate of candidates) {
+      console.log(
+        `Sending test copy for ${candidate.leadId} ${candidate.companyName} to ${options.testTo} (original: ${candidate.emailAddress})...`
+      );
+      const result = await mailer.send({
+        to: options.testTo,
+        subject: candidate.subject,
+        text: candidate.body
+      });
+
+      console.log(`Sent test copy for ${candidate.leadId}. Message ID: ${result.messageId}`);
+    }
+
+    console.log("Test mode: sheets were not updated.");
+    return;
+  }
 
   for (const candidate of candidates) {
     console.log(`Sending ${candidate.leadId} ${candidate.companyName} to ${candidate.emailAddress}...`);

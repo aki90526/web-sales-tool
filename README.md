@@ -79,6 +79,12 @@ npm run collect:import -- --dry-run
 npm run send:emails -- --dry-run --limit 3
 ```
 
+実際に送信される営業メール本文を自分宛てに確認する場合は、宛先だけを差し替えてテスト送信できます。この場合、`アプローチ履歴` と `営業管理` は更新しません。
+
+```bash
+npm run send:emails -- --test-to "aki90526@gmail.com" --limit 1
+```
+
 問題なければ、件数を絞って本送信します。
 
 ```bash
