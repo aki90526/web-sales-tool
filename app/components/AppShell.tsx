@@ -74,10 +74,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="topbar-actions">
             <Link className="icon-button" href="/collect" aria-label="候補収集">
-              <Plus size={18} />
+              <Search size={18} />
             </Link>
             <Link className="icon-button primary" href="/actions" aria-label="実行操作">
-              <Sparkles size={18} />
+              <Send size={18} />
             </Link>
           </div>
         </header>

@@ -234,6 +234,7 @@ export default function CollectPage() {
           <label className="field">
             件数
             <input type="number" min={1} max={10} value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
+            <span>※ 件数が多いほど検索に時間がかかります。</span>
           </label>
         </div>
 
