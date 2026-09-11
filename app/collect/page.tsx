@@ -14,6 +14,14 @@ const RECOMMENDED_AREAS = [
   "北海道札幌市"
 ] as const;
 
+const TOKYO_WARD_AREAS = [
+  "東京都渋谷区 新宿区 港区",
+  "東京都千代田区 中央区 港区",
+  "東京都品川区 目黒区 世田谷区",
+  "東京都豊島区 文京区 台東区",
+  "東京都江東区 墨田区 江戸川区"
+] as const;
+
 type Candidate = {
   companyName: string;
   leadType: string;
@@ -179,6 +187,17 @@ export default function CollectPage() {
                 {RECOMMENDED_AREAS.map((recommendedArea) => (
                   <button key={recommendedArea} className="area-chip" type="button" onClick={() => applyArea(recommendedArea)}>
                     {recommendedArea}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="area-suggestion-group">
+              <span className="area-suggestion-label">東京区別</span>
+              <div className="area-chip-row">
+                {TOKYO_WARD_AREAS.map((wardArea) => (
+                  <button key={wardArea} className="area-chip" type="button" onClick={() => applyArea(wardArea)}>
+                    {wardArea}
                   </button>
                 ))}
               </div>
