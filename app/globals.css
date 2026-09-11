@@ -218,6 +218,10 @@ button:disabled {
   color: white;
 }
 
+.icon-button.primary{
+  border: 1px solid #dbe7fb;
+}
+
 .content {
   width: 100%;
   max-width: 1220px;
