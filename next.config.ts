@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
 
   // 別デバイス（同一LAN / Tailscale）から dev サーバーに繋ぐとき用（cross-origin 許可）
   allowedDevOrigins: [
+    "localhost",
+    "127.0.0.1",
     "akihitos-MacBook-Pro.local",
     "akihitos-macbook-pro",
     "192.168.10.14", // 同一LAN

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Database, History, RotateCcw, Search, Sparkles } from "lucide-react";
 
 const TARGET_TYPES = ["Web制作会社", "広告代理店", "直クライアント"] as const;
 type TargetType = (typeof TARGET_TYPES)[number];
@@ -130,100 +131,96 @@ export default function CollectPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-3 rounded border border-[var(--border)] bg-[var(--panel)] p-4">
-        <h2 className="font-semibold">候補収集</h2>
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>候補収集</h2>
+          <p>エリアと営業先種別を指定して、登録前に候補を確認します。</p>
+        </div>
+      </div>
 
-        <label className="flex flex-col gap-1 text-sm">
-          エリア
-          <input
-            className="rounded border border-[var(--border)] bg-transparent px-2 py-1"
-            value={area}
-            onChange={(event) => setArea(event.target.value)}
-            placeholder="例: 埼玉県春日部市"
-          />
-        </label>
-
-        <fieldset className="flex flex-col gap-1 text-sm">
-          <legend>対象種別</legend>
-          <div className="flex flex-wrap gap-3">
-            {TARGET_TYPES.map((type) => (
-              <label key={type} className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={targetTypes.includes(type)}
-                  onChange={() => toggleTargetType(type)}
-                />
-                {type}
-              </label>
-            ))}
+      <section className="form-panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title">検索条件</h3>
+            <p className="panel-caption">検索後、結果プレビューを確認してから営業管理へ登録します。</p>
           </div>
-        </fieldset>
+          <span className="kpi-icon"><Sparkles size={18} /></span>
+        </div>
 
-        <label className="flex max-w-[200px] flex-col gap-1 text-sm">
-          件数（上限10件）
-          <input
-            type="number"
-            min={1}
-            max={10}
-            className="rounded border border-[var(--border)] bg-transparent px-2 py-1"
-            value={limit}
-            onChange={(event) => setLimit(Number(event.target.value))}
-          />
-        </label>
+        <div className="field-grid">
+          <label className="field full">
+            エリア
+            <input value={area} onChange={(event) => setArea(event.target.value)} placeholder="例: 埼玉県春日部市" />
+          </label>
 
-        <p className="text-xs text-[var(--muted)]">
-          実行するとOpenAIの検索コストが発生します。まずプレビューを確認してから登録してください。
-        </p>
+          <div className="field full">
+            対象種別
+            <div className="check-row">
+              {TARGET_TYPES.map((type) => (
+                <label key={type} className="check-pill">
+                  <input type="checkbox" checked={targetTypes.includes(type)} onChange={() => toggleTargetType(type)} />
+                  {type}
+                </label>
+              ))}
+            </div>
+          </div>
 
-        <button
-          className="w-fit rounded bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-fg)] disabled:opacity-50"
-          onClick={runCollect}
-          disabled={loading}
-        >
-          {loading ? "検索中..." : "候補を検索する"}
-        </button>
+          <label className="field">
+            件数
+            <input type="number" min={1} max={10} value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
+          </label>
+        </div>
 
-        {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+        <p className="notice mt-4">実行するとOpenAIの検索コストが発生します。まずプレビューを確認し、必要な候補だけ登録してください。</p>
+
+        <div className="btn-row mt-4">
+          <button className="btn primary" onClick={runCollect} disabled={loading}>
+            <Search size={16} />
+            {loading ? "検索中..." : "候補を検索する"}
+          </button>
+        </div>
+
+        {error && <p className="error-box mt-4">{error}</p>}
       </section>
 
       {preview && (
-        <section className="flex flex-col gap-3 rounded border border-[var(--border)] bg-[var(--panel)] p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">検索結果プレビュー（{preview.candidates.length}件・未登録）</h2>
-            <button
-              className="rounded bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-fg)] disabled:opacity-50"
-              onClick={confirmImport}
-              disabled={importing || preview.candidates.length === 0}
-            >
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">検索結果プレビュー</h3>
+              <p className="panel-caption">{preview.candidates.length}件見つかりました。まだ登録されていません。</p>
+            </div>
+            <button className="btn primary" onClick={confirmImport} disabled={importing || preview.candidates.length === 0}>
+              <Database size={16} />
               {importing ? "登録中..." : "この内容で登録する"}
             </button>
           </div>
 
           {preview.candidates.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">新規候補は見つかりませんでした。</p>
+            <p className="panel-caption">新規候補は見つかりませんでした。</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] border-collapse text-sm">
+            <div className="data-table-wrap">
+              <table className="data-table">
                 <thead>
-                  <tr className="border-b border-[var(--border)] text-left">
-                    <th className="px-2 py-1">企業名</th>
-                    <th className="px-2 py-1">種別</th>
-                    <th className="px-2 py-1">地域</th>
-                    <th className="px-2 py-1 text-right">スコア</th>
-                    <th className="px-2 py-1">ステータス</th>
-                    <th className="px-2 py-1">切り口</th>
+                  <tr>
+                    <th>企業名</th>
+                    <th>種別</th>
+                    <th>地域</th>
+                    <th>スコア</th>
+                    <th>ステータス</th>
+                    <th>切り口</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preview.candidates.map((candidate) => (
-                    <tr key={`${candidate.companyName}-${candidate.officialSiteUrl}`} className="border-b border-[var(--border)]">
-                      <td className="px-2 py-1">{candidate.companyName}</td>
-                      <td className="px-2 py-1 whitespace-nowrap">{candidate.leadType}</td>
-                      <td className="px-2 py-1 whitespace-nowrap">{candidate.region}</td>
-                      <td className="px-2 py-1 text-right">{candidate.salesScore}</td>
-                      <td className="px-2 py-1 whitespace-nowrap">{candidate.status}</td>
-                      <td className="px-2 py-1">{candidate.salesAngle}</td>
+                    <tr key={`${candidate.companyName}-${candidate.officialSiteUrl}`}>
+                      <td>{candidate.companyName}</td>
+                      <td>{candidate.leadType}</td>
+                      <td>{candidate.region}</td>
+                      <td><span className="score-badge">{candidate.salesScore}</span></td>
+                      <td><span className="status-badge">{candidate.status}</span></td>
+                      <td>{candidate.salesAngle}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -234,37 +231,74 @@ export default function CollectPage() {
       )}
 
       {importResults && (
-        <section className="flex flex-col gap-2 rounded border border-[var(--border)] bg-[var(--panel)] p-4">
-          <h2 className="font-semibold">登録結果</h2>
-          <ul className="list-inside list-disc text-sm">
-            {importResults.map((result) => (
-              <li key={result.leadId}>
-                {result.leadId}: {result.companyName}
-                {result.companyNameCorrection && ` （企業名補正: ${result.companyNameCorrection}）`}
-              </li>
-            ))}
-          </ul>
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">登録結果</h3>
+              <p className="panel-caption">営業管理シートへ追加しました。</p>
+            </div>
+          </div>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>リードID</th>
+                  <th>企業名</th>
+                  <th>補正</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importResults.map((result) => (
+                  <tr key={result.leadId}>
+                    <td>{result.leadId}</td>
+                    <td>{result.companyName}</td>
+                    <td>{result.companyNameCorrection || result.contactUrlCorrection || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
-      <section className="flex flex-col gap-2 rounded border border-[var(--border)] bg-[var(--panel)] p-4">
-        <h2 className="font-semibold">最近の検索</h2>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title">最近の検索</h3>
+            <p className="panel-caption">条件を再利用できます。</p>
+          </div>
+          <History size={18} color="var(--muted)" />
+        </div>
         {history.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">履歴はまだありません。</p>
+          <p className="panel-caption">履歴はまだありません。</p>
         ) : (
-          <ul className="flex flex-col gap-1 text-sm">
-            {history.map((entry) => (
-              <li key={entry.runAt} className="flex items-center justify-between gap-2">
-                <span>
-                  {new Date(entry.runAt).toLocaleString("ja-JP")} — {entry.area} / {entry.targetTypes.join(",")} / 上限{entry.limit}件 →{" "}
-                  {entry.resultCount}件取得
-                </span>
-                <button className="shrink-0 text-[var(--accent)] hover:underline" onClick={() => applyHistoryEntry(entry)}>
-                  条件を再利用
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>日時</th>
+                  <th>条件</th>
+                  <th>結果</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((entry) => (
+                  <tr key={entry.runAt}>
+                    <td>{new Date(entry.runAt).toLocaleString("ja-JP")}</td>
+                    <td>{entry.area} / {entry.targetTypes.join(",")} / 上限{entry.limit}件</td>
+                    <td>{entry.resultCount}件</td>
+                    <td>
+                      <button className="btn secondary" onClick={() => applyHistoryEntry(entry)}>
+                        <RotateCcw size={15} />
+                        再利用
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>
