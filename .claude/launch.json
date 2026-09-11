@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-sales-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dashboard:dev"],
+      "port": 3100
+    }
+  ]
+}

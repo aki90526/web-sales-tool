@@ -1,10 +1,9 @@
-import { loadConfig, requireOpenAiConfig } from "../config/env";
-import { filterUniqueCandidates, formatTargetTypes, importLeadCandidates, readExistingLeadState } from "../collection/leadImport";
+import { loadConfig } from "../config/env";
+import { buildSearchCondition, MAX_INITIAL_LIMIT, runLeadCollection } from "../collection/collectLeadsService";
+import { importLeadCandidates } from "../collection/leadImport";
 import { saveCollectPreview } from "../collection/previewStore";
 import { LeadType } from "../domain/lead";
 import { createSheetsClient } from "../google/sheetsClient";
-import { collectLeadCandidateCollection } from "../openai/leadCandidateCollector";
-import { createOpenAIClient } from "../openai/openAIClient";
 
 type CliOptions = {
   area: string;
@@ -12,12 +11,6 @@ type CliOptions = {
   limit: number;
   dryRun: boolean;
   help: boolean;
-};
-
-const MAX_INITIAL_LIMIT = 10;
-
-const buildSearchCondition = (options: CliOptions): string => {
-  return `地域: ${options.area} / 対象: ${formatTargetTypes(options.targetTypes)} / 最大件数: ${options.limit}`;
 };
 
 const printHelp = (): void => {
@@ -117,22 +110,21 @@ const main = async (): Promise<void> => {
   }
 
   const config = loadConfig();
-  const openAiConfig = requireOpenAiConfig(config);
   const sheets = await createSheetsClient(config);
-  const existing = await readExistingLeadState(sheets);
-  const openAI = createOpenAIClient(openAiConfig);
 
   console.log(`Collecting up to ${options.limit} leads. Sending is not automated.`);
   console.log(`Area: ${options.area}`);
-  console.log(`Targets: ${formatTargetTypes(options.targetTypes)}`);
+  console.log(`Targets: ${options.targetTypes.join(", ")}`);
 
-  const collection = await collectLeadCandidateCollection(openAI, {
-    area: options.area,
-    targetTypes: options.targetTypes,
-    limit: options.limit,
-    existingCompanies: existing.companies,
-    existingSiteUrls: existing.siteUrls
-  });
+  const collection = await runLeadCollection(
+    config,
+    {
+      area: options.area,
+      targetTypes: options.targetTypes,
+      limit: options.limit
+    },
+    sheets
+  );
 
   if (collection.searchTrace.queries.length > 0) {
     console.log(`Search queries: ${collection.searchTrace.queries.join(" / ")}`);
@@ -140,7 +132,7 @@ const main = async (): Promise<void> => {
 
   console.log(`Referenced URLs: ${collection.searchTrace.sourceUrls.length}`);
 
-  const uniqueCandidates = filterUniqueCandidates(collection.candidates, existing);
+  const uniqueCandidates = collection.candidates;
 
   if (uniqueCandidates.length === 0) {
     console.log("No new unique leads found.");

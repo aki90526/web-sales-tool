@@ -5,3 +5,7 @@ tmp/
 .tmp/
 .DS_Store
 npm-debug.log*
+.next/
+*.tsbuildinfo
+data/collect-history.json
+data/dashboard-jobs.json
