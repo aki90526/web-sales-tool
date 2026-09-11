@@ -269,22 +269,24 @@ export default function CollectPage() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th className="cell-number cell-nowrap">No.</th>
                     <th>企業名</th>
-                    <th>種別</th>
-                    <th>地域</th>
-                    <th>スコア</th>
-                    <th>ステータス</th>
+                    <th className="cell-nowrap">種別</th>
+                    <th className="cell-nowrap">地域</th>
+                    <th className="cell-nowrap">スコア</th>
+                    <th className="cell-nowrap">ステータス</th>
                     <th>切り口</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.candidates.map((candidate) => (
+                  {preview.candidates.map((candidate, index) => (
                     <tr key={`${candidate.companyName}-${candidate.officialSiteUrl}`}>
+                      <td className="cell-number cell-nowrap">{index + 1}</td>
                       <td>{candidate.companyName}</td>
-                      <td>{candidate.leadType}</td>
-                      <td>{candidate.region}</td>
-                      <td><span className="score-badge">{candidate.salesScore}</span></td>
-                      <td><span className="status-badge">{candidate.status}</span></td>
+                      <td className="cell-nowrap">{candidate.leadType}</td>
+                      <td className="cell-nowrap">{candidate.region}</td>
+                      <td className="cell-nowrap"><span className="score-badge">{candidate.salesScore}</span></td>
+                      <td className="cell-nowrap"><span className="status-badge">{candidate.status}</span></td>
                       <td>{candidate.salesAngle}</td>
                     </tr>
                   ))}

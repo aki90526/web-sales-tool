@@ -706,6 +706,17 @@ button:disabled {
   border-bottom: 0;
 }
 
+.cell-nowrap {
+  white-space: nowrap;
+}
+
+.cell-number {
+  width: 1%;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .score-badge,
 .status-badge,
 .method-badge {
