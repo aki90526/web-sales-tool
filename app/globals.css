@@ -521,6 +521,58 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+.area-suggestion-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  margin-top: -4px;
+}
+
+.area-suggestion-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.area-suggestion-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.area-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.area-chip {
+  min-height: 30px;
+  border: 1px solid #dbe5f3;
+  border-radius: 999px;
+  background: #f8fbff;
+  padding: 0 12px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.area-chip:hover {
+  border-color: #b9ccff;
+  background: #eef5ff;
+  color: var(--accent);
+}
+
+.area-empty {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .check-row {
   display: flex;
   flex-wrap: wrap;

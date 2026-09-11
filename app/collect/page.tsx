@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Database, History, RotateCcw, Search, Sparkles } from "lucide-react";
 
 const TARGET_TYPES = ["Web制作会社", "広告代理店", "直クライアント"] as const;
 type TargetType = (typeof TARGET_TYPES)[number];
+
+const RECOMMENDED_AREAS = [
+  "東京都23区",
+  "大阪府大阪市",
+  "愛知県名古屋市",
+  "福岡県福岡市",
+  "北海道札幌市"
+] as const;
 
 type Candidate = {
   companyName: string;
@@ -50,6 +58,10 @@ export default function CollectPage() {
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null);
   const [importing, setImporting] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  const recentAreas = useMemo(() => {
+    return Array.from(new Set(history.map((entry) => entry.area).filter(Boolean))).slice(0, 5);
+  }, [history]);
 
   const loadHistory = () => {
     fetch("/api/collect/history")
@@ -130,6 +142,12 @@ export default function CollectPage() {
     setImportResults(null);
   };
 
+  const applyArea = (value: string) => {
+    setArea(value);
+    setPreview(null);
+    setImportResults(null);
+  };
+
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -153,6 +171,34 @@ export default function CollectPage() {
             エリア
             <input value={area} onChange={(event) => setArea(event.target.value)} placeholder="例: 埼玉県春日部市" />
           </label>
+
+          <div className="area-suggestion-panel">
+            <div className="area-suggestion-group">
+              <span className="area-suggestion-label">おすすめ</span>
+              <div className="area-chip-row">
+                {RECOMMENDED_AREAS.map((recommendedArea) => (
+                  <button key={recommendedArea} className="area-chip" type="button" onClick={() => applyArea(recommendedArea)}>
+                    {recommendedArea}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="area-suggestion-group">
+              <span className="area-suggestion-label">履歴</span>
+              {recentAreas.length === 0 ? (
+                <span className="area-empty">まだ履歴はありません</span>
+              ) : (
+                <div className="area-chip-row">
+                  {recentAreas.map((historyArea) => (
+                    <button key={historyArea} className="area-chip" type="button" onClick={() => applyArea(historyArea)}>
+                      {historyArea}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="field full">
             対象種別
