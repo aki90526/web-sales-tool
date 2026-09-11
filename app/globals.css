@@ -541,6 +541,32 @@ button:disabled {
   font-weight: 800;
 }
 
+.target-type-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  overflow-x: auto;
+}
+
+.target-type-pill {
+  container-type: inline-size;
+  min-width: 160px;
+  justify-content: center;
+}
+
+.target-type-pill input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.target-type-pill span {
+  flex: 0 1 auto;
+  min-width: max-content;
+  font-size: clamp(10px, 9cqw, 13px);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .btn-row {
   display: flex;
   flex-wrap: wrap;

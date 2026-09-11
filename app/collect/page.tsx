@@ -156,11 +156,11 @@ export default function CollectPage() {
 
           <div className="field full">
             対象種別
-            <div className="check-row">
+            <div className="check-row target-type-row">
               {TARGET_TYPES.map((type) => (
-                <label key={type} className="check-pill">
+                <label key={type} className="check-pill target-type-pill">
                   <input type="checkbox" checked={targetTypes.includes(type)} onChange={() => toggleTargetType(type)} />
-                  {type}
+                  <span>{type}</span>
                 </label>
               ))}
             </div>
