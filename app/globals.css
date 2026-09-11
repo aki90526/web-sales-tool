@@ -542,14 +542,12 @@ button:disabled {
 }
 
 .target-type-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(160px, 1fr));
-  overflow-x: auto;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .target-type-pill {
-  container-type: inline-size;
-  min-width: 160px;
+  flex: 0 0 auto;
   justify-content: center;
 }
 
@@ -560,9 +558,7 @@ button:disabled {
 }
 
 .target-type-pill span {
-  flex: 0 1 auto;
-  min-width: max-content;
-  font-size: clamp(10px, 9cqw, 13px);
+  font-size: 13px;
   line-height: 1;
   white-space: nowrap;
 }
