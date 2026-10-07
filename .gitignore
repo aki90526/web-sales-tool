@@ -9,3 +9,5 @@ npm-debug.log*
 *.tsbuildinfo
 data/collect-history.json
 data/dashboard-jobs.json
+*.ts.net.crt
+*.ts.net.key
