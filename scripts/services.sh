@@ -27,7 +27,12 @@ agent_stop() {
   echo "  ✓ stopped $LABEL"
 }
 
-http_ok() { curl -sf -m 2 -o /dev/null "$1"; }
+# proxy.ts がTailscale経由でない直接アクセスに401を返すため、401も「起動中」とみなす。
+http_ok() {
+  local code
+  code="$(curl -s -m 2 -o /dev/null -w "%{http_code}" "$1")"
+  [[ "$code" =~ ^(2..|3..|401)$ ]]
+}
 
 do_status() {
   printf "  dashboard (:3100) : %s\n" "$(http_ok http://127.0.0.1:3100/ && echo up || echo down)"
