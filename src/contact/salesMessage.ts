@@ -382,17 +382,29 @@ const pickFallbackTemplate = (input: SalesMessageInput): MessageTemplate | undef
   return undefined;
 };
 
+// 「株式会社monomode（モノモード）」のような読み仮名・英字表記の括弧書きは宛名として不自然なため、
+// メール・フォームに差し込むときだけ外す。（株）や（旧〇〇）など漢字を含む括弧書きは残す。
+export const toMailCompanyName = (companyName: string): string => {
+  const stripped = companyName
+    .replace(/\s*[（(][\s\u3041-\u309F\u30A0-\u30FFー・A-Za-z0-9.,&'\-]+[）)]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return stripped || companyName.trim();
+};
+
 const renderTemplate = (
   template: string,
   input: SalesMessageInput,
   sender: SenderInfo
 ): string => {
   const clientSpecificObservation = buildClientSpecificObservation(input);
+  const companyName = toMailCompanyName(input.companyName);
   const signature = buildSignature(sender);
   const values = new Map<string, string>([
-    ["companyName", input.companyName],
-    ["会社名", input.companyName],
-    ["企業名", input.companyName],
+    ["companyName", companyName],
+    ["会社名", companyName],
+    ["企業名", companyName],
     ["leadType", input.leadType],
     ["営業先種別", input.leadType],
     ["industry", input.industry],

@@ -49,6 +49,36 @@ const normalizeCompanyName = (value: string): string => {
     .trim();
 };
 
+const countLegalForms = (value: string): number => {
+  return LEGAL_FORMS.reduce((count, legalForm) => {
+    return count + (value.match(new RegExp(escapeRegExp(legalForm), "g")) ?? []).length;
+  }, 0);
+};
+
+// 「株式会社ライズエージェンシー 株式会社」のように法人格が二重になった名前を、
+// サイト本文に実際に出てくる表記（前株・後株）で1つにまとめる。本文で判断できなければ先頭の法人格を残す。
+const resolveDuplicateLegalForm = (companyName: string, text: string): string => {
+  const legalForm = LEGAL_FORMS.find((form) => companyName.includes(form));
+
+  if (!legalForm) {
+    return companyName;
+  }
+
+  const core = companyName.split(legalForm).join("").replace(/\s+/g, " ").trim();
+  const compactText = text.replace(/\s+/g, "");
+  const compactCore = core.replace(/\s+/g, "");
+  const prefixed = `${legalForm}${core}`;
+  const suffixed = `${core}${legalForm}`;
+  const prefixedCount = compactText.split(`${legalForm}${compactCore}`).length - 1;
+  const suffixedCount = compactText.split(`${compactCore}${legalForm}`).length - 1;
+
+  if (suffixedCount > 0 && suffixedCount >= prefixedCount) {
+    return suffixed;
+  }
+
+  return companyName.trim().startsWith(legalForm) || prefixedCount > 0 ? prefixed : suffixed;
+};
+
 const isSameCompanyCore = (candidateName: string, officialName: string): boolean => {
   const candidateCore = stripLegalForm(candidateName);
   const officialCore = stripLegalForm(officialName);
@@ -157,7 +187,7 @@ const extractLegalCompanyNames = (text: string): string[] => {
   return Array.from(new Set(
     matches
       .map((value) => value.replace(/\s+/g, " ").trim())
-      .filter((value) => LEGAL_FORMS.some((legalForm) => value.includes(legalForm)))
+      .filter((value) => countLegalForms(value) === 1)
   ));
 };
 
@@ -170,10 +200,22 @@ export const verifyCompanyName = async (
     return { candidate };
   }
 
+  const hasDuplicateLegalForm = countLegalForms(candidate.companyName) >= 2;
+
   for (const sourceUrl of candidateVerificationUrls(candidate.officialSiteUrl)) {
     try {
       const html = await fetchText(sourceUrl);
-      const legalNames = extractLegalCompanyNames(htmlToText(html));
+      const text = htmlToText(html);
+
+      if (hasDuplicateLegalForm) {
+        const resolvedName = resolveDuplicateLegalForm(candidate.companyName, text);
+        return {
+          candidate: { ...candidate, companyName: resolvedName },
+          correction: { from: candidate.companyName, to: resolvedName, sourceUrl }
+        };
+      }
+
+      const legalNames = extractLegalCompanyNames(text);
       const officialName = legalNames.find((name) => isSameCompanyCore(candidate.companyName, name));
 
       if (officialName && normalizeCompanyName(officialName) !== normalizeCompanyName(candidate.companyName)) {
@@ -196,6 +238,14 @@ export const verifyCompanyName = async (
     } catch {
       // Verification is a best-effort guard. Collection should not fail only because a site blocks access.
     }
+  }
+
+  if (hasDuplicateLegalForm) {
+    const resolvedName = resolveDuplicateLegalForm(candidate.companyName, "");
+    return {
+      candidate: { ...candidate, companyName: resolvedName },
+      correction: { from: candidate.companyName, to: resolvedName, sourceUrl: candidate.officialSiteUrl }
+    };
   }
 
   return { candidate };
