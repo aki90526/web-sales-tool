@@ -224,14 +224,22 @@ export const readSalesContentConfig = async (sheets: SheetsClient): Promise<Sale
   };
 };
 
+const SIGNATURE_RULE = "◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇◆◇";
+
+// 特定電子メール法により、送信者の住所を署名に必ず含める。
 const buildSignature = (sender: SenderInfo): string => {
+  const postalCode = sender.postalCode ? `〒${sender.postalCode} ` : "";
+
   return [
-    sender.companyName,
+    SIGNATURE_RULE,
+    `${sender.companyName} | 春日部市でフリーランスのWeb制作を行っています。`,
     `${sender.name} / ${sender.nameRoman}`,
+    `住所 : ${postalCode}${sender.formAddress || sender.address}`,
     `TEL : ${sender.tel}`,
     `チャットワークID : ${sender.chatworkId}`,
     `Email : ${sender.email}`,
-    `URL : ${sender.url}`
+    `URL : ${sender.url}`,
+    SIGNATURE_RULE
   ].join("\n");
 };
 
@@ -245,30 +253,26 @@ const WEB_PARTNER_FALLBACK_TEMPLATE: MessageTemplate = {
 ご担当者様
 
 突然のご連絡失礼いたします。
-{送信者_住所}にて「{送信者_会社名}」としてWeb制作を行っております、{送信者_氏名}と申します。
+埼玉県春日部市でフリーランスのWebエンジニアをしております、aaWebCreateの阿部と申します。
 
 {本文向け一言}
 
-Web業界で12年、個人事業主としては9年の経験があり、現在はWordPress構築やShopifyテーマ開発、フロントエンド実装をメインに行っております。
+Web業界12年（独立9年）、WordPress・Shopifyの実装を中心に、サイト改修・保守まで対応しております。
+またNext.js / TypeScriptでのWebアプリ開発も行っており、Googleカレンダー連携の予約システムや、
+生成AIを組み込んだ業務ツールなども制作しております。
 
-■ 貢献できるポイント
-・大手案件の品質：電通や博報堂などの厳しい品質基準の案件にも多数対応しており、高精度なコーディングに自信があります。
-・ワンストップ対応：企画からWordPress/Shopify構築まで一気通貫で自走可能です。
-・即レス徹底：原則「0〜3時間以内」の迅速なレスポンスをお約束します。
-・その他：Web制作講師としての最新知見 / インボイス制度登録済
+大手広告代理店（電通・博報堂）案件を含め、制作会社様からの二次請け案件を多数担当しており、
+NDA締結・フルリモートでの対応が可能です。
 
-■ 制作実績・ポートフォリオ
-1. 公式プロフィール
+▼ 経歴・実績はこちらにまとめております。
 https://aawebcreate.com/profile/
 
-2. 非公開実績（パスワード：aaWebCreate）
-https://aawebcreate.com/private-works/
+リソース不足や技術的な課題などでお困りの際は、スポットのご依頼からでもお気軽にご相談いただけますと幸いです。
+何卒よろしくお願い申し上げます。
 
-3. WP構築デモ（不動産会員ポータル）
-https://realestate.test-stg.com/
+※今後このようなご連絡が不要な場合は、お手数ですが本メールへの返信にてお知らせください。以後のご連絡を控えます。
 
-リソース不足や技術的な課題がございましたら、ぜひ一度オンライン等でお話しする機会をいただけますと幸いです。
-何卒よろしくお願い申し上げます。`,
+{署名}`,
   status: "使用中"
 };
 
@@ -310,87 +314,14 @@ export const buildSalesSubject = (leadType: string, recommendedApproach: string)
   return "貴社Webサイトの改善について";
 };
 
-const toSentence = (value: string): string => {
-  const text = value.trim();
-
-  if (!text) {
-    return "";
-  }
-
-  return /[。.!！?？]$/.test(text) ? text : `${text}。`;
-};
-
-const trimSentenceEnd = (value: string): string => {
-  return value.trim().replace(/[。.!！?？]+$/, "");
-};
-
-const buildMessageAngle = (salesAngle: string): string => {
-  return trimSentenceEnd(salesAngle)
-    .replace(/^.+に対し、/, "")
-    .replace(/(.+)と連動する(.+)、キャンペーンサイト、Web更新作業を担当する.+$/, "$1と連動した$2・キャンペーンサイトの実装や、日々のWeb更新業務")
-    .replace(/を担当できる.+$/, "での支援")
-    .replace(/を担当する.+$/, "への対応")
-    .replace(/を請け負う.+$/, "への対応")
-    .replace(/の業務委託先として提案する$/, "の支援")
-    .replace(/として提案しやすい$/, "")
-    .replace(/として提案する$/, "")
-    .replace(/提案余地がある$/, "お力になれる余地")
-    .trim();
-};
-
-const splitIndustryParts = (industry: string): string[] => {
-  return industry
-    .split(/[・、,，／/]/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-};
-
-const compactRepeatedSuffix = (parts: string[], suffix: string): string => {
-  if (parts.length <= 1 || !parts.every((part) => part.endsWith(suffix))) {
-    return parts.join("・");
-  }
-
-  return parts
-    .map((part, index) => (index === parts.length - 1 ? part : part.slice(0, -suffix.length)))
-    .join("・");
-};
-
-const formatIndustryObservation = (industry: string): string => {
-  const parts = splitIndustryParts(industry);
-
-  if (parts.length >= 4) {
-    const firstGroup = parts.slice(0, 2).join("・");
-    const secondGroup = compactRepeatedSuffix(parts.slice(2), "制作");
-    return `${firstGroup}から${secondGroup}まで幅広く展開されている事業内容`;
-  }
-
-  if (parts.length === 3) {
-    return `${parts[0]}から${compactRepeatedSuffix(parts.slice(1), "制作")}まで展開されている事業内容`;
-  }
-
-  if (parts.length === 2) {
-    return `${parts[0]}や${parts[1]}を展開されている事業内容`;
-  }
-
-  return industry ? `${industry}に関する事業内容` : "";
+const observationClosing = (leadType: string): string => {
+  return leadType === "直クライアント"
+    ? "Webサイトの改善・運用でお力になれればと思いご連絡いたしました。"
+    : "外部制作パートナーとしてお力になれればと思いご連絡いたしました。";
 };
 
 const buildClientSpecificObservation = (input: SalesMessageInput): string => {
-  const industryText = input.industry
-    ? `貴社のHPにて、${formatIndustryObservation(input.industry)}を拝見いたしました。`
-    : "貴社のHPを拝見いたしました。";
-  const messageAngle = buildMessageAngle(input.salesAngle);
-
-  if (!messageAngle) {
-    return industryText;
-  }
-
-  return [
-    industryText,
-    toSentence(
-      `特に、${messageAngle}において、私のフロントエンド実装およびWordPress構築の経験が必ずお役に立てると考え、ご連絡いたしました`
-    )
-  ].join("\n");
+  return `貴社のHPを拝見し、${observationClosing(input.leadType)}`;
 };
 
 export const buildSalesBody = (draft: string, sender: SenderInfo = CONTACT_SENDER): string => {
@@ -457,6 +388,7 @@ const renderTemplate = (
   sender: SenderInfo
 ): string => {
   const clientSpecificObservation = buildClientSpecificObservation(input);
+  const signature = buildSignature(sender);
   const values = new Map<string, string>([
     ["companyName", input.companyName],
     ["会社名", input.companyName],
@@ -475,6 +407,8 @@ const renderTemplate = (
     ["clientSpecificObservation", clientSpecificObservation],
     ["本文向け一言", clientSpecificObservation],
     ["具体的一言", clientSpecificObservation],
+    ["signature", signature],
+    ["署名", signature],
     ["recommendedApproach", input.recommendedApproach],
     ["推奨アプローチ", input.recommendedApproach],
     ["senderCompanyName", sender.companyName],
