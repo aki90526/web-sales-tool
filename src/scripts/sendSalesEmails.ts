@@ -1,7 +1,6 @@
 import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
-import { scoreThresholdForLeadType } from "../domain/scoring";
 import { createSmtpMailer } from "../email/smtpMailer";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
@@ -15,7 +14,6 @@ type CliOptions = {
   dryRun: boolean;
   help: boolean;
   limit: number;
-  minScore?: number;
   testTo?: string;
 };
 
@@ -41,12 +39,10 @@ type SkipReason =
   | "ステータスが送信待ちではない"
   | "次回対応日が未来"
   | "連絡方法がメールではない"
-  | "メールアドレスが空またはメール形式ではない"
-  | "営業スコアが基準未満";
+  | "メールアドレスが空またはメール形式ではない";
 
 const DEFAULT_LIMIT = 1;
 const MAX_LIMIT = 10;
-const DEFAULT_MIN_SCORE = 50;
 
 const printHelp = (): void => {
   console.log(`Usage:
@@ -57,7 +53,6 @@ const printHelp = (): void => {
 Options:
   --dry-run       送信せず、対象候補だけ表示します
   --limit         送信または表示する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
-  --min-score     最低営業スコア。省略時は 設定 シートの値、未設定時は ${DEFAULT_MIN_SCORE}
   --test-to       実際の営業メール本文を指定アドレスへテスト送信します。Sheets は更新しません
 `);
 };
@@ -99,9 +94,6 @@ const parseArgs = (argv: string[]): CliOptions => {
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
       index += 1;
-    } else if (arg === "--min-score") {
-      options.minScore = parsePositiveInteger(nextValue(argv, index, "--min-score"), "--min-score");
-      index += 1;
     } else if (arg === "--test-to") {
       options.testTo = nextValue(argv, index, "--test-to");
       index += 1;
@@ -123,16 +115,6 @@ const parseArgs = (argv: string[]): CliOptions => {
   }
 
   return options;
-};
-
-const cell = (row: unknown[], index: number): string => {
-  const value = row[index];
-  return value === undefined || value === null ? "" : String(value).trim();
-};
-
-const parseScore = (value: string): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const isValidEmail = (value: string): boolean => {
@@ -169,25 +151,8 @@ const isFutureDate = (dateText: string): boolean => {
   return dateText > formatTokyoDate(new Date());
 };
 
-const scoreThresholdForCandidate = (leadType: string, configuredMinScore: number): number => {
-  return Math.min(configuredMinScore, scoreThresholdForLeadType(leadType));
-};
-
-const readMinScore = async (sheets: SheetsClient, cliMinScore?: number): Promise<number> => {
-  if (cliMinScore !== undefined) {
-    return cliMinScore;
-  }
-
-  const rows = await sheets.getValues(`'${SHEETS.settings}'!A2:B50`);
-  const minScoreRow = rows.find((row) => cell(row, 0) === "最低営業スコア");
-  const settingValue = minScoreRow ? parseScore(cell(minScoreRow, 1)) : 0;
-
-  return settingValue > 0 ? settingValue : DEFAULT_MIN_SCORE;
-};
-
 const toCandidate = (
   lead: SalesManagementLead,
-  minScore: number,
   contentConfig: SalesContentConfig,
   recommendedApproach: string,
   salesAngle: string
@@ -206,10 +171,6 @@ const toCandidate = (
 
   if (!isValidEmail(lead.emailAddress)) {
     return { reason: "メールアドレスが空またはメール形式ではない" };
-  }
-
-  if (lead.salesScore < scoreThresholdForCandidate(lead.leadType, minScore)) {
-    return { reason: "営業スコアが基準未満" };
   }
 
   const message = buildSalesMessage(
@@ -250,7 +211,6 @@ const toCandidate = (
 const findCandidates = async (
   sheets: SheetsClient,
   limit: number,
-  minScore: number,
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
@@ -265,7 +225,6 @@ const findCandidates = async (
 
     const result = toCandidate(
       lead,
-      minScore,
       contentConfig,
       salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
       salesContexts.get(lead.leadId)?.salesAngle ?? ""
@@ -284,11 +243,8 @@ const findCandidates = async (
   return { candidates, skipped };
 };
 
-const printCandidates = (candidates: SalesEmailCandidate[], minScore: number): void => {
+const printCandidates = (candidates: SalesEmailCandidate[]): void => {
   console.log(`Eligible email leads: ${candidates.length}`);
-  console.log(
-    `Minimum sales score: ${minScore} (Web制作会社/広告代理店: ${scoreThresholdForCandidate("Web制作会社", minScore)})`
-  );
 
   candidates.forEach((candidate, index) => {
     console.log("");
@@ -353,19 +309,20 @@ const main = async (): Promise<void> => {
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
-  const minScore = await readMinScore(sheets, options.minScore);
-  const { candidates, skipped } = await findCandidates(sheets, options.limit, minScore, contentConfig);
+  const { candidates, skipped } = await findCandidates(sheets, options.limit, contentConfig);
 
   if (options.dryRun) {
     console.log("Dry run: no emails will be sent and sheets will not be updated.");
-    printCandidates(candidates, minScore);
+    printCandidates(candidates);
     printSkippedSummary(skipped);
+    console.log(`[DASHBOARD_SUMMARY] count=${candidates.length} mode=dry-run`);
     return;
   }
 
   if (candidates.length === 0) {
     console.log("No eligible email leads found. Nothing was sent.");
     printSkippedSummary(skipped);
+    console.log(`[DASHBOARD_SUMMARY] count=0 mode=${options.testTo ? "test" : "send"}`);
     return;
   }
 
@@ -382,7 +339,7 @@ const main = async (): Promise<void> => {
       );
       const result = await mailer.send({
         to: options.testTo,
-        subject: candidate.subject,
+        subject: `[テスト] ${candidate.subject}`,
         text: candidate.body
       });
 
@@ -390,6 +347,7 @@ const main = async (): Promise<void> => {
     }
 
     console.log("Test mode: sheets were not updated.");
+    console.log(`[DASHBOARD_SUMMARY] count=${candidates.length} mode=test`);
     return;
   }
 
@@ -407,6 +365,8 @@ const main = async (): Promise<void> => {
 
     console.log(`Sent ${candidate.leadId}. Message ID: ${result.messageId}`);
   }
+
+  console.log(`[DASHBOARD_SUMMARY] count=${candidates.length} mode=send`);
 };
 
 main().catch((error: unknown) => {

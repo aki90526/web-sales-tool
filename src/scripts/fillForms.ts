@@ -1,22 +1,16 @@
 import { loadConfig } from "../config/env";
-import {
-  findFormCandidates,
-  FormCandidate,
-  FormSkipReason,
-  readFormMinScore,
-  scoreThresholdForFormCandidate
-} from "../contact/formCandidates";
+import { findFormCandidates, FormCandidate, FormSkipReason } from "../contact/formCandidates";
 import { readSalesContentConfig } from "../contact/salesMessage";
 import { fillCandidateFormsInBrowser } from "../form/browserFormAutofill";
 import { saveLastFormFillSession } from "../form/formFillSession";
-import { createSheetsClient } from "../google/sheetsClient";
+import { fieldRangeForRow, readSalesManagementTable } from "../google/salesManagementRepository";
+import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
   dryRun: boolean;
   help: boolean;
   leadId: string;
   limit: number;
-  minScore?: number;
   port: number;
   timeoutMs: number;
 };
@@ -35,7 +29,6 @@ const printHelp = (): void => {
 Options:
   --lead-id      指定したリードIDのフォームだけ開いて自動入力します
   --limit        自動入力する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
-  --min-score    最低営業スコア。省略時は 設定 シートの値
   --dry-run      ブラウザを開かず、対象候補だけ表示します
   --port         Chrome remote debugging port。省略時は ${DEFAULT_PORT}
   --timeout-ms   ページ読み込み待ち時間。省略時は ${DEFAULT_TIMEOUT_MS}
@@ -85,9 +78,6 @@ const parseArgs = (argv: string[]): CliOptions => {
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
       index += 1;
-    } else if (arg === "--min-score") {
-      options.minScore = parsePositiveInteger(nextValue(argv, index, "--min-score"), "--min-score");
-      index += 1;
     } else if (arg === "--port") {
       options.port = parsePositiveInteger(nextValue(argv, index, "--port"), "--port");
       index += 1;
@@ -117,11 +107,8 @@ const filterCandidates = (
   return candidates.filter((candidate) => candidate.leadId === options.leadId).slice(0, 1);
 };
 
-const printCandidates = (candidates: FormCandidate[], minScore: number): void => {
+const printCandidates = (candidates: FormCandidate[]): void => {
   console.log(`Eligible form leads: ${candidates.length}`);
-  console.log(
-    `Minimum sales score: ${minScore} (Web制作会社/広告代理店: ${scoreThresholdForFormCandidate("Web制作会社", minScore)})`
-  );
 
   candidates.forEach((candidate, index) => {
     console.log("");
@@ -132,6 +119,28 @@ const printCandidates = (candidates: FormCandidate[], minScore: number): void =>
     console.log(`Form URL: ${candidate.formUrl}`);
     console.log(`Subject: ${candidate.subject}`);
   });
+};
+
+const appendCaptchaNote = async (
+  sheets: SheetsClient,
+  leadId: string,
+  captchaLabel: string
+): Promise<void> => {
+  const table = await readSalesManagementTable(sheets);
+  const lead = table.leads.find((entry) => entry.leadId === leadId);
+
+  if (!lead) {
+    return;
+  }
+
+  const note = `[CAPTCHA] ${captchaLabel}`;
+
+  if (lead.memo.includes(note)) {
+    return;
+  }
+
+  const nextMemo = lead.memo ? `${lead.memo}\n${note}` : note;
+  await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[nextMemo]]);
 };
 
 const printSkippedSummary = (skipped: Map<FormSkipReason, number>): void => {
@@ -157,14 +166,8 @@ const main = async (): Promise<void> => {
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
-  const minScore = await readFormMinScore(sheets, options.minScore);
   const candidateLimit = options.leadId ? 1000 : options.limit;
-  const { candidates, skipped } = await findFormCandidates(
-    sheets,
-    candidateLimit,
-    minScore,
-    contentConfig
-  );
+  const { candidates, skipped } = await findFormCandidates(sheets, candidateLimit, contentConfig);
   const targets = filterCandidates(candidates, options);
 
   if (options.leadId && targets.length === 0) {
@@ -172,7 +175,7 @@ const main = async (): Promise<void> => {
   }
 
   console.log("Form autofill: this command opens Chrome and does not submit forms.");
-  printCandidates(targets, minScore);
+  printCandidates(targets);
   printSkippedSummary(skipped);
 
   if (targets.length === 0 || options.dryRun) {
@@ -189,7 +192,7 @@ const main = async (): Promise<void> => {
     }
   );
 
-  results.forEach(({ candidate, result }) => {
+  for (const { candidate, result } of results) {
     saveLastFormFillSession({
       leadId: candidate.leadId,
       companyName: candidate.companyName,
@@ -199,12 +202,21 @@ const main = async (): Promise<void> => {
 
     console.log("");
     console.log(`Filled ${candidate.leadId} ${candidate.companyName}`);
+    console.log(`[DASHBOARD_LEAD] leadId=${candidate.leadId} companyName=${candidate.companyName}`);
     console.log(`Text fields: ${result.filled.length}`);
     console.log(`Selects/radios: ${result.selected.length}`);
     console.log(`Consent checkboxes: ${result.checked.length}`);
     result.warnings.forEach((warning) => console.log(`Warning: ${warning}`));
+
+    if (result.captcha) {
+      console.log(`Captcha detected: ${result.captcha} (自動送信不可の可能性が高いため手動対応推奨)`);
+      await appendCaptchaNote(sheets, candidate.leadId, result.captcha);
+      console.log(`メモに記録しました: [CAPTCHA] ${result.captcha}`);
+      console.log(`[DASHBOARD_CAPTCHA] leadId=${candidate.leadId} label=${result.captcha}`);
+    }
+
     console.log(`送信後: npm run forms:mark-sent`);
-  });
+  }
 };
 
 main().catch((error: unknown) => {

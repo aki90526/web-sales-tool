@@ -3,6 +3,7 @@ import { SheetsClient } from "../google/sheetsClient";
 
 export type SenderInfo = {
   companyName: string;
+  companyNameKana: string;
   name: string;
   nameKana: string;
   nameHiragana: string;
@@ -13,6 +14,7 @@ export type SenderInfo = {
   chatworkId: string;
   email: string;
   url: string;
+  portfolioUrl: string;
   address: string;
   formAddress: string;
   postalCode: string;
@@ -31,6 +33,7 @@ export type FormFieldAliases = {
   email: string[];
   tel: string[];
   url: string[];
+  portfolioUrl: string[];
   address: string[];
   postalCode: string[];
   prefecture: string[];
@@ -76,6 +79,7 @@ export type SalesMessage = {
 
 export const CONTACT_SENDER: SenderInfo = {
   companyName: "aaWebCreate",
+  companyNameKana: "エーエーウェブクリエイト",
   name: "阿部 祥士",
   nameKana: "アベ アキヒト",
   nameHiragana: "あべ あきひと",
@@ -86,6 +90,7 @@ export const CONTACT_SENDER: SenderInfo = {
   chatworkId: "abeAawc",
   email: "abe@aawebcreate.com",
   url: "https://aawebcreate.com/",
+  portfolioUrl: "https://aawebcreate.com/profile/",
   address: "埼玉県春日部市",
   formAddress: "埼玉県春日部市西金野井1074-10",
   postalCode: "344-0112",
@@ -104,6 +109,7 @@ const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
   email: ["メールアドレス", "Email", "E-mail", "mail"],
   tel: ["電話番号", "TEL", "Tel", "tel"],
   url: ["URL", "ホームページ", "Webサイト", "サイトURL"],
+  portfolioUrl: ["実績URL", "実績", "ポートフォリオ", "作品", "制作実績", "portfolio"],
   address: ["住所", "所在地", "ご住所", "住所地", "address", "location"],
   postalCode: ["郵便番号", "郵便", "〒", "zip", "postal"],
   prefecture: ["都道府県", "都道府県名", "prefecture"],
@@ -151,6 +157,7 @@ const setting = (settings: Map<string, string>, key: string, fallback: string): 
 const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
   return {
     companyName: setting(settings, "送信者_会社名", CONTACT_SENDER.companyName),
+    companyNameKana: setting(settings, "送信者_会社名カナ", CONTACT_SENDER.companyNameKana),
     name: setting(settings, "送信者_氏名", CONTACT_SENDER.name),
     nameKana: settings.get("送信者_氏名カナ") || settings.get("送信者_フリガナ") || CONTACT_SENDER.nameKana,
     nameHiragana: setting(settings, "送信者_氏名ひらがな", CONTACT_SENDER.nameHiragana),
@@ -161,6 +168,7 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     chatworkId: setting(settings, "送信者_チャットワークID", CONTACT_SENDER.chatworkId),
     email: setting(settings, "送信者_メール", CONTACT_SENDER.email),
     url: setting(settings, "送信者_URL", CONTACT_SENDER.url),
+    portfolioUrl: setting(settings, "送信者_実績URL", CONTACT_SENDER.portfolioUrl),
     address: setting(settings, "送信者_住所", CONTACT_SENDER.address),
     formAddress: setting(settings, "送信者_フォーム住所", CONTACT_SENDER.formAddress),
     postalCode: setting(settings, "送信者_郵便番号", CONTACT_SENDER.postalCode),
@@ -186,6 +194,7 @@ const readFormFieldAliases = (settings: Map<string, string>): FormFieldAliases =
     email: readAliases("フォーム項目_メール", DEFAULT_FORM_FIELD_ALIASES.email),
     tel: readAliases("フォーム項目_電話番号", DEFAULT_FORM_FIELD_ALIASES.tel),
     url: readAliases("フォーム項目_URL", DEFAULT_FORM_FIELD_ALIASES.url),
+    portfolioUrl: readAliases("フォーム項目_実績URL", DEFAULT_FORM_FIELD_ALIASES.portfolioUrl),
     address: readAliases("フォーム項目_住所", DEFAULT_FORM_FIELD_ALIASES.address),
     postalCode: readAliases("フォーム項目_郵便番号", DEFAULT_FORM_FIELD_ALIASES.postalCode),
     prefecture: readAliases("フォーム項目_都道府県", DEFAULT_FORM_FIELD_ALIASES.prefecture),

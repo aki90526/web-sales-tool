@@ -4,16 +4,21 @@ import { NextResponse } from "next/server";
 import { MAX_INITIAL_LIMIT, runLeadCollection } from "../../../src/collection/collectLeadsService";
 import { loadConfig } from "../../../src/config/env";
 import { LEAD_TYPES, LeadType } from "../../../src/domain/lead";
+import { LeadCandidate } from "../../../src/openai/leadCandidateCollector";
+import { WebSearchTrace } from "../../../src/openai/openAIClient";
 
 const HISTORY_PATH = path.resolve(process.cwd(), "data", "collect-history.json");
 const MAX_HISTORY_ENTRIES = 30;
 
 type HistoryEntry = {
+  id: string;
   runAt: string;
   area: string;
   targetTypes: LeadType[];
   limit: number;
   resultCount: number;
+  candidates: LeadCandidate[];
+  searchTrace?: WebSearchTrace;
 };
 
 const appendHistory = async (entry: HistoryEntry): Promise<void> => {
@@ -73,11 +78,14 @@ export async function POST(request: Request) {
     const result = await runLeadCollection(config, { area, targetTypes, limit });
 
     await appendHistory({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       runAt: new Date().toISOString(),
       area,
       targetTypes,
       limit,
-      resultCount: result.candidates.length
+      resultCount: result.candidates.length,
+      candidates: result.candidates,
+      searchTrace: result.searchTrace
     });
 
     return NextResponse.json({

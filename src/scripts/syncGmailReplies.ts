@@ -1,4 +1,4 @@
-import { loadConfig, requireGmailConfig } from "../config/env";
+import { loadConfig, requireGmailConfig, requireSmtpConfig } from "../config/env";
 import { SHEETS, Status } from "../domain/lead";
 import {
   columnLetter,
@@ -238,7 +238,7 @@ const targetHistories = (
 const findReplyMatches = async (
   gmail: GmailClient,
   histories: ApproachHistoryRow[],
-  gmailUserEmail: string,
+  replyToAddress: string,
   lookbackDays: number
 ): Promise<ReplyMatch[]> => {
   const matches: ReplyMatch[] = [];
@@ -248,7 +248,7 @@ const findReplyMatches = async (
     const afterDate = sentDate
       ? new Date(sentDate.getTime() - 24 * 60 * 60 * 1000)
       : new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
-    const query = `from:${history.recipient} to:${gmailUserEmail} after:${formatGmailDate(afterDate)}`;
+    const query = `from:${history.recipient} to:${replyToAddress} after:${formatGmailDate(afterDate)}`;
     const messages = await gmail.searchMessages(query, 10);
     const match = messages
       .map((message) => {
@@ -326,13 +326,16 @@ const main = async (): Promise<void> => {
 
   const config = loadConfig();
   const gmailConfig = requireGmailConfig(config);
+  const smtpConfig = requireSmtpConfig(config);
   const sheets = await createSheetsClient(config);
   const histories = await readApproachHistory(sheets);
   const lookbackDays = options.lookbackDays ?? gmailConfig.lookbackDays;
   const targets = targetHistories(histories, lookbackDays, options.limit);
+  const replyToAddress = smtpConfig.user;
 
   console.log(`Checking Gmail replies for ${targets.length} sent email histories.`);
   console.log(`Gmail user: ${gmailConfig.userEmail}`);
+  console.log(`Reply-to address: ${replyToAddress}`);
   console.log(`Lookback days: ${lookbackDays}`);
 
   const gmail = await createGmailClient({
@@ -341,7 +344,7 @@ const main = async (): Promise<void> => {
     refreshToken: gmailConfig.refreshToken,
     userEmail: gmailConfig.userEmail
   });
-  const matches = await findReplyMatches(gmail, targets, gmailConfig.userEmail, lookbackDays);
+  const matches = await findReplyMatches(gmail, targets, replyToAddress, lookbackDays);
 
   printMatches(matches);
 
@@ -350,6 +353,7 @@ const main = async (): Promise<void> => {
       console.log("");
       console.log("Dry run: sheets were not updated.");
     }
+    console.log(`[DASHBOARD_SUMMARY] count=${matches.length} mode=${options.dryRun ? "dry-run" : "sync"}`);
     return;
   }
 
@@ -361,6 +365,7 @@ const main = async (): Promise<void> => {
 
   console.log("");
   console.log(`Updated replies: ${matches.length}`);
+  console.log(`[DASHBOARD_SUMMARY] count=${matches.length} mode=sync`);
 };
 
 main().catch((error: unknown) => {

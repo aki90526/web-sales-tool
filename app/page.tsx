@@ -12,6 +12,7 @@ type Lead = {
   region: string;
   officialSiteUrl: string;
   contactMethod: string;
+  contactFormUrl: string;
   salesScore: number;
   status: string;
   nextActionDate: string;
@@ -33,7 +34,7 @@ const statusClass = (status: string): string => {
 
 const methodClass = (method: string): string => {
   if (method === "メール") return "method-badge email";
-  if (method === "問い合わせフォーム") return "method-badge form";
+  if (method === "フォーム") return "method-badge form";
   return "method-badge";
 };
 
@@ -80,7 +81,7 @@ export default function DashboardPage() {
     const sent = source.filter((lead) => lead.status === "送信済み").length;
     const replies = source.filter((lead) => lead.status === "返信あり").length;
     const email = source.filter((lead) => lead.contactMethod === "メール").length;
-    const forms = source.filter((lead) => lead.contactMethod === "問い合わせフォーム").length;
+    const forms = source.filter((lead) => lead.contactMethod === "フォーム").length;
     const others = Math.max(source.length - email - forms, 0);
     const byType = ["Web制作会社", "広告代理店", "直クライアント"].map((type) => ({
       label: type.replace("Web", ""),
@@ -222,10 +223,10 @@ export default function DashboardPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>リードID</th>
+                <th className="hide-mobile">リードID</th>
                 <th>企業名</th>
-                <th>種別</th>
-                <th>連絡方法</th>
+                <th className="hide-mobile">種別</th>
+                <th className="hide-mobile">連絡方法</th>
                 <th>スコア</th>
                 <th>ステータス</th>
               </tr>
@@ -233,7 +234,7 @@ export default function DashboardPage() {
             <tbody>
               {recentLeads.map((lead) => (
                 <tr key={lead.leadId}>
-                  <td>{lead.leadId}</td>
+                  <td className="hide-mobile">{lead.leadId}</td>
                   <td>
                     {lead.officialSiteUrl ? (
                       <a className="text-[var(--accent)] hover:underline" href={lead.officialSiteUrl} target="_blank" rel="noreferrer">
@@ -243,8 +244,16 @@ export default function DashboardPage() {
                       lead.companyName
                     )}
                   </td>
-                  <td>{lead.leadType}</td>
-                  <td><span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span></td>
+                  <td className="hide-mobile">{lead.leadType}</td>
+                  <td className="hide-mobile">
+                    {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
+                      <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
+                        {lead.contactMethod}
+                      </a>
+                    ) : (
+                      <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
+                    )}
+                  </td>
                   <td><span className="score-badge">{lead.salesScore}</span></td>
                   <td><span className={statusClass(lead.status)}>{lead.status || "未設定"}</span></td>
                 </tr>

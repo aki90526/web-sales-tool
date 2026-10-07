@@ -49,6 +49,7 @@ export type FormAutofillResult = {
   checked: Array<{ label: string }>;
   selected: Array<{ label: string; option: string }>;
   warnings: string[];
+  captcha: string;
 };
 
 export type BrowserFillResult = {
@@ -235,24 +236,47 @@ const mergeAutofillResults = (results: FormAutofillResult[]): FormAutofillResult
       return !selected.some((value) => value.label && warning.includes(value.label));
     });
 
+  const captcha = results.map((result) => result.captcha).find((value) => value) ?? "";
+
   return {
     filled,
     checked,
     selected,
-    warnings
+    warnings,
+    captcha
   };
 };
 
 const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
+  const detectCaptcha = (): string => {
+    const recaptchaScripts = Array.from(
+      document.querySelectorAll<HTMLScriptElement>('script[src*="recaptcha"]')
+    );
+    const hasRecaptchaV3 = recaptchaScripts.some((script) => /render=/.test(script.src));
+    const hasRecaptchaV2 =
+      !!document.querySelector('.g-recaptcha, iframe[src*="recaptcha/api2/anchor"]') ||
+      (recaptchaScripts.length > 0 && !hasRecaptchaV3);
+    const hasHcaptcha = !!document.querySelector('.h-captcha, script[src*="hcaptcha"]');
+
+    const labels: string[] = [];
+    if (hasRecaptchaV3) labels.push("reCAPTCHA v3");
+    else if (hasRecaptchaV2) labels.push("reCAPTCHA v2");
+    if (hasHcaptcha) labels.push("hCaptcha");
+
+    return labels.join("/");
+  };
+
   const result: FormAutofillResult = {
     filled: [],
     checked: [],
     selected: [],
-    warnings: []
+    warnings: [],
+    captcha: detectCaptcha()
   };
 
   const values: Record<string, string> = {
     companyName: payload.sender.companyName,
+    companyNameKana: payload.sender.companyNameKana,
     name: payload.sender.name,
     nameKana: payload.sender.nameKana,
     nameHiragana: payload.sender.nameHiragana,
@@ -268,6 +292,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     email: payload.sender.email,
     tel: payload.sender.tel,
     url: payload.sender.url,
+    portfolioUrl: payload.sender.portfolioUrl,
     address: payload.sender.formAddress,
     cityStreetAddress: `${payload.sender.city}${payload.sender.streetAddress}`,
     postalCode: payload.sender.postalCode,
@@ -290,6 +315,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     firstName: ["first name", "given name", "mei"],
     email: ["メールアドレス", "Email", "E-mail", "mail", "メール"],
     tel: ["電話番号", "TEL", "Tel", "tel", "phone", "mobile"],
+    portfolioUrl: ["実績URL", "実績", "ポートフォリオ", "作品", "制作実績", "portfolio"],
     url: ["URL", "ホームページ", "Webサイト", "サイトURL", "website", "site"],
     address: ["住所", "所在地", "ご住所", "住所地", "address", "location"],
     postalCode: ["郵便番号", "郵便", "〒", "zip", "postal"],
@@ -312,6 +338,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     email: [...builtinAliases.email, ...payload.formFieldAliases.email],
     tel: [...builtinAliases.tel, ...payload.formFieldAliases.tel],
     url: [...builtinAliases.url, ...payload.formFieldAliases.url],
+    portfolioUrl: [...builtinAliases.portfolioUrl, ...payload.formFieldAliases.portfolioUrl],
     address: [...builtinAliases.address, ...payload.formFieldAliases.address],
     postalCode: [...builtinAliases.postalCode, ...payload.formFieldAliases.postalCode],
     prefecture: [...builtinAliases.prefecture, ...payload.formFieldAliases.prefecture],
@@ -515,16 +542,32 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return pattern.test(text);
   };
 
+  // 「お名前」のような姓名一体の欄は、ラベル内にたまたま「姓」「名」の一文字が
+  // 単独で含まれていなくても、split判定用のhasStandaloneJapaneseFieldに頼らず
+  // ここで確実に除外する。firstName側にだけこのガードがあり、lastName側に無いと
+  // 「お名前」欄が姓のみの値で埋まってしまう非対称なバグになるため、両方に適用する。
+  const looksLikeCombinedNameField = (text: string): boolean => {
+    return text.includes("会社名") || text.includes("法人名") || text.includes("お名前") || text.includes("氏名");
+  };
+
   const matchesLastName = (text: string, autocomplete: string): boolean => {
+    if (looksLikeCombinedNameField(text)) {
+      return /family-name/.test(autocomplete) || matches(text, "lastName");
+    }
+
     return /family-name/.test(autocomplete) || matches(text, "lastName") || hasStandaloneJapaneseField(text, "姓");
   };
 
   const matchesFirstName = (text: string, autocomplete: string): boolean => {
-    if (text.includes("会社名") || text.includes("法人名") || text.includes("お名前") || text.includes("氏名")) {
+    if (looksLikeCombinedNameField(text)) {
       return /given-name/.test(autocomplete) || matches(text, "firstName");
     }
 
     return /given-name/.test(autocomplete) || matches(text, "firstName") || hasStandaloneJapaneseField(text, "名");
+  };
+
+  const matchesCompanyNameKana = (text: string): boolean => {
+    return /(会社名|法人名|貴社名|屋号)/.test(text) && /(フリガナ|ふりがな|カナ|かな|kana|furigana)/i.test(text);
   };
 
   const matchesLastNameKana = (text: string): boolean => {
@@ -606,6 +649,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "firstNameHiragana";
     }
 
+    if (matchesCompanyNameKana(text)) {
+      return "companyNameKana";
+    }
+
     if (matches(text, "nameHiragana")) {
       return "nameHiragana";
     }
@@ -672,6 +719,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
 
     if (matches(text, "subject")) {
       return "subject";
+    }
+
+    if (matches(text, "portfolioUrl")) {
+      return "portfolioUrl";
     }
 
     if (matches(text, "url")) {
@@ -1640,7 +1691,8 @@ const selectDropdownsWithKeyboard = async (client: ChromeClient): Promise<FormAu
     filled: [],
     checked: [],
     selected: [],
-    warnings: []
+    warnings: [],
+    captcha: ""
   };
 
   for (let attempt = 0; attempt < 5; attempt += 1) {

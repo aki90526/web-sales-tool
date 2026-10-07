@@ -27,7 +27,7 @@ const buildTestLead = (): SalesLeadInput => {
     industry: "テスト業種",
     region: "埼玉県春日部市",
     officialSiteUrl: "https://example.com/api-test",
-    contactMethod: "問い合わせフォーム",
+    contactMethod: "フォーム",
     contactFormUrl: "https://example.com/api-test/contact",
     emailAddress: "",
     salesScore: 50,

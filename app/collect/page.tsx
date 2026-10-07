@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Database, History, RotateCcw, Search, Sparkles } from "lucide-react";
+import { Database, Eye, History, RotateCcw, Search, Sparkles } from "lucide-react";
 
 const TARGET_TYPES = ["Web制作会社", "広告代理店", "直クライアント"] as const;
 type TargetType = (typeof TARGET_TYPES)[number];
 
 const RECOMMENDED_AREAS = [
+  "埼玉県春日部市",
   "東京都23区",
   "大阪府大阪市",
   "愛知県名古屋市",
@@ -28,9 +29,23 @@ type Candidate = {
   industry: string;
   region: string;
   officialSiteUrl: string;
+  contactUrl: string;
+  email: string;
   salesScore: number;
   status: string;
   salesAngle: string;
+};
+
+const contactMethodLabel = (candidate: Candidate): string => {
+  if (candidate.email) return "メール";
+  if (candidate.contactUrl) return "フォーム";
+  return "未定";
+};
+
+const contactMethodClass = (candidate: Candidate): string => {
+  if (candidate.email) return "method-badge email";
+  if (candidate.contactUrl) return "method-badge form";
+  return "method-badge";
 };
 
 type CollectResponse = {
@@ -49,16 +64,19 @@ type ImportResult = {
 };
 
 type HistoryEntry = {
+  id?: string;
   runAt: string;
   area: string;
   targetTypes: TargetType[];
   limit: number;
   resultCount: number;
+  candidates?: Candidate[];
+  searchTrace?: { queries: string[]; sourceUrls: string[] };
 };
 
 export default function CollectPage() {
   const [area, setArea] = useState("埼玉県春日部市");
-  const [targetTypes, setTargetTypes] = useState<TargetType[]>(["Web制作会社", "直クライアント"]);
+  const [targetTypes, setTargetTypes] = useState<TargetType[]>(["Web制作会社", "広告代理店"]);
   const [limit, setLimit] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +166,22 @@ export default function CollectPage() {
     setLimit(entry.limit);
     setPreview(null);
     setImportResults(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const loadCandidatesFromHistory = (entry: HistoryEntry) => {
+    if (!entry.candidates || entry.candidates.length === 0) return;
+
+    setError(null);
+    setImportResults(null);
+    setPreview({
+      area: entry.area,
+      targetTypes: entry.targetTypes,
+      limit: entry.limit,
+      searchTrace: entry.searchTrace ?? { queries: [], sourceUrls: [] },
+      candidates: entry.candidates
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const applyArea = (value: string) => {
@@ -270,25 +304,37 @@ export default function CollectPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th className="cell-number cell-nowrap">No.</th>
+                    <th className="cell-number cell-nowrap hide-mobile">No.</th>
                     <th>企業名</th>
-                    <th className="cell-nowrap">種別</th>
-                    <th className="cell-nowrap">地域</th>
+                    <th className="cell-nowrap hide-mobile">種別</th>
+                    <th className="cell-nowrap hide-mobile">地域</th>
+                    <th className="cell-nowrap">連絡方法</th>
                     <th className="cell-nowrap">スコア</th>
                     <th className="cell-nowrap">ステータス</th>
-                    <th>切り口</th>
+                    <th className="hide-mobile">切り口</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preview.candidates.map((candidate, index) => (
                     <tr key={`${candidate.companyName}-${candidate.officialSiteUrl}`}>
-                      <td className="cell-number cell-nowrap">{index + 1}</td>
+                      <td className="cell-number cell-nowrap hide-mobile">{index + 1}</td>
                       <td>{candidate.companyName}</td>
-                      <td className="cell-nowrap">{candidate.leadType}</td>
-                      <td className="cell-nowrap">{candidate.region}</td>
+                      <td className="cell-nowrap hide-mobile">{candidate.leadType}</td>
+                      <td className="cell-nowrap hide-mobile">{candidate.region}</td>
+                      <td className="cell-nowrap">
+                        {candidate.email ? (
+                          <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
+                        ) : candidate.contactUrl ? (
+                          <a className={contactMethodClass(candidate)} href={candidate.contactUrl} target="_blank" rel="noreferrer">
+                            {contactMethodLabel(candidate)}
+                          </a>
+                        ) : (
+                          <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
+                        )}
+                      </td>
                       <td className="cell-nowrap"><span className="score-badge">{candidate.salesScore}</span></td>
                       <td className="cell-nowrap"><span className="status-badge">{candidate.status}</span></td>
-                      <td>{candidate.salesAngle}</td>
+                      <td className="hide-mobile">{candidate.salesAngle}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -340,32 +386,43 @@ export default function CollectPage() {
         {history.length === 0 ? (
           <p className="panel-caption">履歴はまだありません。</p>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>日時</th>
-                  <th>条件</th>
-                  <th>結果</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((entry) => (
-                  <tr key={entry.runAt}>
-                    <td>{new Date(entry.runAt).toLocaleString("ja-JP")}</td>
-                    <td>{entry.area} / {entry.targetTypes.join(",")} / 上限{entry.limit}件</td>
-                    <td>{entry.resultCount}件</td>
-                    <td>
-                      <button className="btn secondary" onClick={() => applyHistoryEntry(entry)}>
-                        <RotateCcw size={15} />
-                        再利用
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="history-list">
+            {history.map((entry) => {
+              const hasCandidates = Boolean(entry.candidates && entry.candidates.length > 0);
+
+              return (
+                <div className="history-item" key={entry.id ?? entry.runAt}>
+                  <div className="history-item-info">
+                    <span className="history-item-date">{new Date(entry.runAt).toLocaleString("ja-JP")}</span>
+                    <span className="history-item-condition">
+                      {entry.area} / {entry.targetTypes.join(",")} / 上限{entry.limit}件
+                    </span>
+                    <span className="history-item-result">{entry.resultCount}件取得</span>
+                  </div>
+                  <div className="history-item-actions">
+                    <button
+                      className="btn primary"
+                      type="button"
+                      onClick={() => loadCandidatesFromHistory(entry)}
+                      disabled={!hasCandidates}
+                      title={hasCandidates ? "再検索せずに前回の候補を表示します" : "候補データが保存されていません"}
+                    >
+                      <Eye size={15} />
+                      候補を呼び出す
+                    </button>
+                    <button
+                      className="btn secondary"
+                      type="button"
+                      onClick={() => applyHistoryEntry(entry)}
+                      title="条件をフォームに反映します（再検索が必要です）"
+                    >
+                      <RotateCcw size={15} />
+                      条件だけ再利用
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

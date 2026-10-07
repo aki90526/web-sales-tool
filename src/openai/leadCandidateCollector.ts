@@ -304,7 +304,7 @@ const pickContactMethod = (contactUrl: string, email: string): ContactMethod => 
   }
 
   if (contactUrl) {
-    return "問い合わせフォーム";
+    return "フォーム";
   }
 
   return "未定";
@@ -324,7 +324,10 @@ export const normalizeLeadCandidate = (value: unknown): LeadCandidate | null => 
   }
 
   const contactUrl = normalizeUrl(value.contactUrl);
-  const email = text(value.email, 200);
+  const rawEmail = text(value.email, 200);
+  // Cloudflareのメールアドレス難読化保護がかかったサイトをJSなしで読むと、実際のアドレスの
+  // 代わりにこの固定文字列がそのまま表示されることがある。実在しないダミーなので除外する。
+  const email = rawEmail.toLowerCase() === "[email protected]" ? "" : rawEmail;
   const siteAnalysisSummary = text(value.siteAnalysisSummary || value.aiAnalysis);
   const improvementPoints = text(value.improvementPoints);
   const salesAngle = text(value.salesAngle || value.proposalType || improvementPoints, 800);
@@ -442,10 +445,12 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
     "scoreSignals はJSONオブジェクトで、次のboolean/numberを可能な範囲で返してください:",
     "isOfficialSite, hasContactMethod, isTargetArea, isWebProductionBusiness, hasPartnerRecruiting, hasSubcontractorRecruiting, hasCoderRecruiting, handlesWordPress, handlesShopify, handlesMaintenance, complementarityScore, noOutsourcingPolicy, lowCollaborationFit, hasMobileIssue, hasWeakContactFlow, hasWeakCta, hasSeoIssue, hasStaleSite, hasWeakRecruitingPage, hasUnclearService, hasOldDesign, forbidsSalesContact, forbidsAdsMail, pastOptOut, reapproachForbidden, notOfficialSite, excludedIndustry",
     "contactUrl は実際に入力欄がある問い合わせフォームURLを入れてください。/contact/ のような入口ページに複数の窓口リンクがある場合は、対象に最も合う詳細フォームURLを選んでください。",
-    "contactUrl は、制作会社・広告代理店では制作パートナー、協業、提携、業務委託、営業向け窓口を優先してください。直クライアントでは一般問い合わせ、見積、相談フォームを優先してください。不明なら空文字。",
-    "email は不明なら空文字。",
+    "contactUrl は、制作会社・広告代理店では制作パートナー、協業、提携、業務委託、営業向け窓口を優先してください。直クライアントでは一般問い合わせ、相談フォームを優先してください。不明なら空文字。",
+    "contactUrl 除外: 「見積もり依頼」専用フォーム（リニューアル内容やページ数などその会社自身のサービスの見積もりだけを受け付けるフォーム）は、協業・パートナー提案や一般的な問い合わせの送信先として不適切なため選ばないでください。サイト内に見積もり専用フォーム以外の問い合わせ窓口（一般お問い合わせフォームやメールアドレス）がない場合は、contactUrl は空文字にしてください。",
+    "contactUrl 除外: 問い合わせフォームに「お問合せ内容」のようなカテゴリ選択欄があり、その選択肢が全て「その会社が提供するサービスの依頼・相談」（例: サイト制作のご相談、システム開発のご相談、資料請求 等）で占められていて、協業・パートナー・業務委託・その他に類する選択肢が一つもない場合も、送信先として不適切なため選ばないでください。この場合も、他に適切な問い合わせ窓口（メールアドレス等）がなければ contactUrl は空文字にしてください。",
+    "email は不明なら空文字。Cloudflareのメールアドレス難読化保護がかかっているサイトでは、実際のメールアドレスの代わりに「[email protected]」という文字列がそのまま表示されることがあります。この文字列は実在しないダミーなので、email には絶対に入れないでください（不明として空文字にしてください）。",
     "資本金、従業員数、売上高は公式サイトや信頼できる会社情報で確認できた場合のみ入れ、不明なら空文字。",
-    "salesAngle はテンプレート本文の差し込みに使うため、営業の切り口を具体的かつ簡潔に1文で返してください。営業メール本文全体は作成しないでください。"
+    "salesAngle はカスタムメールテンプレートの差し込み変数として使うため、営業の切り口を具体的かつ簡潔に1文で返してください。営業メール本文全体は作成しないでください。"
   ].join("\n");
 };
 

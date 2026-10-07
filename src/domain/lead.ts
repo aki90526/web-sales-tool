@@ -12,7 +12,7 @@ export const SETTINGS_CELLS = {
 
 export const LEAD_TYPES = ["広告代理店", "Web制作会社", "直クライアント"] as const;
 
-export const CONTACT_METHODS = ["問い合わせフォーム", "メール", "電話", "未定"] as const;
+export const CONTACT_METHODS = ["フォーム", "メール", "電話", "未定"] as const;
 
 export const RECOMMENDED_APPROACHES = [
   "全面リニューアル",

@@ -114,8 +114,8 @@ const validateLead = (lead: SalesManagementLead, force: boolean): void => {
     throw new Error(`${lead.leadId} has no valid form URL`);
   }
 
-  if (lead.contactMethod !== "問い合わせフォーム" && !force) {
-    throw new Error(`${lead.leadId} is not marked as 問い合わせフォーム. Use --force to override.`);
+  if (lead.contactMethod !== "フォーム" && !force) {
+    throw new Error(`${lead.leadId} is not marked as フォーム. Use --force to override.`);
   }
 
   if (lead.status !== "送信待ち" && !force) {
@@ -140,7 +140,7 @@ const appendApproachHistory = async (
     [
       lead.leadId,
       sentAt,
-      "問い合わせフォーム",
+      "フォーム",
       lead.contactFormUrl,
       subject,
       body,
@@ -165,7 +165,7 @@ const printRecord = (lead: SalesManagementLead, subject: string, body: string, s
   console.log(`${lead.leadId} ${lead.companyName}`);
   console.log(`Row: ${lead.rowNumber}`);
   console.log(`Sent at: ${sentAt}`);
-  console.log(`Method: 問い合わせフォーム`);
+  console.log(`Method: フォーム`);
   console.log(`Form URL: ${lead.contactFormUrl}`);
   console.log(`Subject: ${subject}`);
   console.log("Message:");

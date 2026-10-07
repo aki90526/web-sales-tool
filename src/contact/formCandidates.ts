@@ -1,6 +1,4 @@
 import { SalesContentConfig, buildSalesMessage } from "./salesMessage";
-import { SHEETS } from "../domain/lead";
-import { scoreThresholdForLeadType } from "../domain/scoring";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
@@ -27,21 +25,9 @@ export type FormCandidate = {
 export type FormSkipReason =
   | "ステータスが送信待ちではない"
   | "次回対応日が未来"
-  | "連絡方法が問い合わせフォームではない"
+  | "連絡方法がフォームではない"
   | "フォームURLが空またはURL形式ではない"
-  | "営業スコアが基準未満";
-
-export const DEFAULT_FORM_MIN_SCORE = 50;
-
-const cell = (row: unknown[], index: number): string => {
-  const value = row[index];
-  return value === undefined || value === null ? "" : String(value).trim();
-};
-
-const parseScore = (value: string): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
+  | "CAPTCHA検出済みのため自動対象外";
 
 const isValidUrl = (value: string): boolean => {
   return /^https?:\/\//i.test(value);
@@ -64,31 +50,8 @@ const isFutureDate = (dateText: string): boolean => {
   return dateText > formatTokyoDate(new Date());
 };
 
-export const scoreThresholdForFormCandidate = (
-  leadType: string,
-  configuredMinScore: number
-): number => {
-  return Math.min(configuredMinScore, scoreThresholdForLeadType(leadType));
-};
-
-export const readFormMinScore = async (
-  sheets: SheetsClient,
-  cliMinScore?: number
-): Promise<number> => {
-  if (cliMinScore !== undefined) {
-    return cliMinScore;
-  }
-
-  const rows = await sheets.getValues(`'${SHEETS.settings}'!A2:B50`);
-  const minScoreRow = rows.find((row) => cell(row, 0) === "最低営業スコア");
-  const settingValue = minScoreRow ? parseScore(cell(minScoreRow, 1)) : 0;
-
-  return settingValue > 0 ? settingValue : DEFAULT_FORM_MIN_SCORE;
-};
-
 const toFormCandidate = (
   lead: SalesManagementLead,
-  minScore: number,
   contentConfig: SalesContentConfig,
   recommendedApproach: string,
   salesAngle: string
@@ -101,16 +64,16 @@ const toFormCandidate = (
     return { reason: "次回対応日が未来" };
   }
 
-  if (lead.contactMethod !== "問い合わせフォーム") {
-    return { reason: "連絡方法が問い合わせフォームではない" };
+  if (lead.contactMethod !== "フォーム") {
+    return { reason: "連絡方法がフォームではない" };
   }
 
   if (!isValidUrl(lead.contactFormUrl)) {
     return { reason: "フォームURLが空またはURL形式ではない" };
   }
 
-  if (lead.salesScore < scoreThresholdForFormCandidate(lead.leadType, minScore)) {
-    return { reason: "営業スコアが基準未満" };
+  if (lead.memo.includes("[CAPTCHA]")) {
+    return { reason: "CAPTCHA検出済みのため自動対象外" };
   }
 
   const message = buildSalesMessage(
@@ -149,7 +112,6 @@ const toFormCandidate = (
 export const findFormCandidates = async (
   sheets: SheetsClient,
   limit: number,
-  minScore: number,
   contentConfig: SalesContentConfig
 ): Promise<{ candidates: FormCandidate[]; skipped: Map<FormSkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
@@ -164,7 +126,6 @@ export const findFormCandidates = async (
 
     const result = toFormCandidate(
       lead,
-      minScore,
       contentConfig,
       salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
       salesContexts.get(lead.leadId)?.salesAngle ?? ""

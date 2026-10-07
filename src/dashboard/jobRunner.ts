@@ -12,6 +12,16 @@ export type DashboardCommand =
   | "gmail-dry-run"
   | "gmail-sync";
 
+export type CaptchaDetection = {
+  leadId: string;
+  label: string;
+};
+
+export type FilledLead = {
+  leadId: string;
+  companyName: string;
+};
+
 export type DashboardJob = {
   id: string;
   command: DashboardCommand;
@@ -23,6 +33,10 @@ export type DashboardJob = {
   args: string[];
   stdout: string;
   stderr: string;
+  captchaDetections?: CaptchaDetection[];
+  filledLeads?: FilledLead[];
+  resultCount?: number;
+  resultMode?: string;
 };
 
 export type DashboardJobInput = {
@@ -92,6 +106,7 @@ const saveJob = async (job: DashboardJob): Promise<void> => {
 
 const buildCommand = (input: DashboardJobInput): { label: string; args: string[] } => {
   const limit = asLimit(input.limit, 1, 10);
+  const gmailLimit = asLimit(input.limit, 50, 200);
   const leadId = asText(input.leadId);
   const note = asText(input.note);
   const testTo = asText(input.testTo);
@@ -148,15 +163,15 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
 
     case "gmail-dry-run":
       return {
-        label: `Gmail返信確認 dry-run ${limit}件`,
-        args: ["run", "gmail:sync-replies", "--", "--dry-run", "--limit", String(limit)]
+        label: `Gmail返信確認 dry-run ${gmailLimit}件`,
+        args: ["run", "gmail:sync-replies", "--", "--dry-run", "--limit", String(gmailLimit)]
       };
 
     case "gmail-sync":
       requireConfirmed(input, "Gmail返信同期");
       return {
-        label: `Gmail返信同期 ${limit}件`,
-        args: ["run", "gmail:sync-replies", "--", "--limit", String(limit)]
+        label: `Gmail返信同期 ${gmailLimit}件`,
+        args: ["run", "gmail:sync-replies", "--", "--limit", String(gmailLimit)]
       };
 
     default:
@@ -194,6 +209,39 @@ const execute = (args: string[]): Promise<{ stdout: string; stderr: string; exit
   });
 };
 
+const parseCaptchaDetections = (stdout: string): CaptchaDetection[] => {
+  const pattern = /\[DASHBOARD_CAPTCHA\] leadId=(\S+) label=(.+)/g;
+  const detections: CaptchaDetection[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(stdout)) !== null) {
+    detections.push({ leadId: match[1], label: match[2].trim() });
+  }
+
+  return detections;
+};
+
+const parseFilledLeads = (stdout: string): FilledLead[] => {
+  const pattern = /\[DASHBOARD_LEAD\] leadId=(\S+) companyName=(.+)/g;
+  const leads: FilledLead[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(stdout)) !== null) {
+    leads.push({ leadId: match[1], companyName: match[2].trim() });
+  }
+
+  return leads;
+};
+
+const parseResultSummary = (stdout: string): { count: number; mode: string } | null => {
+  const match = /\[DASHBOARD_SUMMARY\] count=(\d+) mode=(\S+)/.exec(stdout);
+  if (!match) {
+    return null;
+  }
+
+  return { count: Number(match[1]), mode: match[2] };
+};
+
 export const listDashboardJobs = async (): Promise<{ jobs: DashboardJob[]; activeJobId: string | null }> => {
   return {
     jobs: await readJobs(),
@@ -226,6 +274,21 @@ export const runDashboardJob = async (input: DashboardJobInput): Promise<Dashboa
     const result = await execute(args);
     job.status = "success";
     job.exitCode = result.exitCode;
+    if (command === "forms-fill") {
+      const detections = parseCaptchaDetections(result.stdout);
+      if (detections.length > 0) {
+        job.captchaDetections = detections;
+      }
+      const filledLeads = parseFilledLeads(result.stdout);
+      if (filledLeads.length > 0) {
+        job.filledLeads = filledLeads;
+      }
+    }
+    const summary = parseResultSummary(result.stdout);
+    if (summary) {
+      job.resultCount = summary.count;
+      job.resultMode = summary.mode;
+    }
     job.stdout = trimOutput(result.stdout);
     job.stderr = trimOutput(result.stderr);
   } catch (error) {

@@ -151,3 +151,12 @@ export const statusRangeForRow = (
   const statusColumn = columnLetter(columns.status);
   return `'${SHEETS.salesManagement}'!${statusColumn}${rowNumber}:${statusColumn}${rowNumber}`;
 };
+
+export const fieldRangeForRow = (
+  columns: SalesManagementColumnMap,
+  field: keyof SalesManagementColumnMap,
+  rowNumber: number
+): string => {
+  const column = columnLetter(columns[field]);
+  return `'${SHEETS.salesManagement}'!${column}${rowNumber}:${column}${rowNumber}`;
+};

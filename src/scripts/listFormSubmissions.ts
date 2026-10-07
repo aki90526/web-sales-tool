@@ -4,20 +4,12 @@ import {
   readSalesContentConfig,
   SenderInfo
 } from "../contact/salesMessage";
-import {
-  DEFAULT_FORM_MIN_SCORE,
-  findFormCandidates,
-  FormCandidate,
-  FormSkipReason,
-  readFormMinScore,
-  scoreThresholdForFormCandidate
-} from "../contact/formCandidates";
+import { findFormCandidates, FormCandidate, FormSkipReason } from "../contact/formCandidates";
 import { createSheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
   help: boolean;
   limit: number;
-  minScore?: number;
   open: boolean;
 };
 
@@ -32,7 +24,6 @@ const printHelp = (): void => {
 
 Options:
   --limit       表示する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
-  --min-score   最低営業スコア。省略時は 設定 シートの値、未設定時は ${DEFAULT_FORM_MIN_SCORE}
   --open        対象フォームURLを既定ブラウザで開きます。送信はしません
 `);
 };
@@ -71,9 +62,6 @@ const parseArgs = (argv: string[]): CliOptions => {
       options.help = true;
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
-      index += 1;
-    } else if (arg === "--min-score") {
-      options.minScore = parsePositiveInteger(nextValue(argv, index, "--min-score"), "--min-score");
       index += 1;
     } else if (arg === "--open") {
       options.open = true;
@@ -150,17 +138,14 @@ const main = async (): Promise<void> => {
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
-  const minScore = await readFormMinScore(sheets, options.minScore);
-  const { candidates, skipped } = await findFormCandidates(sheets, options.limit, minScore, contentConfig);
+  const { candidates, skipped } = await findFormCandidates(sheets, options.limit, contentConfig);
 
   console.log("Form submission todo: this command does not submit forms.");
   console.log(`Eligible form leads: ${candidates.length}`);
-  console.log(
-    `Minimum sales score: ${minScore} (Web制作会社/広告代理店: ${scoreThresholdForFormCandidate("Web制作会社", minScore)})`
-  );
 
   candidates.forEach((candidate, index) => printCandidate(candidate, index, contentConfig.sender));
   printSkippedSummary(skipped);
+  console.log(`[DASHBOARD_SUMMARY] count=${candidates.length} mode=dry-run`);
 
   if (options.open) {
     for (const candidate of candidates) {

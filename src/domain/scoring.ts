@@ -425,8 +425,11 @@ export const calculateSalesScore = (input: ScoreInput): ScoreResult => {
 
   const salesScore = clamp(Math.round(baseScore + aiAdjustment), 0, 100);
   const scoreThreshold = scoreThresholdForLeadType(input.leadType);
+  const hasContactMethod = Boolean(input.contactUrl || input.email);
   const status: Status =
-    input.recommendedApproach === "見送り" || salesScore < scoreThreshold ? "見送り" : "送信待ち";
+    !hasContactMethod || input.recommendedApproach === "見送り" || salesScore < scoreThreshold
+      ? "見送り"
+      : "送信待ち";
 
   return {
     baseScore,

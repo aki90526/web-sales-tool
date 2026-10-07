@@ -68,6 +68,38 @@ npm run dashboard:build
 npm run dashboard:start
 ```
 
+常時起動させる場合は `scripts/serve.sh` と `~/Library/LaunchAgents/com.websalestool.dashboard.plist` を使います。
+
+```bash
+./scripts/services.sh status    # 稼働確認
+./scripts/services.sh restart   # コード更新後の再起動
+```
+
+### 認証
+
+Basic認証ではなく、**Tailscaleのユーザーログインで認証**します（`proxy.ts`）。
+アプリ自体は `127.0.0.1` にのみバインドしており、`tailscale serve` を経由したリクエストにだけ
+tailscaledが `Tailscale-User-Login` ヘッダーを付与するため、tailnetに参加していない第三者はそもそも
+アプリに到達できません。ヘッダーが無ければ401を返します（fail-closed）。
+
+`.env` の `DASHBOARD_ALLOWED_TAILSCALE_USER` に自分のTailscaleログイン（メールアドレス）を設定すると、
+tailnet内であってもそのユーザー以外はアクセスできないよう制限できます（未設定ならtailnet内の誰でもアクセス可）。
+
+### 宅外からのアクセス（Tailscale Serve）
+
+このMacはTailscaleに参加済みです。スマホ・他PCにもTailscaleアプリを入れて同じアカウントでログインすれば、
+`tailscale serve` で公開したURLにアクセスできます。**インターネットには公開されず、tailnet内(自分の端末群)からのみ到達可能です。**
+このMacはローカルWeb開発環境（nginx、ポート443使用中）と共存させるため、Serveは`8443`番ポートで公開しています。
+
+```bash
+tailscale serve status   # 公開状態の確認
+tailscale serve --bg --https=8443 3100   # 公開（既に設定済み。再設定が必要な場合のみ）
+tailscale serve --https=8443 off         # 公開を停止
+```
+
+公開URLは `https://<このMacのTailscaleホスト名>.<tailnet名>.ts.net:8443` です。
+以前使用していたTailscale Funnel（インターネット公開）は無効化済みです。
+
 ## 候補収集
 
 OpenAI の web_search を使って候補企業を検索し、`営業管理` タブへ追加します。
@@ -129,7 +161,7 @@ npm run send:emails -- --limit 1
 ```
 
 本送信後は `アプローチ履歴` に送信内容を追加し、対象行の `ステータス` を `送信済み` に更新します。
-`問い合わせフォーム` の行はこのコマンドでは送信しません。
+`フォーム` の行はこのコマンドでは送信しません。
 
 ## Gmail返信同期
 
@@ -177,7 +209,7 @@ npm run gmail:sync-replies
 ## 問い合わせフォーム対応
 
 フォーム送信はサイトごとに入力項目やCAPTCHAが異なるため、自動送信ではなく、送信対象と入力内容を表示して手動送信します。
-対象は `ステータス=送信待ち`、`連絡方法=問い合わせフォーム`、`フォームURL` が入っている行です。
+対象は `ステータス=送信待ち`、`連絡方法=フォーム`、`フォームURL` が入っている行です。
 `次回対応日` が未来の行は再送間隔前として除外します。
 フォーム入力に使う送信者情報は `設定` シートで管理します。
 フリガナ欄には `設定` シートの `送信者_氏名カナ` または `送信者_フリガナ` を使います。未設定時は `アベ アキヒト` です。
