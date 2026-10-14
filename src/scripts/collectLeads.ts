@@ -7,6 +7,8 @@ import { createSheetsClient } from "../google/sheetsClient";
 
 type CliOptions = {
   area: string;
+  excludeArea?: string;
+  autoRejectLowScore: boolean;
   targetTypes: LeadType[];
   limit: number;
   dryRun: boolean;
@@ -19,6 +21,8 @@ const printHelp = (): void => {
   npm run collect -- --area "埼玉県" --target "広告代理店,制作会社" --limit 5 --dry-run
 
 Options:
+  --exclude-area  除外する地域（例: "東京都"）。該当する所在地の候補は結果から除きます
+  --no-score-rejection  営業スコアが低くても「見送り」にせず、送信待ちで登録します
   --area       検索対象地域。省略時は "埼玉県春日部市"
   --target     対象種別。広告代理店, 制作会社, Web制作会社, 直クライアント, クライアント, 事業者
   --limit      追加候補数。初期安全上限は10件
@@ -63,6 +67,7 @@ const parseTargetTypes = (value: string): LeadType[] => {
 const parseArgs = (argv: string[]): CliOptions => {
   const options: CliOptions = {
     area: "埼玉県春日部市",
+    autoRejectLowScore: true,
     targetTypes: ["Web制作会社", "直クライアント"],
     limit: 10,
     dryRun: false,
@@ -77,6 +82,11 @@ const parseArgs = (argv: string[]): CliOptions => {
     } else if (arg === "--area") {
       options.area = nextValue(argv, index, "--area");
       index += 1;
+    } else if (arg === "--exclude-area") {
+      options.excludeArea = nextValue(argv, index, "--exclude-area");
+      index += 1;
+    } else if (arg === "--no-score-rejection") {
+      options.autoRejectLowScore = false;
     } else if (arg === "--target") {
       options.targetTypes = parseTargetTypes(nextValue(argv, index, "--target"));
       index += 1;
@@ -114,12 +124,17 @@ const main = async (): Promise<void> => {
 
   console.log(`Collecting up to ${options.limit} leads. Sending is not automated.`);
   console.log(`Area: ${options.area}`);
+  if (options.excludeArea) {
+    console.log(`Exclude area: ${options.excludeArea}`);
+  }
   console.log(`Targets: ${options.targetTypes.join(", ")}`);
 
   const collection = await runLeadCollection(
     config,
     {
       area: options.area,
+      excludeArea: options.excludeArea,
+      autoRejectLowScore: options.autoRejectLowScore,
       targetTypes: options.targetTypes,
       limit: options.limit
     },

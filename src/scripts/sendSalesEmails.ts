@@ -1,6 +1,7 @@
 import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
+import { isValidEmail, parseEmailList } from "../email/emailList";
 import { createSmtpMailer } from "../email/smtpMailer";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
@@ -14,7 +15,8 @@ type CliOptions = {
   dryRun: boolean;
   help: boolean;
   limit: number;
-  testTo?: string;
+  testTo?: string[];
+  bcc?: string[];
 };
 
 type SalesEmailCandidate = {
@@ -49,11 +51,16 @@ const printHelp = (): void => {
   npm run send:emails -- --dry-run --limit 3
   npm run send:emails -- --limit 1
   npm run send:emails -- --test-to "aki90526@gmail.com" --limit 1
+  npm run send:emails -- --test-to "a@example.com,b@example.com" --limit 1
+  npm run send:emails -- --limit 1 --bcc "a@example.com,b@example.com"
+  npm run send:emails -- --limit 1 --no-bcc
 
 Options:
   --dry-run       送信せず、対象候補だけ表示します
   --limit         送信または表示する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
-  --test-to       実際の営業メール本文を指定アドレスへテスト送信します。Sheets は更新しません
+  --test-to       実際の営業メール本文を指定アドレスへテスト送信します（カンマ区切りで複数可）。Sheets は更新せず、BCCも付けません
+  --bcc           本送信のBCCを指定アドレスに変更します（カンマ区切りで複数可）。省略時は SMTP_BCC
+  --no-bcc        本送信でBCCを付けません
 `);
 };
 
@@ -95,8 +102,13 @@ const parseArgs = (argv: string[]): CliOptions => {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
       index += 1;
     } else if (arg === "--test-to") {
-      options.testTo = nextValue(argv, index, "--test-to");
+      options.testTo = parseEmailList(nextValue(argv, index, "--test-to"));
       index += 1;
+    } else if (arg === "--bcc") {
+      options.bcc = parseEmailList(nextValue(argv, index, "--bcc"));
+      index += 1;
+    } else if (arg === "--no-bcc") {
+      options.bcc = [];
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -106,8 +118,12 @@ const parseArgs = (argv: string[]): CliOptions => {
     throw new Error(`--limit must be ${MAX_LIMIT} or less`);
   }
 
-  if (options.testTo && !isValidEmail(options.testTo)) {
-    throw new Error("--test-to must be a valid email address");
+  if (options.testTo && options.testTo.length === 0) {
+    throw new Error("--test-to must include at least one email address");
+  }
+
+  if (options.bcc && options.bcc.length > 0 && options.testTo) {
+    throw new Error("--bcc cannot be used with --test-to");
   }
 
   if (options.dryRun && options.testTo) {
@@ -115,10 +131,6 @@ const parseArgs = (argv: string[]): CliOptions => {
   }
 
   return options;
-};
-
-const isValidEmail = (value: string): boolean => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 };
 
 const formatTokyoDate = (date: Date): string => {
@@ -335,10 +347,11 @@ const main = async (): Promise<void> => {
   if (options.testTo) {
     for (const candidate of candidates) {
       console.log(
-        `Sending test copy for ${candidate.leadId} ${candidate.companyName} to ${options.testTo} (original: ${candidate.emailAddress})...`
+        `Sending test copy for ${candidate.leadId} ${candidate.companyName} to ${options.testTo.join(", ")} (original: ${candidate.emailAddress})...`
       );
       const result = await mailer.send({
         to: options.testTo,
+        bcc: [],
         subject: `[テスト] ${candidate.subject}`,
         text: candidate.body
       });
@@ -355,6 +368,7 @@ const main = async (): Promise<void> => {
     console.log(`Sending ${candidate.leadId} ${candidate.companyName} to ${candidate.emailAddress}...`);
     const result = await mailer.send({
       to: candidate.emailAddress,
+      bcc: options.bcc,
       subject: candidate.subject,
       text: candidate.body
     });

@@ -23,7 +23,7 @@ const isDashboardCommand = (value: unknown): value is DashboardCommand => {
 
 export async function GET() {
   try {
-    return NextResponse.json(await listDashboardJobs());
+    return NextResponse.json({ ...(await listDashboardJobs()), defaultBcc: process.env.SMTP_BCC ?? "" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });
@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       limit: body.limit,
       leadId: body.leadId,
       testTo: body.testTo,
+      bcc: body.bcc,
       note: body.note,
       confirm: body.confirm
     });

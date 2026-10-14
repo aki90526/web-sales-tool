@@ -1,4 +1,9 @@
+import { spawn } from "child_process";
+import fs from "fs";
+import path from "path";
 import { loadConfig } from "../config/env";
+import { appendCaptchaNote } from "../form/formCaptchaNote";
+import { upsertFormWatchEntry } from "../form/formWatchStatus";
 import { findFormCandidates, FormCandidate, FormSkipReason } from "../contact/formCandidates";
 import { readSalesContentConfig } from "../contact/salesMessage";
 import { fillCandidateFormsInBrowser } from "../form/browserFormAutofill";
@@ -13,6 +18,7 @@ type CliOptions = {
   limit: number;
   port: number;
   timeoutMs: number;
+  autoConfirm: boolean;
 };
 
 const DEFAULT_LIMIT = 1;
@@ -30,6 +36,7 @@ Options:
   --lead-id      指定したリードIDのフォームだけ開いて自動入力します
   --limit        自動入力する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
   --dry-run      ブラウザを開かず、対象候補だけ表示します
+  --no-auto-confirm  入力後に「確認」ボタンを自動で押さず、入力だけで止めます
   --port         Chrome remote debugging port。省略時は ${DEFAULT_PORT}
   --timeout-ms   ページ読み込み待ち時間。省略時は ${DEFAULT_TIMEOUT_MS}
 `);
@@ -62,7 +69,8 @@ const parseArgs = (argv: string[]): CliOptions => {
     leadId: "",
     limit: DEFAULT_LIMIT,
     port: DEFAULT_PORT,
-    timeoutMs: DEFAULT_TIMEOUT_MS
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    autoConfirm: true
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -78,6 +86,8 @@ const parseArgs = (argv: string[]): CliOptions => {
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
       index += 1;
+    } else if (arg === "--no-auto-confirm") {
+      options.autoConfirm = false;
     } else if (arg === "--port") {
       options.port = parsePositiveInteger(nextValue(argv, index, "--port"), "--port");
       index += 1;
@@ -121,28 +131,6 @@ const printCandidates = (candidates: FormCandidate[]): void => {
   });
 };
 
-const appendCaptchaNote = async (
-  sheets: SheetsClient,
-  leadId: string,
-  captchaLabel: string
-): Promise<void> => {
-  const table = await readSalesManagementTable(sheets);
-  const lead = table.leads.find((entry) => entry.leadId === leadId);
-
-  if (!lead) {
-    return;
-  }
-
-  const note = `[CAPTCHA] ${captchaLabel}`;
-
-  if (lead.memo.includes(note)) {
-    return;
-  }
-
-  const nextMemo = lead.memo ? `${lead.memo}\n${note}` : note;
-  await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[nextMemo]]);
-};
-
 const printSkippedSummary = (skipped: Map<FormSkipReason, number>): void => {
   if (skipped.size === 0) {
     return;
@@ -153,6 +141,37 @@ const printSkippedSummary = (skipped: Map<FormSkipReason, number>): void => {
   skipped.forEach((count, reason) => {
     console.log(`- ${reason}: ${count}`);
   });
+};
+
+const startCompletionWatcher = (
+  port: number,
+  entries: Array<{ leadId: string; companyName: string; targetId: string; baseline: unknown }>
+): void => {
+  if (entries.length === 0) {
+    return;
+  }
+
+  const watchDir = path.resolve(process.cwd(), ".tmp");
+  const watchFile = path.join(watchDir, `form-watch-${Date.now()}.json`);
+
+  fs.mkdirSync(watchDir, { recursive: true });
+  fs.writeFileSync(
+    watchFile,
+    `${JSON.stringify({ port, entries }, null, 2)}\n`,
+    "utf8"
+  );
+
+  entries.forEach((entry) => upsertFormWatchEntry(entry.leadId, entry.companyName, { state: "watching", startedAt: new Date().toISOString() }));
+
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  const child = spawn(npm, ["run", "forms:watch", "--", watchFile], {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: "ignore"
+  });
+
+  child.unref();
+  console.log(`送信完了の自動検知を開始しました（最大90分、ログ: .tmp/form-watch.log）`);
 };
 
 const main = async (): Promise<void> => {
@@ -174,7 +193,7 @@ const main = async (): Promise<void> => {
     throw new Error(`No eligible form lead found for ${options.leadId}`);
   }
 
-  console.log("Form autofill: this command opens Chrome and does not submit forms.");
+  console.log("Form autofill: this command opens Chrome, fills the forms and advances to the confirm step. It never clicks the final submit button.");
   printCandidates(targets);
   printSkippedSummary(skipped);
 
@@ -188,11 +207,12 @@ const main = async (): Promise<void> => {
     contentConfig.formFieldAliases,
     {
       chromePort: options.port,
-      timeoutMs: options.timeoutMs
+      timeoutMs: options.timeoutMs,
+      autoConfirm: options.autoConfirm
     }
   );
 
-  for (const { candidate, result } of results) {
+  for (const { candidate, result, confirm } of results) {
     saveLastFormFillSession({
       leadId: candidate.leadId,
       companyName: candidate.companyName,
@@ -206,7 +226,14 @@ const main = async (): Promise<void> => {
     console.log(`Text fields: ${result.filled.length}`);
     console.log(`Selects/radios: ${result.selected.length}`);
     console.log(`Consent checkboxes: ${result.checked.length}`);
-    result.warnings.forEach((warning) => console.log(`Warning: ${warning}`));
+    result.warnings.forEach((warning) => {
+      console.log(`Warning: ${warning}`);
+      console.log(`[DASHBOARD_WARNING] leadId=${candidate.leadId} message=${warning}`);
+    });
+    console.log(`Confirm step: ${confirm.status}${confirm.label ? ` (${confirm.label})` : ""}${confirm.detail ? ` - ${confirm.detail}` : ""}`);
+    if (confirm.status === "advanced") {
+      console.log(`[DASHBOARD_CONFIRM] leadId=${candidate.leadId} status=advanced`);
+    }
 
     if (result.captcha) {
       console.log(`Captcha detected: ${result.captcha} (自動送信不可の可能性が高いため手動対応推奨)`);
@@ -215,8 +242,20 @@ const main = async (): Promise<void> => {
       console.log(`[DASHBOARD_CAPTCHA] leadId=${candidate.leadId} label=${result.captcha}`);
     }
 
-    console.log(`送信後: npm run forms:mark-sent`);
+    console.log(`送信後: npm run forms:mark-sent（送信完了画面を検知した場合は自動で記録します）`);
   }
+
+  startCompletionWatcher(
+    options.port,
+    results
+      .filter(({ wrongPage }) => !wrongPage)
+      .map(({ candidate, targetId, baseline }) => ({
+      leadId: candidate.leadId,
+      companyName: candidate.companyName,
+      targetId,
+      baseline
+    }))
+  );
 };
 
 main().catch((error: unknown) => {

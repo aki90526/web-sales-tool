@@ -40,6 +40,8 @@ const statusClass = (status: string): string => {
   if (status === "送信待ち") return "status-badge waiting";
   if (status === "送信済み") return "status-badge sent";
   if (status === "返信あり") return "status-badge reply";
+  if (status === "面談済み") return "status-badge interviewed";
+  if (status === "保留") return "status-badge onhold";
   return "status-badge";
 };
 
@@ -61,6 +63,7 @@ export default function LeadsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [leadTypeFilter, setLeadTypeFilter] = useState(ALL);
+  const [autoRecordedLeadIds, setAutoRecordedLeadIds] = useState<Set<string>>(new Set());
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string } | null>(null);
@@ -75,6 +78,16 @@ export default function LeadsPage() {
 
   useEffect(() => {
     setFocusLeadId(new URLSearchParams(window.location.search).get("leadId"));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/form-watch", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((body) => {
+        const entries: Array<{ leadId: string; state: string }> = Array.isArray(body.entries) ? body.entries : [];
+        setAutoRecordedLeadIds(new Set(entries.filter((entry) => entry.state === "recorded").map((entry) => entry.leadId)));
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -419,6 +432,9 @@ export default function LeadsPage() {
                     </td>
                     <td><span className="score-badge">{lead.salesScore}</span></td>
                     <td>
+                      {autoRecordedLeadIds.has(lead.leadId) && lead.status === "送信済み" && (
+                        <span className="status-badge sent" title="送信完了画面を検知して自動で更新しました">自動記録</span>
+                      )}
                       <select
                         className={`${statusClass(lead.status)} status-select`}
                         value={STATUSES.includes(lead.status as (typeof STATUSES)[number]) ? lead.status : ""}

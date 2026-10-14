@@ -1,16 +1,18 @@
 import { execFile } from "child_process";
 import http from "http";
 import path from "path";
+import { DEMO_PAGE_PATH_PATTERN, isRedirectedElsewhere } from "../collection/contactUrlVerifier";
 import { FormCandidate } from "../contact/formCandidates";
 import { FormFieldAliases, SenderInfo } from "../contact/salesMessage";
 
 type ChromeRemoteInterface = {
   (options?: Record<string, unknown>): Promise<ChromeClient>;
   New: (options: Record<string, unknown>) => Promise<{ id: string }>;
+  List: (options: Record<string, unknown>) => Promise<Array<{ id: string; type: string; url: string; parentId?: string }>>;
   Activate: (options: Record<string, unknown>) => Promise<void>;
 };
 
-type ChromeClient = {
+export type ChromeClient = {
   Input: {
     dispatchKeyEvent: (options: Record<string, unknown>) => Promise<void>;
     dispatchMouseEvent: (options: Record<string, unknown>) => Promise<void>;
@@ -52,14 +54,50 @@ export type FormAutofillResult = {
   captcha: string;
 };
 
+export type ConfirmStepStatus =
+  | "advanced"
+  | "no-confirm-button"
+  | "validation-error"
+  | "unknown"
+  | "skipped";
+
+export type ConfirmStepResult = {
+  status: ConfirmStepStatus;
+  label?: string;
+  detail?: string;
+};
+
+export type CompletionSnapshot = {
+  url: string;
+  strictDone: boolean;
+  looseDone: boolean;
+  looksLikeConfirmPage: boolean;
+  hasSubmitButton: boolean;
+  cf7Sent: boolean;
+  // 直前のページ遷移でリダイレクトが何回あったか（送信後に別ページへ転送されたかの判定用）
+  redirectCount: number;
+  referrer: string;
+  // Contact Form 7 の送信状態（data-status）とエラー内容。CF7でないページでは空
+  cf7Status: string;
+  cf7Message: string;
+  cf7Invalid: string[];
+};
+
 export type BrowserFillResult = {
   candidate: FormCandidate;
   result: FormAutofillResult;
+  confirm: ConfirmStepResult;
+  targetId: string;
+  baseline: CompletionSnapshot | null;
+  finalUrl: string;
+  // デモページやトップへ転送された（本物のフォームではない）場合 true。確認ボタンの自動クリックと送信完了の自動検知を行わない
+  wrongPage: boolean;
 };
 
 type BrowserFillOptions = {
   chromePort: number;
   timeoutMs: number;
+  autoConfirm?: boolean;
 };
 
 type SelectKeyboardTarget = {
@@ -285,6 +323,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     lastNameHiragana: payload.sender.nameHiragana.split(/\s+/)[0] || payload.sender.nameHiragana,
     firstNameHiragana: payload.sender.nameHiragana.split(/\s+/).slice(1).join(" ") || payload.sender.nameHiragana,
     department: payload.sender.department,
+    businessDescription: payload.sender.businessDescription,
     age: payload.sender.age,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
@@ -305,11 +344,36 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const builtinAliases: Record<string, string[]> = {
-    companyName: ["会社名", "貴社名", "法人名", "貴院名", "屋号", "組織名", "company", "organization", "org"],
-    name: ["お名前", "氏名", "担当者名", "ご担当者名", "name", "your-name"],
+    companyName: [
+      "会社名",
+      "貴社名",
+      "御社名",
+      "法人名",
+      "貴院名",
+      "屋号",
+      "組織名",
+      "社名",
+      "企業名",
+      "団体名",
+      "貴団体名",
+      "会社・団体名",
+      "会社/団体名",
+      "会社･団体名",
+      "企業・団体名",
+      "法人・団体名",
+      "会社・組織名",
+      "会社・学校名",
+      "勤務先",
+      "お勤め先",
+      "company",
+      "organization",
+      "org"
+    ],
+    name: ["お名前", "氏名", "担当者名", "ご担当者名", "担当者様名", "ご担当者様名", "担当者様", "name", "your-name"],
     nameKana: ["フリガナ", "ふりがな", "カナ", "氏名カナ", "氏名かな", "お名前カナ", "ご担当者名フリガナ", "kana", "furigana"],
     nameHiragana: ["ふりがな", "氏名かな", "お名前かな", "ご担当者名ふりがな"],
-    department: ["部署", "部署名", "所属部署", "所属部署名", "部門", "部門名", "department", "division", "section"],
+    businessDescription: ["事業内容", "業務内容", "主な事業", "事業概要", "業種"],
+    department: ["部署", "部署名", "所属部署", "所属部署名", "部門", "部門名", "役職", "役職名", "ご役職", "肩書", "肩書き", "department", "division", "section", "position"],
     age: ["年齢", "歳", "age"],
     lastName: ["last name", "family name", "sei"],
     firstName: ["first name", "given name", "mei"],
@@ -333,6 +397,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     name: [...builtinAliases.name, ...payload.formFieldAliases.name],
     nameKana: [...builtinAliases.nameKana, ...payload.formFieldAliases.nameKana],
     nameHiragana: [...builtinAliases.nameHiragana, ...payload.formFieldAliases.nameHiragana],
+    businessDescription: builtinAliases.businessDescription,
     department: [...builtinAliases.department, ...payload.formFieldAliases.department],
     age: [...builtinAliases.age, ...payload.formFieldAliases.age],
     email: [...builtinAliases.email, ...payload.formFieldAliases.email],
@@ -372,7 +437,14 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const hasMeaningfulSelectValue = (element: HTMLSelectElement): boolean => {
-    return element.value !== "" && !isPlaceholderOption(element.options[element.selectedIndex]);
+    const selected = element.options[element.selectedIndex];
+
+    if (element.value === "" || isPlaceholderOption(selected)) {
+      return false;
+    }
+
+    // 先頭の選択肢がブラウザの既定で選ばれているだけ（selected指定なし）の場合は、選択済みとみなさない
+    return element.selectedIndex > 0 || Boolean(selected?.defaultSelected) || element.options.length === 1;
   };
 
   const visible = (element: HTMLElement): boolean => {
@@ -514,7 +586,20 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const matches = (text: string, key: string): boolean => {
-    return aliases[key].some((alias) => text.includes(normalize(alias)));
+    // family_name / last-name のように、項目名の区切りが _ や - の場合も、スペース区切りの別名（family name など）と照合する
+    const spacedText = text.replace(/[_-]+/g, " ");
+
+    return aliases[key].some((alias) => {
+      const normalizedAlias = normalize(alias);
+
+      return text.includes(normalizedAlias) || spacedText.includes(normalizedAlias.replace(/[_-]+/g, " "));
+    });
+  };
+
+  // 項目名が「電話」だけの欄も電話番号欄として扱う（「電話番号」の別名には一致しないため）。
+  // 「電話連絡の希望時間」「ご連絡方法（電話/メール）」のような欄は除く
+  const matchesTel = (text: string): boolean => {
+    return matches(text, "tel") || (text.includes("電話") && !/(時間|方法|手段|希望)/.test(text));
   };
 
   const shortLabelFor = (element: HTMLElement): string => {
@@ -567,7 +652,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const matchesCompanyNameKana = (text: string): boolean => {
-    return /(会社名|法人名|貴社名|屋号)/.test(text) && /(フリガナ|ふりがな|カナ|かな|kana|furigana)/i.test(text);
+    return /(社名|法人名|企業名|団体名|屋号)/.test(text) && /(フリガナ|ふりがな|カナ|かな|kana|furigana)/i.test(text);
   };
 
   const matchesLastNameKana = (text: string): boolean => {
@@ -599,7 +684,53 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const matchesOptionalBuilding = (text: string): boolean => {
+    // 「番地・建物」のように番地と建物が1つの欄になっている場合は、番地として入力するので除く
+    if (/(番地|丁目|以降の住所|町名)/.test(text)) {
+      return false;
+    }
+
     return /(マンション|ビル名|建物名|建物|部屋番号|号室|apartment|building|room)/i.test(text);
+  };
+
+  // 都道府県のプルダウンが直前にある住所欄は、都道府県を除いた住所（市区町村以降）を入れる
+  const hasPrefectureSelectBefore = (element: HTMLElement): boolean => {
+    let parent = element.parentElement;
+
+    for (let depth = 0; parent && depth < 4; depth += 1, parent = parent.parentElement) {
+      const hasPrefectureSelect = Array.from(parent.querySelectorAll<HTMLSelectElement>("select")).some((select) => {
+        const optionTexts = Array.from(select.options).map((option) => option.textContent?.trim() ?? "");
+        const looksLikePrefectures = optionTexts.includes("北海道") && optionTexts.includes("沖縄県");
+
+        return (
+          looksLikePrefectures &&
+          Boolean(select.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+        );
+      });
+
+      if (hasPrefectureSelect) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // 同じフォーム内に、都道府県・市区町村を入れる別の欄があるか
+  const hasOtherAddressField = (element: HTMLElement, key: "prefecture" | "city"): boolean => {
+    const scope: ParentNode = element.closest("form") ?? document;
+
+    return Array.from(scope.querySelectorAll<HTMLElement>("input, select")).some((other) => {
+      if (other === element || !visible(other)) {
+        return false;
+      }
+
+      const type = (other.getAttribute("type") || "text").toLowerCase();
+      if (other.tagName.toLowerCase() === "input" && !["text", "search", ""].includes(type)) {
+        return false;
+      }
+
+      return matches(labelFor(other), key);
+    });
   };
 
   const inferKey = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): string => {
@@ -613,16 +744,41 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "email";
     }
 
+    // 項目名に post / zip だけがある郵便番号欄（例: address-post）が住所欄と誤判定されないようにする
+    const nameHint = `${element.getAttribute("name") ?? ""} ${element.getAttribute("id") ?? ""}`;
+    if (
+      tagName === "input" &&
+      /(^|[-_\s])(zip|zipcode|postcode|post|yubin)([-_\s\d]|$)/i.test(nameHint) &&
+      !/post[-_ ]?(title|content|body|id)/i.test(nameHint)
+    ) {
+      return "postalCode";
+    }
+
     if (matches(text, "postalCode")) {
       return "postalCode";
     }
 
-    if (type === "tel" || autocomplete === "tel" || matches(text, "tel")) {
+    if (type === "tel" || autocomplete === "tel" || matchesTel(text)) {
       return "tel";
     }
 
     if (matches(text, "email")) {
       return "email";
+    }
+
+    // 「会社URL」のように「会社」を含むURL欄が会社名欄と誤判定されないよう、URL欄を先に判定する
+    if (
+      tagName === "input" &&
+      (type === "url" ||
+        /(会社|企業|貴社|御社|組織|法人)\s*(url|ホームページ|hp|サイト|web)/i.test(text) ||
+        /(company|corp|organization)[-_ ]?(url|site|website|homepage)/i.test(text))
+    ) {
+      return matches(text, "portfolioUrl") ? "portfolioUrl" : "url";
+    }
+
+    // 「貴社の事業内容」が「内容」を含むため本文欄と誤判定されないよう、先に判定する
+    if (matches(text, "businessDescription") && !/(お問い合わせ|お問合せ|問い合わせ|ご相談|相談)内容/.test(text)) {
+      return "businessDescription";
     }
 
     if (tagName === "textarea" || matches(text, "body")) {
@@ -686,11 +842,25 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
 
     if (matches(text, "streetAddress")) {
+      // 「ご住所 ※住所の続き（番地など）を入力」のように注意書きに番地とあるだけの欄は、
+      // 都道府県・市区町村の欄が別に無ければ住所全体（市区町村が無ければ市区町村から）を入れる
+      if (hasOtherAddressField(element, "city")) {
+        return "streetAddress";
+      }
+
+      if (hasOtherAddressField(element, "prefecture") || hasPrefectureSelectBefore(element)) {
+        return "cityStreetAddress";
+      }
+
+      if (matches(text, "address")) {
+        return "address";
+      }
+
       return "streetAddress";
     }
 
     if (matches(text, "address")) {
-      return "address";
+      return hasPrefectureSelectBefore(element) ? "cityStreetAddress" : "address";
     }
 
     if (matches(text, "companyName")) {
@@ -767,7 +937,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return false;
     }
 
-    return type === "tel" || matches(text, "tel");
+    return type === "tel" || matchesTel(text);
   };
 
   const postalCodeLike = (element: HTMLInputElement): boolean => {
@@ -845,10 +1015,42 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const postalCodeValueForElement = (element: HTMLInputElement): string => {
+    const fullPostalCode = (): string => {
+      const hyphenless = payload.sender.postalCode.replace(/\D/g, "");
+      const placeholder = element.getAttribute("placeholder") ?? "";
+      // 他の項目の注記を拾わないよう、この欄のラベル・すぐ近くの文字・入力例だけを見る
+      const ownTextOf = (node: Element | null): string =>
+        node
+          ? Array.from(node.childNodes)
+              .filter((child) => child.nodeType === Node.TEXT_NODE)
+              .map((child) => child.textContent?.trim() ?? "")
+              .join(" ")
+              .slice(0, 100)
+          : "";
+      const label = labelFor(element);
+      const hintText = [
+        label.length <= 120 ? label : "",
+        ownTextOf(element.parentElement),
+        ownTextOf(element.parentElement?.parentElement ?? null),
+        element.previousElementSibling?.textContent?.trim().slice(0, 60) ?? "",
+        placeholder,
+        element.getAttribute("aria-label") ?? ""
+      ].join(" ");
+      const pattern = element.getAttribute("pattern") ?? "";
+      const placeholderDigits = placeholder.replace(/\D/g, "");
+      // 「ハイフンなし」の注記、7桁以内のmaxlength、7桁だけのpattern・入力例がある場合は、ハイフンなしで入れる
+      const wantsHyphenless =
+        /(ハイフン\s*(なし|無し|不要|抜き|を除|は?入れない|なしで)|半角数字のみ|数字のみ|no\s*hyphen)/i.test(hintText) ||
+        (element.maxLength > 0 && element.maxLength <= 7) ||
+        /^\^?(\\d|\[0-9\])\{7\}\$?$/.test(pattern) ||
+        (placeholderDigits.length === 7 && !/[-ー−―‐]/.test(placeholder));
+
+      return wantsHyphenless && hyphenless.length === 7 ? hyphenless : payload.sender.postalCode;
+    };
     const parts = splitJapanesePostalCode(payload.sender.postalCode);
 
     if (parts.length < 2) {
-      return payload.sender.postalCode;
+      return fullPostalCode();
     }
 
     let parent = element.parentElement;
@@ -866,7 +1068,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       }
     }
 
-    return payload.sender.postalCode;
+    return fullPostalCode();
   };
 
   const setNativeValue = (
@@ -916,29 +1118,48 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
   };
 
+  // 問い合わせ種別などの選択肢の「営業メールの用件に合うか」を点数にする。協業系 > 営業・提案系 > その他 > 一般のお問い合わせ > 他社サービスの依頼系
   const scoreChoiceText = (text: string): number => {
+    if (/(採用|求人|応募|リクルート|見積|資料請求|取材|クレーム|修理|購入|注文|不具合|解約|退会|取材|メディア)/i.test(text)) {
+      return 0;
+    }
+
     if (/(弊社webサイトを見て|webサイトを見て|ホームページを見て|公式サイト|website)/i.test(text)) {
       return 70;
     }
 
-    if (/(協業|パートナー|提携|業務委託|外注)/i.test(text)) {
-      return 60;
+    if (/(協業|パートナー|提携|業務委託|外注|アライアンス|協力会社)/i.test(text)) {
+      return 90;
     }
 
-    if (/(プロジェクト|案件|仕事|ご相談|相談)/i.test(text)) {
-      return 50;
+    if (/(営業|提案|売り込み|(貴社|御社).{0,10}(サービス|商品|製品).{0,14}紹介)/i.test(text)) {
+      return 80;
     }
 
-    if (/(web|ウェブ|制作|相談)/i.test(text)) {
-      return 40;
-    }
-
-    if (/(その他|other)/i.test(text)) {
-      return 30;
+    // 協業・営業提案の選択肢が無い場合は「その他」を選ぶ（Web制作・システム開発などは依頼する側の選択肢なので選ばない）
+    if (/(その他|other|上記以外)/i.test(text)) {
+      return 65;
     }
 
     if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
-      return 10;
+      return 55;
+    }
+
+    if (/(ご相談|相談)/i.test(text)) {
+      return 40;
+    }
+
+    if (/(商談|プロジェクト|案件|仕事)/i.test(text)) {
+      return 30;
+    }
+
+    // 依頼向けの選択肢しか無い場合は、Webサイト制作に近いもの（CM・動画などの映像系を除く）を優先する
+    if (/(web|ウェブ|ホームページ|サイト)/i.test(text) && !/(cm|tv|テレビ|動画|映像)/i.test(text)) {
+      return 25;
+    }
+
+    if (/(web|ウェブ|制作|開発|システム)/i.test(text)) {
+      return 20;
     }
 
     return 1;
@@ -1083,11 +1304,48 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return Array.from(new Set(parts.map((part) => part.trim()).filter(Boolean))).join(" ").slice(0, 120);
   };
 
+  // ラジオボタンの見出し（「お問い合わせ目的」など）。入力欄の外側にある見出し文字を、祖先要素の直下の文字から集める
+  const ancestorHeadingTextFor = (element: HTMLElement): string => {
+    const texts: string[] = [];
+    let ancestor: HTMLElement | null = element.parentElement;
+
+    for (let depth = 0; ancestor && depth < 8; depth += 1, ancestor = ancestor.parentElement) {
+      const own = Array.from(ancestor.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent?.trim() ?? "")
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, 80);
+
+      if (own) {
+        texts.push(own);
+      }
+
+      // 見出しが、入力欄を囲む要素の直前の兄弟要素（<br>を挟む場合を含む）にあるケース
+      let previous = ancestor.previousElementSibling;
+
+      for (let count = 0; previous && count < 3; count += 1, previous = previous.previousElementSibling) {
+        if (previous.querySelector("input, select, textarea")) {
+          break;
+        }
+
+        const previousText = previous.textContent?.trim().slice(0, 60) ?? "";
+
+        if (previousText) {
+          texts.push(previousText);
+          break;
+        }
+      }
+    }
+
+    return texts.join(" ");
+  };
+
   const radioGroupLabelFor = (elements: HTMLInputElement[]): string => {
     const first = elements[0];
 
     if (first.name) {
-      return normalize(first.name);
+      return normalize(`${first.name} ${ancestorHeadingTextFor(first)}`);
     }
 
     const fieldset = first.closest("fieldset");
@@ -1142,6 +1400,102 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     checkInput(element);
   };
 
+  // 「希望の連絡方法」などの選択欄では、メールを選ぶ
+  const isContactMethodLabel = (text: string): boolean => {
+    return /(希望.{0,4}(連絡|返信|回答)(方法|手段)|(連絡|返信|回答|ご連絡|ご返信)(方法|手段)|お問い合わせ方法|お問合せ方法|contact\s*method|preferred\s*contact|how.{0,10}contact)/i.test(text);
+  };
+
+  const isEmailChoiceText = (text: string): boolean => {
+    return /(メール|e-?mail|ｅメール|電子メール)/i.test(text) && !/(メールアドレス)/.test(text);
+  };
+
+  const fillContactMethodChoices = (): void => {
+    const radioGroups = new Map<string, HTMLInputElement[]>();
+
+    document.querySelectorAll<HTMLInputElement>("input[type='radio']").forEach((element) => {
+      if (element.disabled || !radioVisible(element)) {
+        return;
+      }
+
+      const formKey = element.form?.id || element.form?.getAttribute("name") || "form";
+      const key = `${formKey}:name:${element.name || radioGroupLabelFor([element])}`;
+      radioGroups.set(key, [...(radioGroups.get(key) ?? []), element]);
+    });
+
+    radioGroups.forEach((elements) => {
+      const groupLabel = radioGroupLabelFor(elements);
+
+      if (!isContactMethodLabel(groupLabel)) {
+        return;
+      }
+
+      const emailChoice = elements.find((element) => isEmailChoiceText(radioOptionLabelFor(element)));
+
+      if (!emailChoice) {
+        return;
+      }
+
+      if (!emailChoice.checked) {
+        checkRadio(emailChoice);
+      }
+
+      if (emailChoice.checked) {
+        result.selected.push({ label: groupLabel, option: radioOptionLabelFor(emailChoice) });
+      } else {
+        result.warnings.push(`${groupLabel} は手動選択が必要です。`);
+      }
+    });
+
+    document.querySelectorAll<HTMLSelectElement>("select").forEach((element) => {
+      if (element.disabled || !isContactMethodLabel(labelFor(element))) {
+        return;
+      }
+
+      const emailOption = Array.from(element.options).find((option) => isEmailChoiceText(option.textContent || option.value));
+
+      if (!emailOption) {
+        return;
+      }
+
+      element.value = emailOption.value;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+
+      if (element.value === emailOption.value) {
+        result.selected.push({ label: shortLabelFor(element), option: emailOption.textContent?.trim() || emailOption.value });
+      }
+    });
+
+    const checkboxGroups = new Map<string, HTMLInputElement[]>();
+
+    document.querySelectorAll<HTMLInputElement>("input[type='checkbox']").forEach((element) => {
+      if (element.disabled || !radioVisible(element) || !element.name) {
+        return;
+      }
+
+      const key = `${element.form?.id || "form"}:name:${element.name}`;
+      checkboxGroups.set(key, [...(checkboxGroups.get(key) ?? []), element]);
+    });
+
+    checkboxGroups.forEach((elements) => {
+      const groupLabel = `${checkboxGroupLabelFor(elements)} ${surroundingTextFor(elements[0]).slice(0, 80)}`;
+
+      if (elements.length < 2 || !isContactMethodLabel(groupLabel)) {
+        return;
+      }
+
+      const emailChoice = elements.find((element) => isEmailChoiceText(checkboxOptionLabelFor(element)));
+
+      if (emailChoice && !emailChoice.checked) {
+        checkInput(emailChoice);
+      }
+
+      if (emailChoice?.checked) {
+        result.selected.push({ label: checkboxGroupLabelFor(elements), option: checkboxOptionLabelFor(emailChoice) });
+      }
+    });
+  };
+
   const fillRadioGroups = (): void => {
     const groups = new Map<string, HTMLInputElement[]>();
 
@@ -1167,14 +1521,33 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
         return;
       }
 
-      if (elements.some((element) => element.checked)) {
-        const checked = elements.find((element) => element.checked);
-        if (checked) {
-          result.selected.push({
-            label: radioGroupLabelFor(elements),
-            option: radioOptionLabelFor(checked)
-          });
+      const alreadyChecked = elements.find((element) => element.checked);
+
+      if (alreadyChecked) {
+        // 初期値で選ばれている項目より、用件に合う項目（協業など）が明らかに良ければ選び直す
+        const currentScore = scoreChoiceText(normalize(radioOptionLabelFor(alreadyChecked)));
+        const better = elements
+          .map((element) => ({
+            element,
+            optionLabel: radioOptionLabelFor(element),
+            score: scoreChoiceText(normalize(radioOptionLabelFor(element)))
+          }))
+          .filter((choice) => choice.element !== alreadyChecked && choice.score >= 60 && choice.score >= currentScore + 10)
+          .sort((a, b) => b.score - a.score)[0];
+
+        if (better) {
+          checkRadio(better.element);
+
+          if (better.element.checked) {
+            result.selected.push({ label: radioGroupLabelFor(elements), option: better.optionLabel });
+            return;
+          }
         }
+
+        result.selected.push({
+          label: radioGroupLabelFor(elements),
+          option: radioOptionLabelFor(alreadyChecked)
+        });
         return;
       }
 
@@ -1224,7 +1597,8 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       parts.push(parent.textContent);
     }
 
-    ["aria-label", "value", "name", "id"].forEach((attribute) => {
+    // name は同じグループの全選択肢で共通（例: ご相談内容[data][]）なので、選択肢の点数づけに混ぜない
+    ["aria-label", "value", "id"].forEach((attribute) => {
       const value = element.getAttribute(attribute);
       if (value) {
         parts.push(value);
@@ -1250,11 +1624,26 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
             return textContent && !textContent.includes(checkboxOptionLabelFor(first));
           });
 
-        if (heading) {
-          return normalize(`${heading} ${formKey}`);
+        const ownTexts: string[] = [];
+        let ancestor: HTMLElement | null = parent;
+
+        for (let ancestorDepth = 0; ancestor && ancestorDepth < 4; ancestorDepth += 1, ancestor = ancestor.parentElement) {
+          const own = Array.from(ancestor.childNodes)
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent?.trim() ?? "")
+            .filter(Boolean)
+            .join(" ");
+
+          if (own) {
+            ownTexts.push(own);
+          }
         }
 
-        return normalize(`${text} ${formKey}`);
+        if (heading) {
+          return normalize(`${ownTexts.join(" ")} ${heading} ${formKey}`);
+        }
+
+        return normalize(`${ownTexts.join(" ")} ${text} ${formKey}`);
       }
     }
 
@@ -1262,7 +1651,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const isContactTopicCheckboxGroup = (text: string): boolean => {
-    return /(ご相談内容|相談内容|お問い合わせ内容|お問合せ内容|問い合わせ内容|用件|ご用件|title)/i.test(text);
+    return /(ご相談内容|相談内容|お問い合わせ内容|お問合せ内容|問い合わせ内容|用件|ご用件|ご興味|title)/i.test(text);
   };
 
   const isReferralSourceCheckboxGroup = (text: string): boolean => {
@@ -1296,30 +1685,137 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
         return;
       }
 
-      const preferred = elements
+      const ranked = elements
         .map((element) => ({
           element,
           optionLabel: checkboxOptionLabelFor(element),
           score: scoreChoiceText(normalize(checkboxOptionLabelFor(element)))
         }))
         .filter((choice) => choice.score > 1)
-        .sort((a, b) => b.score - a.score)[0];
+        .sort((a, b) => b.score - a.score);
 
-      if (!preferred) {
+      if (ranked.length === 0) {
         return;
       }
 
-      checkInput(preferred.element);
+      // 最高点が同点の項目は、複数選択できる欄なので3つまでまとめて選ぶ。
+      // ただしWeb制作などの依頼向けの選択肢しか無い場合（30点未満）は、近いもの1つだけにする
+      const best = ranked[0].score;
+      const picks = ranked.filter((choice) => choice.score === best).slice(0, best < 30 ? 1 : 3);
 
-      if (preferred.element.checked) {
-        result.selected.push({
-          label: groupLabel,
-          option: preferred.optionLabel
-        });
-      } else {
-        result.warnings.push(`${groupLabel} は手動選択が必要です。`);
-      }
+      picks.forEach((preferred) => {
+        checkInput(preferred.element);
+
+        if (preferred.element.checked) {
+          result.selected.push({
+            label: groupLabel,
+            option: preferred.optionLabel
+          });
+        } else {
+          result.warnings.push(`${groupLabel} は手動選択が必要です。`);
+        }
+      });
     });
+  };
+
+  // 「全角でご入力ください」と書かれた欄には、半角英数字・記号・スペースを全角に直して入れる
+  const fullWidthKeys = new Set([
+    "companyName",
+    "name",
+    "lastName",
+    "firstName",
+    "nameWithCompanyName",
+    "department",
+    "address",
+    "cityStreetAddress",
+    "streetAddress",
+    "city",
+    "subject"
+  ]);
+
+  const toFullWidth = (value: string): string => {
+    return value
+      .replace(/[!-~]/g, (char) => String.fromCharCode(char.charCodeAt(0) + 0xfee0))
+      .replace(/ /g, "\u3000");
+  };
+
+  // 入力欄の直後に続く注記（<br>を挟んだ「※ 全角でご入力ください」など）。別の入力欄が出てきたら止める
+  const followingNotes = (anchor: Element): string => {
+    const notes: string[] = [];
+    let sibling = anchor.nextElementSibling;
+
+    for (let count = 0; sibling && count < 4; count += 1, sibling = sibling.nextElementSibling) {
+      if (sibling.querySelector("input, select, textarea") || /^(input|select|textarea)$/i.test(sibling.tagName)) {
+        break;
+      }
+
+      const text = sibling.textContent?.trim().slice(0, 60) ?? "";
+
+      if (text) {
+        notes.push(text);
+      }
+    }
+
+    return notes.join(" ");
+  };
+
+  const fullWidthHintTextFor = (element: HTMLInputElement | HTMLTextAreaElement): string => {
+    const ownTextOf = (node: Element | null): string =>
+      node
+        ? Array.from(node.childNodes)
+            .filter((child) => child.nodeType === Node.TEXT_NODE)
+            .map((child) => child.textContent?.trim() ?? "")
+            .join(" ")
+            .slice(0, 100)
+        : "";
+    const anchor = element.closest(".wpcf7-form-control-wrap") ?? element;
+    const label = labelFor(element);
+
+    return [
+      label.length <= 120 ? label : "",
+      ownTextOf(element.parentElement),
+      ownTextOf(anchor.parentElement),
+      anchor.previousElementSibling?.textContent?.trim().slice(0, 60) ?? "",
+      followingNotes(anchor),
+      element.getAttribute("placeholder") ?? "",
+      element.getAttribute("aria-label") ?? ""
+    ].join(" ");
+  };
+
+  const requiresFullWidth = (element: HTMLInputElement | HTMLTextAreaElement): boolean => {
+    const hintText = fullWidthHintTextFor(element);
+
+    if (/(全角.{0,4}半角|半角.{0,4}全角|どちらでも)/.test(hintText)) {
+      return false;
+    }
+
+    return /全角/.test(hintText) && !/半角(英数|数字)/.test(hintText);
+  };
+
+  // フリガナ欄の姓名の間のスペース: 入力例が半角スペースならそのまま、全角スペースなら全角、全角指定のみで入力例が無ければ
+  // 「スペースの記載があれば全角スペース、無ければスペースなし」にする（半角スペースで全角エラーになるのを避ける）
+  const kanaKeys = new Set(["nameKana", "nameHiragana", "lastNameKana", "firstNameKana", "lastNameHiragana", "firstNameHiragana", "companyNameKana"]);
+
+  const adjustKanaSpacing = (element: HTMLInputElement | HTMLTextAreaElement, value: string): string => {
+    if (!/[ \u3000]/.test(value)) {
+      return value;
+    }
+
+    const placeholder = element.getAttribute("placeholder") ?? "";
+
+    if (/[ァ-ヶぁ-ゖー] [ァ-ヶぁ-ゖー]/.test(placeholder)) {
+      return value;
+    }
+
+    if (/[ァ-ヶぁ-ゖー]\u3000[ァ-ヶぁ-ゖー]/.test(placeholder)) {
+      return value.replace(/ /g, "\u3000");
+    }
+
+    if (!requiresFullWidth(element)) {
+      return value;
+    }
+
+    return /スペース|空白|空け/.test(fullWidthHintTextFor(element)) ? value.replace(/ /g, "\u3000") : value.replace(/[ \u3000]/g, "");
   };
 
   const fillTextControl = (element: HTMLInputElement | HTMLTextAreaElement): void => {
@@ -1351,17 +1847,33 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return;
     }
 
-    const value = element instanceof HTMLInputElement && key === "tel"
+    const rawValue = element instanceof HTMLInputElement && key === "tel"
       ? telValueForElement(element)
       : element instanceof HTMLInputElement && key === "postalCode"
         ? postalCodeValueForElement(element)
         : values[key];
+    const value = kanaKeys.has(key)
+      ? adjustKanaSpacing(element, rawValue)
+      : fullWidthKeys.has(key) && requiresFullWidth(element)
+        ? toFullWidth(rawValue)
+        : rawValue;
 
     setValue(element, value, key);
   };
 
+  // テーマのメニュー開閉用チェックボックス（本文にプライバシーポリシー等のリンクが含まれて誤認される）を除外する
+  const isConsentCandidate = (element: HTMLInputElement): boolean => {
+    const identity = `${element.id} ${element.name} ${typeof element.className === "string" ? element.className : ""}`;
+
+    if (/(menu|navi|sidebar|search|toggle|drawer|hamburger|accordion)/i.test(identity)) {
+      return false;
+    }
+
+    return document.querySelector("form") === null || element.closest("form") !== null;
+  };
+
   const checkConsent = (element: HTMLInputElement): void => {
-    if (element.disabled || element.type !== "checkbox" || element.checked) {
+    if (element.disabled || element.type !== "checkbox" || element.checked || !isConsentCandidate(element)) {
       return;
     }
 
@@ -1386,13 +1898,50 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     result.checked.push({ label: text.slice(0, 120) });
   };
 
+  // 本文欄が複数ある場合（お困りごと・依頼内容・補足など）は、必須の欄か「内容」に当たる欄1つだけに本文を入れる
+  const skippedBodyTextareas = new Set<HTMLTextAreaElement>();
+  const bodyTextareas = Array.from(document.querySelectorAll<HTMLTextAreaElement>("textarea")).filter(
+    (element) => visible(element) && !element.disabled && !element.readOnly && inferKey(element) === "body"
+  );
+
+  if (bodyTextareas.length > 1) {
+    const isRequired = (element: HTMLTextAreaElement): boolean =>
+      element.required ||
+      element.getAttribute("aria-required") === "true" ||
+      /validates-as-required/.test(element.className);
+    const descriptor = (element: HTMLTextAreaElement): string =>
+      `${element.name} ${element.id} ${element.getAttribute("placeholder") ?? ""} ${surroundingTextFor(element)}`;
+    const primary =
+      bodyTextareas.find((element) => isRequired(element)) ??
+      bodyTextareas.find(
+        (element) =>
+          /(内容|message|detail|inquiry|body|依頼|ご相談)/i.test(descriptor(element)) &&
+          !/(補足|備考|その他|課題|困りごと)/.test(descriptor(element))
+      ) ??
+      bodyTextareas[0];
+
+    bodyTextareas.forEach((element) => {
+      if (element !== primary) {
+        skippedBodyTextareas.add(element);
+      }
+    });
+  }
+
   document
     .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea")
-    .forEach((element) => fillTextControl(element));
+    .forEach((element) => {
+      if (element instanceof HTMLTextAreaElement && skippedBodyTextareas.has(element)) {
+        return;
+      }
+
+      fillTextControl(element);
+    });
 
   document
     .querySelectorAll<HTMLSelectElement>("select")
     .forEach((element) => fillSelect(element));
+
+  fillContactMethodChoices();
 
   fillRadioGroups();
 
@@ -1415,7 +1964,7 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     .forEach((element) => {
       const text = surroundingTextFor(element);
 
-      if (/(同意|確認|プライバシー|個人情報|規約|privacy|policy)/i.test(text) && !element.checked) {
+      if (isConsentCandidate(element) && /(同意|確認|プライバシー|個人情報|規約|privacy|policy)/i.test(text) && !element.checked) {
         result.warnings.push(`${shortLabelFor(element)} は手動確認が必要です。`);
       }
     });
@@ -1514,34 +2063,59 @@ const pageFindSelectKeyboardTarget = (): SelectKeyboardTarget | null => {
     return text.slice(0, 80) || element.getAttribute("name") || element.getAttribute("id") || element.tagName.toLowerCase();
   };
 
-  const scoreOption = (option: HTMLOptionElement): number => {
-    const text = normalize(option.textContent || option.value);
+  // 問い合わせ種別などの選択肢の「営業メールの用件に合うか」を点数にする。協業系 > 営業・提案系 > その他 > 一般のお問い合わせ > 他社サービスの依頼系
+  const scoreChoiceText = (text: string): number => {
+    if (/(採用|求人|応募|リクルート|見積|資料請求|取材|クレーム|修理|購入|注文|不具合|解約|退会|取材|メディア)/i.test(text)) {
+      return 0;
+    }
 
+    if (/(弊社webサイトを見て|webサイトを見て|ホームページを見て|公式サイト|website)/i.test(text)) {
+      return 70;
+    }
+
+    if (/(協業|パートナー|提携|業務委託|外注|アライアンス|協力会社)/i.test(text)) {
+      return 90;
+    }
+
+    if (/(営業|提案|売り込み|(貴社|御社).{0,10}(サービス|商品|製品).{0,14}紹介)/i.test(text)) {
+      return 80;
+    }
+
+    // 協業・営業提案の選択肢が無い場合は「その他」を選ぶ（Web制作・システム開発などは依頼する側の選択肢なので選ばない）
+    if (/(その他|other|上記以外)/i.test(text)) {
+      return 65;
+    }
+
+    if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
+      return 55;
+    }
+
+    if (/(ご相談|相談)/i.test(text)) {
+      return 40;
+    }
+
+    if (/(商談|プロジェクト|案件|仕事)/i.test(text)) {
+      return 30;
+    }
+
+    // 依頼向けの選択肢しか無い場合は、Webサイト制作に近いもの（CM・動画などの映像系を除く）を優先する
+    if (/(web|ウェブ|ホームページ|サイト)/i.test(text) && !/(cm|tv|テレビ|動画|映像)/i.test(text)) {
+      return 25;
+    }
+
+    if (/(web|ウェブ|制作|開発|システム)/i.test(text)) {
+      return 20;
+    }
+
+    return 1;
+  };
+
+  const scoreOption = (option: HTMLOptionElement): number => {
     if (!option.value) {
       return 0;
     }
 
-    if (/(協業|パートナー|提携|業務委託|外注)/i.test(text)) {
-      return 60;
-    }
-
-    if (/(プロジェクト|案件|仕事|ご相談|相談)/i.test(text)) {
-      return 50;
-    }
-
-    if (/(web|ウェブ|制作|相談)/i.test(text)) {
-      return 40;
-    }
-
-    if (/(その他|other)/i.test(text)) {
-      return 30;
-    }
-
-    if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
-      return 10;
-    }
-
-    return 1;
+    return scoreChoiceText(normalize(option.textContent || option.value));
   };
 
   const isInquiryChoiceLabel = (text: string): boolean => {
@@ -1596,6 +2170,432 @@ const pageReadSelectStatus = (selectIndex: number): SelectStatus | null => {
     option: selectedOption?.textContent?.trim() || element.value,
     value: element.value
   };
+};
+
+
+type ConfirmClickResult = { clicked: boolean; label: string; candidates: string[] };
+
+const pageClickConfirmButton = (): ConfirmClickResult => {
+  const isVisible = (element: HTMLElement): boolean => {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  const labelOf = (element: HTMLElement): string => {
+    const input = element as HTMLInputElement;
+
+    return (
+      input.value ||
+      element.innerText ||
+      element.textContent ||
+      element.getAttribute("aria-label") ||
+      ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+  const elements = Array.from(
+    document.querySelectorAll<HTMLElement>(
+      'button, input[type="submit"], input[type="button"], a[role="button"]'
+    )
+  ).filter((element) => isVisible(element) && !(element as HTMLButtonElement).disabled);
+  const candidates = elements.map(labelOf).filter(Boolean);
+  const confirmPattern = /(確認|confirm|review)/i;
+  const excludePattern = /(送信|送る|submit|send|戻る|戻|修正|キャンセル|クリア|リセット|reset|cancel|back|ログイン|検索)/i;
+  const target = elements.find((element) => {
+    const label = labelOf(element);
+
+    return confirmPattern.test(label) && !excludePattern.test(label);
+  });
+
+  if (!target) {
+    return { clicked: false, label: "", candidates: candidates.slice(0, 8) };
+  }
+
+  const label = labelOf(target);
+  target.scrollIntoView({ block: "center" });
+  target.click();
+
+  return { clicked: true, label, candidates: [] };
+};
+
+type ConfirmStateResult = {
+  url: string;
+  errors: string[];
+  looksLikeConfirmPage: boolean;
+};
+
+const pageReadConfirmState = (): ConfirmStateResult => {
+  const text = (document.body?.innerText ?? "").slice(0, 6000);
+  const errorSelectors = [
+    ".wpcf7-not-valid-tip",
+    ".error",
+    ".errors",
+    ".is-error",
+    ".parsley-errors-list li",
+    '[aria-invalid="true"]',
+    '[class*="error"]:not(input):not(textarea):not(select)'
+  ];
+  const errors = Array.from(document.querySelectorAll<HTMLElement>(errorSelectors.join(",")))
+    .filter((element) => {
+      const rect = element.getBoundingClientRect();
+      const message = (element.innerText || "").trim();
+
+      return rect.width > 0 && rect.height > 0 && message.length > 0 && message.length <= 120;
+    })
+    .map((element) => (element.innerText || "").trim())
+    .slice(0, 5);
+  const invalidCount = document.querySelectorAll("form :invalid").length;
+
+  if (invalidCount > 0 && errors.length === 0) {
+    errors.push(`未入力・形式エラーの項目が${invalidCount}件あります`);
+  }
+
+  return {
+    url: location.href,
+    errors,
+    looksLikeConfirmPage: /(入力内容.{0,6}確認|内容を?ご確認|確認画面|以下の内容で|この内容で|内容でよろしければ)/.test(text)
+  };
+};
+
+const pageReadCompletionSnapshot = (): CompletionSnapshot => {
+  const text = (document.body?.innerText ?? "").slice(0, 6000);
+  const submitButtonPattern = /(送信|送る|submit|send)/i;
+  const hasSubmitButton = Array.from(
+    document.querySelectorAll<HTMLElement>('button, input[type="submit"], input[type="button"]')
+  ).some((element) => {
+    const rect = element.getBoundingClientRect();
+    const label = (element as HTMLInputElement).value || element.innerText || "";
+
+    return rect.width > 0 && rect.height > 0 && submitButtonPattern.test(label);
+  });
+
+  return {
+    url: location.href,
+    strictDone: /(送信が完了|送信完了|送信いたしました|送信されました|受け付けました|受付完了|受付いたしました|送信を完了)/.test(text),
+    looseDone:
+      /(ありがとうございました|ありがとうございます|thank you|thanks|完了)/i.test(text) ||
+      /\/(thanks?|thank-you|thankyou|complete|completed|done|finish|sent|success)(\/|\.|$|\?)/i.test(location.pathname),
+    looksLikeConfirmPage: /(入力内容.{0,6}確認|内容を?ご確認|確認画面|以下の内容で|この内容で|内容でよろしければ)/.test(text),
+    hasSubmitButton,
+    cf7Sent: !!document.querySelector(".wpcf7-mail-sent-ok, .wpcf7 form.sent, .wpcf7-form.sent"),
+    redirectCount:
+      (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.redirectCount ?? 0,
+    referrer: document.referrer,
+    cf7Status: document.querySelector("form.wpcf7-form")?.getAttribute("data-status") ?? "",
+    cf7Message: (document.querySelector(".wpcf7-response-output")?.textContent ?? "").trim().slice(0, 200),
+    cf7Invalid: Array.from(document.querySelectorAll(".wpcf7-not-valid-tip"))
+      .map((tip) => {
+        const fieldName = tip.closest(".wpcf7-form-control-wrap")?.getAttribute("data-name") ?? "";
+
+        return `${fieldName}: ${(tip.textContent ?? "").trim()}`.slice(0, 80);
+      })
+      .slice(0, 6)
+  };
+};
+
+export const readCompletionSnapshot = async (client: ChromeClient): Promise<CompletionSnapshot | null> => {
+  const response = await client.Runtime.evaluate({
+    expression: `(${pageReadCompletionSnapshot.toString()})()`,
+    awaitPromise: true,
+    returnByValue: true
+  });
+
+  return (response.result?.value as CompletionSnapshot | undefined) ?? null;
+};
+
+// 送信完了画面（またはCF7のインライン完了表示）に変わったかを、入力直後のスナップショットと比べて判定する
+export const isFormCompleted = (baseline: CompletionSnapshot | null, current: CompletionSnapshot): boolean => {
+  const urlChanged = !baseline || baseline.url !== current.url;
+
+  if (current.cf7Sent && !baseline?.cf7Sent) {
+    return true;
+  }
+
+  if (current.strictDone && !baseline?.strictDone) {
+    return true;
+  }
+
+  if (urlChanged && current.looseDone && !current.looksLikeConfirmPage && !current.hasSubmitButton) {
+    return true;
+  }
+
+  return false;
+};
+
+// Contact Form 7 が送信エラー（入力不備・スパム判定・送信失敗など）を返している場合、その内容を返す
+export const describeCf7SubmitError = (snapshot: CompletionSnapshot): string | null => {
+  const labels: Record<string, string> = {
+    invalid: "入力内容に問題があります",
+    spam: "スパムと判定されました",
+    failed: "送信に失敗しました",
+    aborted: "送信が中断されました",
+    unaccepted: "同意がされていません"
+  };
+  const label = labels[snapshot.cf7Status];
+
+  if (!label) {
+    return null;
+  }
+
+  return [`${label}（${snapshot.cf7Status}）`, snapshot.cf7Message, snapshot.cf7Invalid.join(" / ")].filter(Boolean).join(" - ");
+};
+
+const pathOf = (url: string): string => {
+  try {
+    return new URL(url).pathname.replace(/\/+$/, "") || "/";
+  } catch {
+    return "";
+  }
+};
+
+// 完了画面が無く、送信後にサイトのトップへ転送されるフォームの判定（送信できたかは断定できないため「要確認」扱い）
+export const isProbableSubmitRedirectToTop = (baseline: CompletionSnapshot | null, current: CompletionSnapshot): boolean => {
+  if (!baseline) {
+    return false;
+  }
+
+  const baselinePath = pathOf(baseline.url);
+  const currentPath = pathOf(current.url);
+  const isTop = currentPath === "/" || /^\/index\.(html?|php)$/i.test(currentPath);
+
+  return (
+    isTop &&
+    baselinePath !== "/" &&
+    new URL(baseline.url).origin === new URL(current.url).origin &&
+    current.redirectCount >= 1 &&
+    pathOf(current.referrer) === baselinePath
+  );
+};
+
+const runConfirmStep = async (client: ChromeClient, contextIds: Set<number>): Promise<ConfirmStepResult> => {
+  const targets: Array<number | undefined> = [undefined, ...Array.from(contextIds)];
+  let lastCandidates: string[] = [];
+
+  for (const contextId of targets) {
+    try {
+      const response = await client.Runtime.evaluate({
+        expression: `(${pageClickConfirmButton.toString()})()`,
+        awaitPromise: true,
+        returnByValue: true,
+        contextId
+      });
+      const clicked = response.result?.value as ConfirmClickResult | undefined;
+
+      if (!clicked) {
+        continue;
+      }
+
+      if (!clicked.clicked) {
+        lastCandidates = clicked.candidates.length > 0 ? clicked.candidates : lastCandidates;
+        continue;
+      }
+
+      await sleep(2500);
+
+      const stateResponse = await client.Runtime.evaluate({
+        expression: `(${pageReadConfirmState.toString()})()`,
+        awaitPromise: true,
+        returnByValue: true
+      });
+      const state = stateResponse.result?.value as ConfirmStateResult | undefined;
+
+      if (state && state.errors.length > 0) {
+        return { status: "validation-error", label: clicked.label, detail: state.errors.join(" / ") };
+      }
+
+      if (state?.looksLikeConfirmPage) {
+        return { status: "advanced", label: clicked.label };
+      }
+
+      return {
+        status: "unknown",
+        label: clicked.label,
+        detail: "確認ボタンを押しましたが、確認画面に進んだか判定できませんでした"
+      };
+    } catch {
+      // The page may navigate while clicking, or the iframe context may be gone.
+    }
+  }
+
+  return {
+    status: "no-confirm-button",
+    detail: lastCandidates.length > 0 ? `ボタン: ${lastCandidates.join(" / ")}` : "確認ボタンが見つかりませんでした"
+  };
+};
+
+
+// 選択肢の点数づけ（pageAutofill内のscoreChoiceTextと同じ基準。タブ選択のためページ内へ関数ごと渡す）
+const scoreChoiceTextForTabs = (text: string): number => {
+  if (/(採用|求人|応募|リクルート|見積|資料請求|取材|クレーム|修理|購入|注文|不具合|解約|退会|メディア)/i.test(text)) {
+    return 0;
+  }
+
+  if (/(協業|パートナー|提携|業務委託|外注|アライアンス|協力会社)/i.test(text)) {
+    return 90;
+  }
+
+  if (/(営業|提案|売り込み|(貴社|御社).{0,10}(サービス|商品|製品).{0,14}紹介)/i.test(text)) {
+    return 80;
+  }
+
+  if (/(その他|other|上記以外)/i.test(text)) {
+    return 65;
+  }
+
+  if (/(お問い合わせ|お問合せ|問い合わせ)/i.test(text)) {
+    return 55;
+  }
+
+  return 1;
+};
+
+type TabSelectResult = { clicked: boolean; label: string; tabs: string[] };
+
+// お問い合わせ種別ごとにタブでフォームが切り替わるページで、協業・提案向けのタブを選ぶ
+const pageSelectBestTab = (score: (text: string) => number): TabSelectResult => {
+  const normalize = (value: string): string => value.replace(/\s+/g, " ").trim();
+  const isVisible = (element: HTMLElement): boolean => {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+
+  if (document.querySelectorAll("form").length < 2) {
+    return { clicked: false, label: "", tabs: [] };
+  }
+
+  const candidates: Array<{ target: HTMLElement; text: string; active: boolean }> = [];
+
+  document.querySelectorAll<HTMLElement>('[role="tab"]').forEach((element) => {
+    candidates.push({
+      target: element,
+      text: normalize(element.innerText || element.textContent || ""),
+      active: element.getAttribute("aria-selected") === "true"
+    });
+  });
+
+  document.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((element) => {
+    if (!/tab/i.test(`${element.name} ${element.id} ${typeof element.className === "string" ? element.className : ""}`)) {
+      return;
+    }
+
+    const label =
+      element.closest("label") ??
+      (element.id ? document.querySelector<HTMLElement>(`label[for="${CSS.escape(element.id)}"]`) : null);
+    const text = normalize(label?.textContent || element.value || "");
+
+    if (!text) {
+      return;
+    }
+
+    candidates.push({ target: (label as HTMLElement | null) ?? element, text, active: element.checked });
+  });
+
+  const tabs = candidates.map((candidate) => candidate.text);
+
+  if (candidates.length < 2) {
+    return { clicked: false, label: "", tabs };
+  }
+
+  const best = candidates
+    .map((candidate) => ({ candidate, score: score(candidate.text) }))
+    .sort((a, b) => b.score - a.score)[0];
+
+  if (!best || best.score < 60 || best.candidate.active) {
+    return { clicked: false, label: best?.candidate.active ? best.candidate.text : "", tabs };
+  }
+
+  best.candidate.target.click();
+
+  return { clicked: true, label: best.candidate.text, tabs };
+};
+
+const runTabSelection = async (client: ChromeClient): Promise<TabSelectResult | null> => {
+  try {
+    const response = await client.Runtime.evaluate({
+      expression: `(${pageSelectBestTab.toString()})(${scoreChoiceTextForTabs.toString()})`,
+      awaitPromise: true,
+      returnByValue: true
+    });
+
+    return (response.result?.value as TabSelectResult | undefined) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+type FormPresenceInfo = { forms: number; externalIframes: string[]; turnstile: boolean };
+
+const pageReadFormPresence = (): FormPresenceInfo => {
+  const contentForms = Array.from(document.querySelectorAll("form")).filter(
+    (form) => !form.matches('[role="search"], .search-box, .search-form, .searchform') && !/[?&]s=|\/search/i.test(form.getAttribute("action") ?? "")
+  );
+  const externalIframes = Array.from(document.querySelectorAll("iframe"))
+    .map((frame) => frame.src)
+    .filter((src) => src && !/(googletagmanager|doubleclick|youtube|google\.com\/maps|facebook|twitter|instagram)/i.test(src));
+
+  const turnstile = Boolean(
+    document.querySelector('.cf-turnstile, iframe[src*="challenges.cloudflare.com"], script[src*="turnstile"]')
+  );
+
+  return { forms: contentForms.length, externalIframes, turnstile };
+};
+
+const readFormPresence = async (client: ChromeClient): Promise<FormPresenceInfo | null> => {
+  try {
+    const response = await client.Runtime.evaluate({
+      expression: `(${pageReadFormPresence.toString()})()`,
+      awaitPromise: true,
+      returnByValue: true
+    });
+
+    return (response.result?.value as FormPresenceInfo | undefined) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+// 外部サービス（BowNow・formrunなど）のフォームがiframeで埋め込まれている場合、そのiframeのターゲットに接続して入力する
+const IGNORED_IFRAME_URL = /(recaptcha|googletagmanager|doubleclick|youtube|facebook|twitter|instagram|google\.com\/maps)/i;
+
+const fillIframeForms = async (
+  CDP: ChromeRemoteInterface,
+  port: number,
+  parentTargetId: string,
+  payload: FormAutofillPayload
+): Promise<FormAutofillResult[]> => {
+  const results: FormAutofillResult[] = [];
+  let targets: Array<{ id: string; type: string; url: string; parentId?: string }> = [];
+
+  try {
+    targets = (await CDP.List({ port })).filter(
+      (entry) => entry.type === "iframe" && entry.parentId === parentTargetId && !IGNORED_IFRAME_URL.test(entry.url)
+    );
+  } catch {
+    return results;
+  }
+
+  for (const iframeTarget of targets) {
+    try {
+      const iframeClient = await CDP({ port, target: iframeTarget.id });
+
+      try {
+        await iframeClient.Runtime.enable();
+        results.push(await runInPage(iframeClient, payload));
+        await sleep(800);
+        results.push(await runInPage(iframeClient, payload));
+      } finally {
+        await iframeClient.close();
+      }
+    } catch {
+      // The iframe may have navigated or closed while connecting.
+    }
+  }
+
+  return results;
 };
 
 const runInPage = async (
@@ -1789,6 +2789,29 @@ export const fillCandidateFormsInBrowser = async (
 
       await sleep(1500);
 
+      const locationResponse = await client.Runtime.evaluate({
+        expression: "location.href",
+        returnByValue: true
+      }).catch(() => undefined);
+      const finalUrl = typeof locationResponse?.result?.value === "string" ? locationResponse.result.value : candidate.formUrl;
+      const redirected = isRedirectedElsewhere(candidate.formUrl, finalUrl);
+      let wrongPage = false;
+
+      if (redirected) {
+        try {
+          const finalPath = new URL(finalUrl).pathname.replace(/\/+$/, "") || "/";
+          wrongPage = DEMO_PAGE_PATH_PATTERN.test(finalPath) || finalPath === "/";
+        } catch {
+          wrongPage = false;
+        }
+      }
+
+      const tabSelection = await runTabSelection(client);
+
+      if (tabSelection?.clicked) {
+        await sleep(800);
+      }
+
       const payload = {
         sender,
         formFieldAliases,
@@ -1808,13 +2831,65 @@ export const fillCandidateFormsInBrowser = async (
 
       await sleep(500);
       passResults.push(...await runInAvailablePageContexts(client, payload, contextIds));
+      passResults.push(...await fillIframeForms(CDP, options.chromePort, target.id, payload));
 
       const result = mergeAutofillResults(passResults);
+      let confirm: ConfirmStepResult = { status: "skipped" };
+      const presence = await readFormPresence(client);
 
-      results.push({ candidate, result });
+      if (presence?.turnstile) {
+        result.warnings.push(
+          "Cloudflare Turnstile（ボット対策）があります。確認が表示された場合は、画面で操作してください。送信できない場合は「自分で入力」で、普段のブラウザから送信してください。"
+        );
+      }
+
+      if (presence && presence.forms === 0) {
+        if (presence.externalIframes.length > 0 && result.filled.length > 0) {
+          // 外部サービスのiframeへ入力できた
+        } else if (presence.externalIframes.length > 0) {
+          result.warnings.push(
+            `このページ本体には入力フォームがなく、外部サービスのフォーム(iframe)が埋め込まれています。自動入力が効かない可能性があるため、手動で入力してください。`
+          );
+        } else {
+          wrongPage = true;
+          result.warnings.push(
+            `このページに入力フォーム(<form>)が見つかりません。フォームURLが正しいか確認してください。確認ボタンの自動クリックと送信の自動記録は行いません。`
+          );
+        }
+      }
+
+      if (redirected) {
+        result.warnings.push(
+          wrongPage
+            ? `フォームURLが別ページ(${finalUrl})へ転送されました。本物のフォームではない可能性が高いため、確認ボタンの自動クリックと送信の自動記録は行いません。`
+            : `フォームURLが別ページ(${finalUrl})へ転送されました。転送先のフォームか確認してください。`
+        );
+      }
+
+      if (wrongPage) {
+        confirm = { status: "skipped", detail: "転送先が本物のフォームではない可能性があります" };
+      } else if (options.autoConfirm === false) {
+        confirm = { status: "skipped", detail: "自動で確認画面へ進む設定がOFFです" };
+      } else if (result.captcha) {
+        confirm = { status: "skipped", detail: "CAPTCHAがあるため手動対応です" };
+      } else if (result.warnings.length > 0 || result.filled.length === 0) {
+        confirm = { status: "skipped", detail: "入力の警告があるため、確認ボタンは押していません" };
+      } else {
+        confirm = await runConfirmStep(client, contextIds);
+
+        if (confirm.status === "validation-error") {
+          result.warnings.push(`確認ボタンを押しましたが入力エラーがあります: ${confirm.detail ?? ""}`);
+        }
+      }
+
+      const baseline = await readCompletionSnapshot(client).catch(() => null);
+
+      results.push({ candidate, result, confirm, targetId: target.id, baseline, finalUrl, wrongPage });
       await notify(
         "フォーム入力を確認してください",
-        `${candidate.leadId} ${candidate.companyName}: 入力内容を確認し、問題なければ送信ボタンを押してください。`
+        confirm.status === "advanced"
+          ? `${candidate.leadId} ${candidate.companyName}: 確認画面まで進めました。内容を確認し、問題なければ送信ボタンを押してください。`
+          : `${candidate.leadId} ${candidate.companyName}: 入力内容を確認し、問題なければ送信ボタンを押してください。`
       );
     } finally {
       await client.close();

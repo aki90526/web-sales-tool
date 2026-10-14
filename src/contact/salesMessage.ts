@@ -8,6 +8,7 @@ export type SenderInfo = {
   nameKana: string;
   nameHiragana: string;
   department: string;
+  businessDescription: string;
   nameRoman: string;
   age: string;
   tel: string;
@@ -84,6 +85,7 @@ export const CONTACT_SENDER: SenderInfo = {
   nameKana: "アベ アキヒト",
   nameHiragana: "あべ あきひと",
   department: "代表",
+  businessDescription: "Webサイト制作・Webアプリ開発・保守運用",
   nameRoman: "Abe Akihito",
   age: "36",
   tel: "09062121580",
@@ -162,6 +164,7 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     nameKana: settings.get("送信者_氏名カナ") || settings.get("送信者_フリガナ") || CONTACT_SENDER.nameKana,
     nameHiragana: setting(settings, "送信者_氏名ひらがな", CONTACT_SENDER.nameHiragana),
     department: setting(settings, "送信者_部署名", CONTACT_SENDER.department),
+    businessDescription: setting(settings, "送信者_事業内容", CONTACT_SENDER.businessDescription),
     nameRoman: setting(settings, "送信者_ローマ字", CONTACT_SENDER.nameRoman),
     age: setting(settings, "送信者_年齢", CONTACT_SENDER.age),
     tel: setting(settings, "送信者_電話番号", CONTACT_SENDER.tel),

@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
+import { parseEmailList } from "../email/emailList";
 
 export type DashboardCommand =
   | "email-dry-run"
@@ -35,6 +36,8 @@ export type DashboardJob = {
   stderr: string;
   captchaDetections?: CaptchaDetection[];
   filledLeads?: FilledLead[];
+  confirmedLeadIds?: string[];
+  fillWarnings?: Array<{ leadId: string; message: string }>;
   resultCount?: number;
   resultMode?: string;
 };
@@ -44,6 +47,7 @@ export type DashboardJobInput = {
   limit?: unknown;
   leadId?: unknown;
   testTo?: unknown;
+  bcc?: unknown;
   note?: unknown;
   confirm?: unknown;
 };
@@ -72,8 +76,6 @@ const requireConfirmed = (input: DashboardJobInput, action: string): void => {
     throw new Error(`${action} は確認チェックが必要です`);
   }
 };
-
-const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const trimOutput = (value: string): string => {
   if (value.length <= MAX_OUTPUT_CHARS) {
@@ -106,10 +108,11 @@ const saveJob = async (job: DashboardJob): Promise<void> => {
 
 const buildCommand = (input: DashboardJobInput): { label: string; args: string[] } => {
   const limit = asLimit(input.limit, 1, 10);
-  const gmailLimit = asLimit(input.limit, 50, 200);
+  const gmailLimit = asLimit(input.limit, 200, 200);
   const leadId = asText(input.leadId);
   const note = asText(input.note);
-  const testTo = asText(input.testTo);
+  const testToList = parseEmailList(asText(input.testTo));
+  const bcc = typeof input.bcc === "string" ? parseEmailList(input.bcc) : undefined;
 
   switch (input.command) {
     case "email-dry-run":
@@ -119,19 +122,26 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
       };
 
     case "email-test":
-      if (!testTo || !isValidEmail(testTo)) {
-        throw new Error("テスト送信先メールアドレスを正しく入力してください");
+      if (testToList.length === 0) {
+        throw new Error("テスト送信先メールアドレスを入力してください");
       }
       return {
         label: `メールテスト送信 ${limit}件`,
-        args: ["run", "send:emails", "--", "--test-to", testTo, "--limit", String(limit)]
+        args: ["run", "send:emails", "--", "--test-to", testToList.join(","), "--limit", String(limit)]
       };
 
     case "email-send":
       requireConfirmed(input, "メール本送信");
       return {
         label: `メール本送信 ${limit}件`,
-        args: ["run", "send:emails", "--", "--limit", String(limit)]
+        args: [
+          "run",
+          "send:emails",
+          "--",
+          "--limit",
+          String(limit),
+          ...(bcc === undefined ? [] : bcc.length > 0 ? ["--bcc", bcc.join(",")] : ["--no-bcc"])
+        ]
       };
 
     case "forms-todo":
@@ -233,6 +243,30 @@ const parseFilledLeads = (stdout: string): FilledLead[] => {
   return leads;
 };
 
+const parseConfirmedLeadIds = (stdout: string): string[] => {
+  const pattern = /\[DASHBOARD_CONFIRM\] leadId=(\S+) status=advanced/g;
+  const ids: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(stdout)) !== null) {
+    ids.push(match[1]);
+  }
+
+  return ids;
+};
+
+const parseFillWarnings = (stdout: string): Array<{ leadId: string; message: string }> => {
+  const pattern = /\[DASHBOARD_WARNING\] leadId=(\S+) message=(.+)/g;
+  const warnings: Array<{ leadId: string; message: string }> = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(stdout)) !== null) {
+    warnings.push({ leadId: match[1], message: match[2].trim() });
+  }
+
+  return warnings;
+};
+
 const parseResultSummary = (stdout: string): { count: number; mode: string } | null => {
   const match = /\[DASHBOARD_SUMMARY\] count=(\d+) mode=(\S+)/.exec(stdout);
   if (!match) {
@@ -282,6 +316,14 @@ export const runDashboardJob = async (input: DashboardJobInput): Promise<Dashboa
       const filledLeads = parseFilledLeads(result.stdout);
       if (filledLeads.length > 0) {
         job.filledLeads = filledLeads;
+      }
+      const fillWarnings = parseFillWarnings(result.stdout);
+      if (fillWarnings.length > 0) {
+        job.fillWarnings = fillWarnings;
+      }
+      const confirmedLeadIds = parseConfirmedLeadIds(result.stdout);
+      if (confirmedLeadIds.length > 0) {
+        job.confirmedLeadIds = confirmedLeadIds;
       }
     }
     const summary = parseResultSummary(result.stdout);

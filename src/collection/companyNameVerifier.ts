@@ -106,15 +106,32 @@ export const htmlToText = (html: string): string => {
   );
 };
 
-export const fetchText = async (url: string, redirects = 0): Promise<string> => {
-  return new Promise<string>((resolve, reject) => {
+export type FetchTextOptions = {
+  userAgent?: string;
+  timeoutMs?: number;
+};
+
+// 簡易ボット判定で止められるサイトがあるため、ブラウザ相当のUser-Agentと長めのタイムアウトで取得する場合に使う
+export const BROWSER_FETCH_OPTIONS: FetchTextOptions = {
+  userAgent:
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+  timeoutMs: 15000
+};
+
+export type FetchedPage = {
+  text: string;
+  finalUrl: string;
+};
+
+export const fetchPage = async (url: string, redirects = 0, options: FetchTextOptions = {}): Promise<FetchedPage> => {
+  return new Promise<FetchedPage>((resolve, reject) => {
     const parsed = new URL(url);
     const transport = parsed.protocol === "http:" ? http : https;
     const request = transport.get(
       parsed,
       {
         headers: {
-          "user-agent": "web-sales-tool/0.1 company-name-verifier"
+          "user-agent": options.userAgent ?? "web-sales-tool/0.1 company-name-verifier"
         }
       },
       (response) => {
@@ -124,7 +141,7 @@ export const fetchText = async (url: string, redirects = 0): Promise<string> => 
         if ([301, 302, 303, 307, 308].includes(statusCode) && location && redirects < 3) {
           response.resume();
           const nextUrl = new URL(location, parsed).toString();
-          fetchText(nextUrl, redirects + 1).then(resolve, reject);
+          fetchPage(nextUrl, redirects + 1, options).then(resolve, reject);
           return;
         }
 
@@ -147,13 +164,17 @@ export const fetchText = async (url: string, redirects = 0): Promise<string> => 
 
           chunks.push(chunk);
         });
-        response.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+        response.on("end", () => resolve({ text: Buffer.concat(chunks).toString("utf8"), finalUrl: parsed.toString() }));
       }
     );
 
     request.on("error", reject);
-    request.setTimeout(REQUEST_TIMEOUT_MS, () => request.destroy(new Error("Company name verification timed out")));
+    request.setTimeout(options.timeoutMs ?? REQUEST_TIMEOUT_MS, () => request.destroy(new Error("Company name verification timed out")));
   });
+};
+
+export const fetchText = async (url: string, redirects = 0, options: FetchTextOptions = {}): Promise<string> => {
+  return (await fetchPage(url, redirects, options)).text;
 };
 
 const candidateVerificationUrls = (officialSiteUrl: string): string[] => {

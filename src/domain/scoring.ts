@@ -50,6 +50,8 @@ export type ScoreSignals = {
 };
 
 export type ScoreInput = {
+  // false のとき、営業スコアがしきい値未満でも「見送り」にしない
+  autoRejectLowScore?: boolean;
   leadType: LeadType;
   industry: string;
   region: string;
@@ -427,7 +429,9 @@ export const calculateSalesScore = (input: ScoreInput): ScoreResult => {
   const scoreThreshold = scoreThresholdForLeadType(input.leadType);
   const hasContactMethod = Boolean(input.contactUrl || input.email);
   const status: Status =
-    !hasContactMethod || input.recommendedApproach === "見送り" || salesScore < scoreThreshold
+    !hasContactMethod ||
+    input.recommendedApproach === "見送り" ||
+    (input.autoRejectLowScore !== false && salesScore < scoreThreshold)
       ? "見送り"
       : "送信待ち";
 

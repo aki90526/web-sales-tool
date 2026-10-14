@@ -256,7 +256,7 @@ button:disabled {
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -396,6 +396,36 @@ button:disabled {
   flex-direction: column;
   align-items: center;
   gap: 8px;
+}
+
+.bar-pair {
+  display: flex;
+  width: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+}
+
+.bar-col {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.bar-pair .bar {
+  width: 30px;
+  min-height: 4px;
+}
+
+.bar-pair .bar-col {
+  width: 30px;
+}
+
+.bar.purple {
+  background: linear-gradient(180deg, #a78bfa, #7c3aed);
 }
 
 .bar-value {
@@ -942,6 +972,16 @@ button:disabled {
 .status-badge.reply {
   background-color: #fef3c7;
   color: #a16207;
+}
+
+.status-badge.interviewed {
+  background-color: #f3e8ff;
+  color: #7e22ce;
+}
+
+.status-badge.onhold {
+  background-color: #e0f2fe;
+  color: #0369a1;
 }
 
 .status-select {

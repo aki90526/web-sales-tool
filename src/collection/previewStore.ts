@@ -56,7 +56,7 @@ export const loadCollectPreview = async (
   }
 
   const candidates = rawCandidates
-    .map(normalizeLeadCandidate)
+    .map((entry) => normalizeLeadCandidate(entry))
     .filter((candidate): candidate is LeadCandidate => candidate !== null);
 
   if (candidates.length === 0) {

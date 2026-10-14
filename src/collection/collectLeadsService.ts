@@ -9,6 +9,8 @@ export const MAX_INITIAL_LIMIT = 10;
 
 export type CollectRunOptions = {
   area: string;
+  autoRejectLowScore?: boolean;
+  excludeArea?: string;
   targetTypes: LeadType[];
   limit: number;
 };
@@ -19,7 +21,9 @@ export type CollectRunResult = {
 };
 
 export const buildSearchCondition = (options: CollectRunOptions): string => {
-  return `地域: ${options.area} / 対象: ${formatTargetTypes(options.targetTypes)} / 最大件数: ${options.limit}`;
+  const exclude = options.excludeArea ? ` / 除外地域: ${options.excludeArea}` : "";
+
+  return `地域: ${options.area}${exclude} / 対象: ${formatTargetTypes(options.targetTypes)} / 最大件数: ${options.limit}`;
 };
 
 export const runLeadCollection = async (
@@ -38,6 +42,8 @@ export const runLeadCollection = async (
 
   const collection = await collectLeadCandidateCollection(openAI, {
     area: options.area,
+    autoRejectLowScore: options.autoRejectLowScore,
+    excludeArea: options.excludeArea,
     targetTypes: options.targetTypes,
     limit: options.limit,
     existingCompanies: existing.companies,

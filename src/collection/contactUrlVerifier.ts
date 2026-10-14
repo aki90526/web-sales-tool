@@ -1,5 +1,5 @@
 import { LeadCandidate } from "../openai/leadCandidateCollector";
-import { decodeHtmlEntities, fetchText, htmlToText } from "./companyNameVerifier";
+import { BROWSER_FETCH_OPTIONS, decodeHtmlEntities, fetchPage, fetchText, htmlToText } from "./companyNameVerifier";
 
 export type ContactUrlVerificationResult = {
   candidate: LeadCandidate;
@@ -67,6 +67,9 @@ const pageAppearsToContainForm = (html: string): boolean => {
   return /<form\b/i.test(html) && /<(input|textarea|select)\b/i.test(html);
 };
 
+// お知らせ・ブログ・コラムなどの記事ページのパス（問い合わせフォームではない）
+export const ARTICLE_PATH_PATTERN = /\/(news|blog|column|columns|topics?|press|release|releases|archives?|article|articles|post|posts|info|information|story|stories|case|works?)\/[^/]+/i;
+
 const isProductionOrAgencyLead = (leadType: string): boolean => {
   return leadType === "Web制作会社" || leadType === "広告代理店";
 };
@@ -101,6 +104,11 @@ const scoreContactLink = (link: LinkCandidate, sourceUrl: string, leadType: stri
 
   if (sourcePath && targetPath.startsWith(`${sourcePath}/`) && targetPath.length > sourcePath.length) {
     score += 15;
+  }
+
+  // サイト直下の標準的な問い合わせページ（/contact/ など）
+  if (/^\/(contact|contact-us|contactus|inquiry|toiawase|otoiawase|form)(\/|$)/i.test(targetPath)) {
+    score += 30;
   }
 
   if (/(\/form|form\d+|\/inquiry|\/contact\/.+)/i.test(target.pathname)) {
@@ -140,6 +148,199 @@ const candidateSourceUrls = (candidate: LeadCandidate): string[] => {
   );
 };
 
+// テーマのデモ・サンプルページ（本物の問い合わせ窓口ではない）のパス
+export const DEMO_PAGE_PATH_PATTERN = /\/(elements?|demo|demos|sample|samples|template|templates|example|examples|dummy|preview)(\/|$)/i;
+
+const normalizedPath = (url: URL): string => url.pathname.replace(/\/+$/, "") || "/";
+const normalizedHost = (url: URL): string => url.hostname.toLowerCase().replace(/^www\./, "");
+
+export const isRedirectedElsewhere = (originalUrl: string, finalUrl: string): boolean => {
+  try {
+    const original = new URL(originalUrl);
+    const final = new URL(finalUrl);
+
+    return normalizedHost(original) !== normalizedHost(final) || normalizedPath(original) !== normalizedPath(final);
+  } catch {
+    return false;
+  }
+};
+
+const EXTERNAL_FORM_PROVIDERS =
+  /(bownow|formrun|form\.run|hubspot|hsforms|zfrmz|zohopublic|typeform|forms\.gle|docs\.google\.com\/forms|kintone|formzu|shanon|formoid|fm\.mydomain|cloudsign)/i;
+
+export type FormPresenceResult = {
+  warning?: string;
+};
+
+// フォームURLのページに <form> があるかを確認する。無ければ警告を返す（JavaScriptで後から表示されるフォームの可能性もあるため、除外はしない）
+export const checkFormPresence = async (contactUrl: string): Promise<FormPresenceResult> => {
+  if (!contactUrl) {
+    return {};
+  }
+
+  let html: string;
+
+  try {
+    html = (await fetchPage(contactUrl, 0, BROWSER_FETCH_OPTIONS)).text;
+  } catch {
+    return {};
+  }
+
+  if (pageAppearsToContainForm(html)) {
+    return {};
+  }
+
+  // リンク（<a>）ではなく、埋め込み（iframe・スクリプト）に外部フォームサービスがある場合だけ「埋め込み」とみなす
+  const embedSources = [
+    ...Array.from(html.matchAll(/<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)).map((match) => match[1]),
+    ...Array.from(html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)).map((match) => match[1])
+  ];
+
+  if (embedSources.some((source) => EXTERNAL_FORM_PROVIDERS.test(source))) {
+    return { warning: "フォームが外部サービスの埋め込みの可能性があります（自動入力が効かない場合があります）" };
+  }
+
+  return {
+    warning: "フォームURLのページに入力フォーム(<form>)が見当たりません。フォームのURLが正しいか確認してください（JavaScriptで表示されるフォームの可能性もあります）"
+  };
+};
+
+export type ContactTargetResult = {
+  candidate: LeadCandidate;
+  note?: string;
+};
+
+// 問い合わせフォームURLが別ページへ転送される場合に、転送先が本物のフォームかを確認する
+export const verifyContactUrlTarget = async (candidate: LeadCandidate): Promise<ContactTargetResult> => {
+  if (!candidate.contactUrl) {
+    return { candidate };
+  }
+
+  let page: { text: string; finalUrl: string };
+
+  try {
+    page = await fetchPage(candidate.contactUrl, 0, BROWSER_FETCH_OPTIONS);
+  } catch (error: unknown) {
+    // 404/410 は存在しないURL（AIが推測で作ったURLなど）なので除外する。それ以外の失敗（ブロック等）は判断しない
+    if (!(error instanceof Error) || !/Unexpected status (404|410)/.test(error.message)) {
+      return { candidate };
+    }
+
+    const reason = "フォームURLが存在しない(404)ため除外";
+
+    return {
+      candidate: {
+        ...candidate,
+        contactUrl: "",
+        memo: [candidate.memo, `連絡先除外: ${reason} (${candidate.contactUrl})`].filter(Boolean).join("\n"),
+        status: !candidate.email && candidate.status === "送信待ち" ? "見送り" : candidate.status
+      },
+      note: `除外: ${reason}`
+    };
+  }
+
+  // 記事ページ（お知らせ・ブログなど）で、入力フォームも無い場合は、問い合わせ先として不適切なため除外する
+  if (ARTICLE_PATH_PATTERN.test(new URL(page.finalUrl).pathname) && !pageAppearsToContainForm(page.text)) {
+    const reason = "フォームURLがお知らせ・ブログ等の記事ページで、入力フォームが無いため除外";
+
+    return {
+      candidate: {
+        ...candidate,
+        contactUrl: "",
+        memo: [candidate.memo, `連絡先除外: ${reason} (${candidate.contactUrl})`].filter(Boolean).join("\n"),
+        status: !candidate.email && candidate.status === "送信待ち" ? "見送り" : candidate.status
+      },
+      note: `除外: ${reason}`
+    };
+  }
+
+  if (!isRedirectedElsewhere(candidate.contactUrl, page.finalUrl)) {
+    return { candidate };
+  }
+
+  const final = new URL(page.finalUrl);
+  const invalid =
+    DEMO_PAGE_PATH_PATTERN.test(final.pathname) || normalizedPath(final) === "/" || !pageAppearsToContainForm(page.text);
+
+  if (!invalid) {
+    return {
+      candidate: { ...candidate, contactUrl: page.finalUrl },
+      note: `フォームURLの転送先に更新: ${candidate.contactUrl} -> ${page.finalUrl}`
+    };
+  }
+
+  const reason = `フォームURLが別ページ(${page.finalUrl})へ転送され、本物のフォームではないため除外`;
+
+  return {
+    candidate: {
+      ...candidate,
+      contactUrl: "",
+      memo: [candidate.memo, `連絡先除外: ${reason} (${candidate.contactUrl})`].filter(Boolean).join("\n"),
+      status: !candidate.email && candidate.status === "送信待ち" ? "見送り" : candidate.status
+    },
+    note: `除外: ${reason}`
+  };
+};
+
+const REQUIRED_MARK = "(?:必須|[*＊]|required)";
+const BUDGET_OR_DEADLINE = "(?:予算|納期|希望時期|budget|deadline)";
+
+// 予算・希望納期などが必須入力の「制作依頼専用フォーム」かを判定する
+export const isRequestOnlyForm = (html: string): boolean => {
+  if (!pageAppearsToContainForm(html)) {
+    return false;
+  }
+
+  const text = htmlToText(html).replace(/\s+/g, " ");
+  const labelPattern = new RegExp(`${BUDGET_OR_DEADLINE}[^。.]{0,10}?${REQUIRED_MARK}`, "i");
+
+  if (labelPattern.test(text)) {
+    return true;
+  }
+
+  const fieldTags = html.match(/<(?:input|select|textarea)\b[^>]*>/gi) ?? [];
+
+  return fieldTags.some((tag) => {
+    return /(budget|yosan|nouki|deadline|予算|納期)/i.test(tag) && /(\brequired\b|aria-required="true")/i.test(tag);
+  });
+};
+
+export type RequestOnlyFormResult = {
+  candidate: LeadCandidate;
+  excluded?: { url: string; reason: string };
+};
+
+export const excludeRequestOnlyForm = async (candidate: LeadCandidate): Promise<RequestOnlyFormResult> => {
+  if (!candidate.contactUrl) {
+    return { candidate };
+  }
+
+  try {
+    const html = await fetchText(candidate.contactUrl);
+
+    if (!isRequestOnlyForm(html)) {
+      return { candidate };
+    }
+  } catch {
+    // Best-effort only. Collection should not fail because a site blocks lightweight verification.
+    return { candidate };
+  }
+
+  const reason = "予算・希望納期などが必須の制作依頼専用フォームのため、問い合わせ先から除外";
+  const memo = [candidate.memo, `連絡先除外: ${reason} (${candidate.contactUrl})`].filter(Boolean).join("\n");
+  const hasOtherContact = Boolean(candidate.email);
+
+  return {
+    candidate: {
+      ...candidate,
+      contactUrl: "",
+      memo,
+      status: hasOtherContact ? candidate.status : candidate.status === "送信待ち" ? "見送り" : candidate.status
+    },
+    excluded: { url: candidate.contactUrl, reason }
+  };
+};
+
 export const verifyContactUrl = async (
   candidate: LeadCandidate
 ): Promise<ContactUrlVerificationResult> => {
@@ -158,7 +359,9 @@ export const verifyContactUrl = async (
         continue;
       }
 
-      const shouldReplace = best.score >= 70 || (!currentHasForm && best.score >= 50);
+      const currentIsArticle = ARTICLE_PATH_PATTERN.test(safeUrl(currentUrl)?.pathname ?? "");
+      const shouldReplace =
+        best.score >= 70 || (!currentHasForm && best.score >= 50) || (currentIsArticle && !currentHasForm && best.score >= 35);
 
       if (shouldReplace) {
         return {

@@ -5,7 +5,7 @@ import {
   SalesManagementColumnMap,
   SalesManagementTable
 } from "./salesManagementRepository";
-import { SheetsClient } from "./sheetsClient";
+import { escapeFormulaText, SheetsClient } from "./sheetsClient";
 
 export type AppendLeadResult = {
   leadId: string;
@@ -43,17 +43,17 @@ const buildHeaderMappedSalesLeadRow = (
   const leadIdCell = `${columnLetter(columns.leadId)}${rowNumber}`;
   const lastApproachDateCell = `${columnLetter(columns.lastApproachDate)}${rowNumber}`;
 
-  setCell(row, columns, "leadId", lead.leadId);
-  setCell(row, columns, "companyName", lead.companyName);
-  setCell(row, columns, "leadType", lead.leadType);
-  setCell(row, columns, "industry", lead.industry);
-  setCell(row, columns, "region", lead.region);
-  setCell(row, columns, "officialSiteUrl", lead.officialSiteUrl);
-  setCell(row, columns, "contactMethod", lead.contactMethod);
-  setCell(row, columns, "contactFormUrl", lead.contactFormUrl);
-  setCell(row, columns, "emailAddress", lead.emailAddress);
+  setCell(row, columns, "leadId", escapeFormulaText(lead.leadId));
+  setCell(row, columns, "companyName", escapeFormulaText(lead.companyName));
+  setCell(row, columns, "leadType", escapeFormulaText(lead.leadType));
+  setCell(row, columns, "industry", escapeFormulaText(lead.industry));
+  setCell(row, columns, "region", escapeFormulaText(lead.region));
+  setCell(row, columns, "officialSiteUrl", escapeFormulaText(lead.officialSiteUrl));
+  setCell(row, columns, "contactMethod", escapeFormulaText(lead.contactMethod));
+  setCell(row, columns, "contactFormUrl", escapeFormulaText(lead.contactFormUrl));
+  setCell(row, columns, "emailAddress", escapeFormulaText(lead.emailAddress));
   setCell(row, columns, "salesScore", lead.salesScore);
-  setCell(row, columns, "status", lead.status);
+  setCell(row, columns, "status", escapeFormulaText(lead.status));
   setCell(
     row,
     columns,
@@ -66,7 +66,7 @@ const buildHeaderMappedSalesLeadRow = (
     "nextActionDate",
     `=IF(OR(${leadIdCell}="",${lastApproachDateCell}=""),"",${lastApproachDateCell}+${SETTINGS_CELLS.resendIntervalDays})`
   );
-  setCell(row, columns, "memo", lead.memo);
+  setCell(row, columns, "memo", escapeFormulaText(lead.memo));
 
   return row;
 };
@@ -82,7 +82,7 @@ export const appendSalesLead = async (
   const lastColumn = columnLetter(width - 1);
   const range = `'${SHEETS.salesManagement}'!A${rowNumber}:${lastColumn}${rowNumber}`;
 
-  const response = await sheets.updateValues(range, [row]);
+  const response = await sheets.updateValues(range, [row], { allowFormulas: true });
 
   return {
     leadId: lead.leadId,

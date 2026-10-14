@@ -27,10 +27,26 @@ export type UpdateValuesResponse = {
   updatedRange?: string;
 };
 
+export type WriteOptions = {
+  // true のとき、文字列を加工せずそのまま書く（数式セルを含む行用。テキスト項目は呼び出し側で escapeFormulaText する）
+  allowFormulas?: boolean;
+};
+
 export type SheetsClient = {
   getValues: (range: string) => Promise<unknown[][]>;
-  appendValues: (range: string, values: unknown[][]) => Promise<AppendValuesResponse>;
-  updateValues: (range: string, values: unknown[][]) => Promise<UpdateValuesResponse>;
+  appendValues: (range: string, values: unknown[][], options?: WriteOptions) => Promise<AppendValuesResponse>;
+  updateValues: (range: string, values: unknown[][], options?: WriteOptions) => Promise<UpdateValuesResponse>;
+};
+
+// 先頭が = + - @ の文字列は数式と解釈され #NAME? 等になるため、先頭に ' を付けて文字列として書く
+export const escapeFormulaText = (value: string): string => (/^[=+\-@]/.test(value) ? `'${value}` : value);
+
+const neutralizeFormulas = (values: unknown[][], options?: WriteOptions): unknown[][] => {
+  if (options?.allowFormulas) {
+    return values;
+  }
+
+  return values.map((row) => row.map((value) => (typeof value === "string" ? escapeFormulaText(value) : value)));
 };
 
 type JsonRequestOptions = {
@@ -162,7 +178,7 @@ export const createSheetsClient = async (config: AppConfig): Promise<SheetsClien
 
       return response.values ?? [];
     },
-    appendValues: async (range: string, values: unknown[][]): Promise<AppendValuesResponse> => {
+    appendValues: async (range: string, values: unknown[][], options?: WriteOptions): Promise<AppendValuesResponse> => {
       return requestJson<AppendValuesResponse>({
         method: "POST",
         url: `${baseUrl}/${encodeURIComponent(range)}:append?${querystring.stringify({
@@ -171,11 +187,11 @@ export const createSheetsClient = async (config: AppConfig): Promise<SheetsClien
         })}`,
         accessToken,
         body: {
-          values
+          values: neutralizeFormulas(values, options)
         }
       });
     },
-    updateValues: async (range: string, values: unknown[][]): Promise<UpdateValuesResponse> => {
+    updateValues: async (range: string, values: unknown[][], options?: WriteOptions): Promise<UpdateValuesResponse> => {
       return requestJson<UpdateValuesResponse>({
         method: "PUT",
         url: `${baseUrl}/${encodeURIComponent(range)}?${querystring.stringify({
@@ -183,7 +199,7 @@ export const createSheetsClient = async (config: AppConfig): Promise<SheetsClien
         })}`,
         accessToken,
         body: {
-          values
+          values: neutralizeFormulas(values, options)
         }
       });
     }

@@ -11,6 +11,8 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       area?: unknown;
+      excludeArea?: unknown;
+      autoRejectLowScore?: unknown;
       targetTypes?: unknown;
       limit?: unknown;
       searchTrace?: unknown;
@@ -22,6 +24,7 @@ export async function POST(request: Request) {
     }
 
     const area = typeof body.area === "string" ? body.area : "";
+    const excludeArea = typeof body.excludeArea === "string" ? body.excludeArea : "";
     const targetTypes = Array.isArray(body.targetTypes) ? (body.targetTypes as LeadType[]) : [];
     const limit = typeof body.limit === "number" ? body.limit : body.candidates.length;
     const candidates = body.candidates as LeadCandidate[];
@@ -31,7 +34,8 @@ export async function POST(request: Request) {
     const sheets = await createSheetsClient(config);
 
     const results = await importLeadCandidates(sheets, candidates, {
-      searchCondition: buildSearchCondition({ area, targetTypes, limit }),
+      searchCondition: buildSearchCondition({ area, excludeArea, targetTypes, limit }),
+      autoRejectLowScore: body.autoRejectLowScore !== false,
       searchTrace
     });
 

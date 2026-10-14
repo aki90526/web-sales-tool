@@ -14,6 +14,7 @@ type HistoryEntry = {
   id: string;
   runAt: string;
   area: string;
+  excludeArea?: string;
   targetTypes: LeadType[];
   limit: number;
   resultCount: number;
@@ -59,11 +60,15 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       area?: unknown;
+      excludeArea?: unknown;
+      autoRejectLowScore?: unknown;
       targetTypes?: unknown;
       limit?: unknown;
     };
 
     const area = typeof body.area === "string" && body.area.trim() ? body.area.trim() : "埼玉県春日部市";
+    const excludeArea = typeof body.excludeArea === "string" ? body.excludeArea.trim() : "";
+    const autoRejectLowScore = body.autoRejectLowScore !== false;
     const targetTypes = parseTargetTypes(body.targetTypes ?? ["Web制作会社", "直クライアント"]);
     const limit = Number(body.limit ?? 5);
 
@@ -75,12 +80,13 @@ export async function POST(request: Request) {
     }
 
     const config = loadConfig();
-    const result = await runLeadCollection(config, { area, targetTypes, limit });
+    const result = await runLeadCollection(config, { area, excludeArea, autoRejectLowScore, targetTypes, limit });
 
     await appendHistory({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       runAt: new Date().toISOString(),
       area,
+      excludeArea,
       targetTypes,
       limit,
       resultCount: result.candidates.length,
@@ -90,6 +96,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       area,
+      excludeArea,
+      autoRejectLowScore,
       targetTypes,
       limit,
       searchTrace: result.searchTrace,

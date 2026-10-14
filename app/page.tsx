@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { CheckCircle2, Clock3, Send, Users } from "lucide-react";
+import { CheckCircle2, Clock3, MessageCircleReply, Send, Users } from "lucide-react";
 
 type Lead = {
   leadId: string;
@@ -29,6 +29,8 @@ const statusClass = (status: string): string => {
   if (status === "送信待ち") return "status-badge waiting";
   if (status === "送信済み") return "status-badge sent";
   if (status === "返信あり") return "status-badge reply";
+  if (status === "面談済み") return "status-badge interviewed";
+  if (status === "保留") return "status-badge onhold";
   return "status-badge";
 };
 
@@ -42,11 +44,24 @@ const pct = (value: number, total: number): number => (total === 0 ? 0 : Math.ro
 
 export default function DashboardPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [historyStats, setHistoryStats] = useState<{ contactedLeadIds: string[]; respondedLeadIds: string[] }>({
+    contactedLeadIds: [],
+    respondedLeadIds: []
+  });
   const [jobs, setJobs] = useState<DashboardJob[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    fetch("/api/stats", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((body) => {
+        if (!cancelled && Array.isArray(body.contactedLeadIds) && Array.isArray(body.respondedLeadIds)) {
+          setHistoryStats({ contactedLeadIds: body.contactedLeadIds, respondedLeadIds: body.respondedLeadIds });
+        }
+      })
+      .catch(() => undefined);
 
     Promise.all([
       fetch("/api/leads").then(async (res) => {
@@ -83,14 +98,29 @@ export default function DashboardPage() {
     const email = source.filter((lead) => lead.contactMethod === "メール").length;
     const forms = source.filter((lead) => lead.contactMethod === "フォーム").length;
     const others = Math.max(source.length - email - forms, 0);
-    const byType = ["Web制作会社", "広告代理店", "直クライアント"].map((type) => ({
-      label: type.replace("Web", ""),
-      value: source.filter((lead) => lead.leadType === type).length
-    }));
+    // これまでに反応（返信）があったクライアント数。履歴の返信状況に加え、返信後のステータスのリードも含める累計
+    const respondedStatuses = ["返信あり", "面談済み", "商談中", "保留"];
+    const respondedIds = new Set(historyStats.respondedLeadIds);
+    source.forEach((lead) => {
+      if (respondedStatuses.includes(lead.status)) respondedIds.add(lead.leadId);
+    });
+    const byType = ["Web制作会社", "広告代理店", "直クライアント"].map((type) => {
+      const leadsOfType = source.filter((lead) => lead.leadType === type);
+
+      return {
+        label: type.replace("Web", ""),
+        value: leadsOfType.length,
+        responded: leadsOfType.filter((lead) => respondedIds.has(lead.leadId)).length
+      };
+    });
     const maxType = Math.max(...byType.map((item) => item.value), 1);
 
-    return { total: source.length, waiting, sent, replies, email, forms, others, byType, maxType };
-  }, [leads]);
+    const contactedIds = new Set([...historyStats.contactedLeadIds, ...respondedIds]);
+    const responded = respondedIds.size;
+    const contacted = contactedIds.size;
+
+    return { total: source.length, waiting, sent, replies, responded, contacted, email, forms, others, byType, maxType };
+  }, [leads, historyStats]);
 
   const recentLeads = useMemo(() => {
     return [...(leads ?? [])]
@@ -151,6 +181,16 @@ export default function DashboardPage() {
           <div className="kpi-value">{stats.replies}</div>
           <span className="kpi-note">要フォロー</span>
         </article>
+        <article className="kpi-card" style={{ "--card-color": "#8b5cf6", "--card-bg": "#ede9fe" } as CSSProperties}>
+          <div className="kpi-card-head">
+            <span>反応があった数</span>
+            <span className="kpi-icon"><MessageCircleReply size={19} /></span>
+          </div>
+          <div className="kpi-value">{stats.responded}</div>
+          <span className="kpi-note">
+            累計・連絡{stats.contacted}件中 {pct(stats.responded, stats.contacted)}%
+          </span>
+        </article>
       </section>
 
       <section className="dashboard-grid">
@@ -158,7 +198,7 @@ export default function DashboardPage() {
           <div className="panel-header">
             <div>
               <h3 className="panel-title">営業先種別</h3>
-              <p className="panel-caption">候補リードの構成比を確認します。</p>
+              <p className="panel-caption">種別ごとのリード数と、反応があった数を確認します。</p>
             </div>
             <div className="segmented">
               <span className="segment active">件数</span>
@@ -166,16 +206,28 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="bar-chart">
-            {stats.byType.map((item, index) => (
+            {stats.byType.map((item) => (
               <div className="bar-item" key={item.label}>
-                <span className="bar-value">{item.value}</span>
-                <span
-                  className={index === stats.byType.length - 1 ? "bar green" : "bar"}
-                  style={{ height: `${Math.max(24, (item.value / stats.maxType) * 150)}px` }}
-                />
+                <div className="bar-pair">
+                  <div className="bar-col">
+                    <span className="bar-value">{item.value}</span>
+                    <span className="bar" style={{ height: `${item.value === 0 ? 4 : Math.max(8, (item.value / stats.maxType) * 150)}px` }} />
+                  </div>
+                  <div className="bar-col">
+                    <span className="bar-value">{item.responded}</span>
+                    <span
+                      className="bar purple"
+                      style={{ height: `${item.responded === 0 ? 4 : Math.max(8, (item.responded / stats.maxType) * 150)}px` }}
+                    />
+                  </div>
+                </div>
                 <span className="bar-label">{item.label}</span>
               </div>
             ))}
+          </div>
+          <div className="legend mt-4">
+            <span className="legend-item"><span className="legend-dot" style={{ "--dot": "#2563eb" } as CSSProperties} />リード数</span>
+            <span className="legend-item"><span className="legend-dot" style={{ "--dot": "#8b5cf6" } as CSSProperties} />反応があった数（累計）</span>
           </div>
         </div>
 

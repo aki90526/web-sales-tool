@@ -67,6 +67,8 @@ export type LeadCandidate = {
 
 export type CollectLeadCandidateOptions = {
   area: string;
+  autoRejectLowScore?: boolean;
+  excludeArea?: string;
   targetTypes: LeadType[];
   limit: number;
   existingCompanies: string[];
@@ -103,9 +105,18 @@ const extractJsonArray = (text: string): unknown => {
     );
   }
 
+  const jsonText = withoutFence.slice(start, end + 1);
+
   try {
-    return JSON.parse(withoutFence.slice(start, end + 1));
+    return JSON.parse(jsonText);
   } catch (error: unknown) {
+    try {
+      // AIが末尾カンマ付きのJSON（`,}` や `,]`）を返すことがあるため、取り除いて再解析する
+      return JSON.parse(jsonText.replace(/,(\s*[}\]])/g, "$1"));
+    } catch {
+      // 下で元のエラーを投げる
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
       `OpenAI response JSON could not be parsed (${message}). Try a smaller --limit if this repeats. Preview: ${withoutFence.slice(0, 300)}`
@@ -310,7 +321,10 @@ const pickContactMethod = (contactUrl: string, email: string): ContactMethod => 
   return "未定";
 };
 
-export const normalizeLeadCandidate = (value: unknown): LeadCandidate | null => {
+export const normalizeLeadCandidate = (
+  value: unknown,
+  scoreOptions: { autoRejectLowScore?: boolean } = {}
+): LeadCandidate | null => {
   if (!isObject(value)) {
     return null;
   }
@@ -347,6 +361,7 @@ export const normalizeLeadCandidate = (value: unknown): LeadCandidate | null => 
   const aiAdjustmentReason = text(value.aiAdjustmentReason, 600);
   const companySizeMemo = text(value.companySizeMemo, 600);
   const score = calculateSalesScore({
+    autoRejectLowScore: scoreOptions.autoRejectLowScore,
     leadType,
     industry: text(value.industry, 200),
     region: text(value.region, 200),
@@ -411,6 +426,26 @@ export const normalizeLeadCandidate = (value: unknown): LeadCandidate | null => 
   };
 };
 
+const splitAreaTerms = (value: string): string[] => {
+  return value
+    .split(/[\s,、，・/／]+/)
+    .map((term) => term.trim())
+    .filter(Boolean);
+};
+
+// 所在地(region)が除外エリアに当たるかを判定する。「東京都」は「東京」でも一致させる。
+export const isInExcludedArea = (region: string, excludeArea: string | undefined): boolean => {
+  if (!excludeArea) {
+    return false;
+  }
+
+  return splitAreaTerms(excludeArea).some((term) => {
+    const core = /[都府県]$/.test(term) && term.length > 2 ? term.slice(0, -1) : term;
+
+    return region.includes(term) || region.includes(core);
+  });
+};
+
 const buildPrompt = (options: CollectLeadCandidateOptions): string => {
   const excludedCompanies = options.existingCompanies.slice(-80).join(" / ") || "なし";
   const excludedUrls = options.existingSiteUrls.slice(-80).join(" / ") || "なし";
@@ -418,6 +453,12 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
   return [
     "あなたは日本のWeb制作営業リスト作成アシスタントです。必ずWeb検索を使い、実在する企業だけを抽出してください。",
     `対象地域: ${options.area}`,
+    ...(options.excludeArea
+      ? [
+          `除外地域: ${options.excludeArea}`,
+          "除外地域ルール: 除外地域に所在する企業（本社・所在地が除外地域にある企業）は、候補に絶対に含めないでください。対象地域の中でも、除外地域に当たる部分は探さないでください。"
+        ]
+      : []),
     `対象種別: ${options.targetTypes.join(", ")}`,
     `候補件数: 最大${options.limit}件`,
     "目的: aaWebCreate（春日部市のフリーランスWeb制作者）が、制作会社・広告代理店には外部パートナー提案、直クライアントにはWebサイト改善提案を行うための営業候補を作る。",
@@ -448,7 +489,12 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
     "contactUrl は、制作会社・広告代理店では制作パートナー、協業、提携、業務委託、営業向け窓口を優先してください。直クライアントでは一般問い合わせ、相談フォームを優先してください。不明なら空文字。",
     "contactUrl 除外: 「見積もり依頼」専用フォーム（リニューアル内容やページ数などその会社自身のサービスの見積もりだけを受け付けるフォーム）は、協業・パートナー提案や一般的な問い合わせの送信先として不適切なため選ばないでください。サイト内に見積もり専用フォーム以外の問い合わせ窓口（一般お問い合わせフォームやメールアドレス）がない場合は、contactUrl は空文字にしてください。",
     "contactUrl 除外: 問い合わせフォームに「お問合せ内容」のようなカテゴリ選択欄があり、その選択肢が全て「その会社が提供するサービスの依頼・相談」（例: サイト制作のご相談、システム開発のご相談、資料請求 等）で占められていて、協業・パートナー・業務委託・その他に類する選択肢が一つもない場合も、送信先として不適切なため選ばないでください。この場合も、他に適切な問い合わせ窓口（メールアドレス等）がなければ contactUrl は空文字にしてください。",
+    "contactUrl 除外: 問い合わせフォームに「予算」「希望納期」「ご予算」などの項目が必須入力として含まれる場合は、制作依頼専用のフォームであり協業・パートナー提案には不適切なため選ばないでください。この場合も、他に適切な問い合わせ窓口（メールアドレス等）がなければ contactUrl は空文字にしてください。",
     "email は不明なら空文字。Cloudflareのメールアドレス難読化保護がかかっているサイトでは、実際のメールアドレスの代わりに「[email protected]」という文字列がそのまま表示されることがあります。この文字列は実在しないダミーなので、email には絶対に入れないでください（不明として空文字にしてください）。",
+    "email 探索ルール: 営業連絡はなるべくメールで行いたいため、メールアドレスを可能な限り見つけてください。問い合わせフォームしか見つからない場合は、フォームのみの候補として扱って構いません（email は空文字）。",
+    "email 探索ルール: まず公式サイト（問い合わせページ、会社概要、フッター、プライバシーポリシー、採用ページ）を確認し、そこに無ければ、企業情報サイト、求人サイト（Wantedly、doda、マイナビ等）、Googleビジネスプロフィール、商工会議所などの会員名簿といった第三者サイトも探してください。",
+    "email 探索ルール: 第三者サイトで見つけたアドレスは、その会社の公式ドメイン（公式サイトと同じドメイン）のものか、会社名・所在地が一致している場合のみ採用してください。別会社のアドレス、個人名のアドレス、フリーメール、古い情報と思われるもの、問い合わせ・代表窓口と思われないものは採用せず空文字にしてください。",
+    "email 探索ルール: 第三者サイトのアドレスを採用した場合は、memo に「メール出典: 参照したサイトのURL」を必ず書いてください。公式サイトで見つけた場合は書かなくて構いません。",
     "資本金、従業員数、売上高は公式サイトや信頼できる会社情報で確認できた場合のみ入れ、不明なら空文字。",
     "salesAngle はカスタムメールテンプレートの差し込み変数として使うため、営業の切り口を具体的かつ簡潔に1文で返してください。営業メール本文全体は作成しないでください。"
   ].join("\n");
@@ -464,19 +510,45 @@ const collectLeadCandidateChunk = async (
   openAI: OpenAIClient,
   options: CollectLeadCandidateOptions
 ): Promise<LeadCandidateCollectionResult> => {
-  const response = await openAI.createWebSearchResponse(
-    buildPrompt(options),
-    maxOutputTokensForLimit(options.limit)
-  );
-  const parsed = extractJsonArray(extractOutputText(response));
+  const requestParsed = async (): Promise<{ response: Awaited<ReturnType<OpenAIClient["createWebSearchResponse"]>>; parsed: unknown }> => {
+    const response = await openAI.createWebSearchResponse(
+      buildPrompt(options),
+      maxOutputTokensForLimit(options.limit)
+    );
+
+    return { response, parsed: extractJsonArray(extractOutputText(response)) };
+  };
+  let result: Awaited<ReturnType<typeof requestParsed>>;
+
+  try {
+    result = await requestParsed();
+  } catch (error: unknown) {
+    if (!(error instanceof Error) || !error.message.startsWith("OpenAI response JSON could not be parsed")) {
+      throw error;
+    }
+
+    console.log("OpenAI response JSON could not be parsed. Retrying once...");
+    result = await requestParsed();
+  }
+
+  const { response, parsed } = result;
 
   if (!Array.isArray(parsed)) {
     throw new Error("OpenAI response JSON was not an array");
   }
 
   const candidates = parsed
-    .map(normalizeLeadCandidate)
+    .map((entry) => normalizeLeadCandidate(entry, { autoRejectLowScore: options.autoRejectLowScore }))
     .filter((candidate): candidate is LeadCandidate => candidate !== null)
+    .filter((candidate) => {
+      const excluded = isInExcludedArea(candidate.region, options.excludeArea);
+
+      if (excluded) {
+        console.log(`Excluded by area (${options.excludeArea}): ${candidate.companyName} / ${candidate.region}`);
+      }
+
+      return !excluded;
+    })
     .slice(0, options.limit);
 
   return {

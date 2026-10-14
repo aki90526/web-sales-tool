@@ -50,6 +50,8 @@ const contactMethodClass = (candidate: Candidate): string => {
 
 type CollectResponse = {
   area: string;
+  excludeArea?: string;
+  autoRejectLowScore?: boolean;
   targetTypes: TargetType[];
   limit: number;
   searchTrace: { queries: string[]; sourceUrls: string[] };
@@ -61,12 +63,15 @@ type ImportResult = {
   companyName: string;
   companyNameCorrection?: string;
   contactUrlCorrection?: string;
+  emailFound?: string;
+  contactUrlWarning?: string;
 };
 
 type HistoryEntry = {
   id?: string;
   runAt: string;
   area: string;
+  excludeArea?: string;
   targetTypes: TargetType[];
   limit: number;
   resultCount: number;
@@ -76,6 +81,8 @@ type HistoryEntry = {
 
 export default function CollectPage() {
   const [area, setArea] = useState("埼玉県春日部市");
+  const [excludeArea, setExcludeArea] = useState("");
+  const [autoRejectLowScore, setAutoRejectLowScore] = useState(false);
   const [targetTypes, setTargetTypes] = useState<TargetType[]>(["Web制作会社", "広告代理店"]);
   const [limit, setLimit] = useState(5);
   const [loading, setLoading] = useState(false);
@@ -121,7 +128,7 @@ export default function CollectPage() {
       const res = await fetch("/api/collect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ area, targetTypes, limit })
+        body: JSON.stringify({ area, excludeArea, autoRejectLowScore, targetTypes, limit })
       });
       const body = await res.json();
       if (!res.ok) {
@@ -162,6 +169,7 @@ export default function CollectPage() {
 
   const applyHistoryEntry = (entry: HistoryEntry) => {
     setArea(entry.area);
+    setExcludeArea(entry.excludeArea ?? "");
     setTargetTypes(entry.targetTypes.length > 0 ? entry.targetTypes : ["Web制作会社"]);
     setLimit(entry.limit);
     setPreview(null);
@@ -176,6 +184,7 @@ export default function CollectPage() {
     setImportResults(null);
     setPreview({
       area: entry.area,
+      excludeArea: entry.excludeArea,
       targetTypes: entry.targetTypes,
       limit: entry.limit,
       searchTrace: entry.searchTrace ?? { queries: [], sourceUrls: [] },
@@ -212,6 +221,15 @@ export default function CollectPage() {
           <label className="field full">
             エリア
             <input value={area} onChange={(event) => setArea(event.target.value)} placeholder="例: 埼玉県春日部市" />
+          </label>
+
+          <label className="field full">
+            除外エリア（任意）
+            <input
+              value={excludeArea}
+              onChange={(event) => setExcludeArea(event.target.value)}
+              placeholder="例: 東京都（複数はカンマ区切り）"
+            />
           </label>
 
           <div className="area-suggestion-panel">
@@ -263,6 +281,25 @@ export default function CollectPage() {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="field full">
+            スコアによる自動見送り
+            <div className="check-row target-type-row">
+              <label className="check-pill target-type-pill">
+                <input
+                  type="checkbox"
+                  checked={autoRejectLowScore}
+                  onChange={(event) => setAutoRejectLowScore(event.target.checked)}
+                />
+                <span>{autoRejectLowScore ? "ON" : "OFF"}</span>
+              </label>
+            </div>
+            <span>
+              {autoRejectLowScore
+                ? "※ 営業スコアが低い候補は「見送り」で登録します。"
+                : "※ スコアが低くても「送信待ち」で登録します（連絡先なし・AI判断の見送りは対象外）。"}
+            </span>
           </div>
 
           <label className="field">
@@ -366,7 +403,8 @@ export default function CollectPage() {
                   <tr key={result.leadId}>
                     <td>{result.leadId}</td>
                     <td>{result.companyName}</td>
-                    <td>{result.companyNameCorrection || result.contactUrlCorrection || "-"}</td>
+                    <td>{result.companyNameCorrection || result.contactUrlCorrection || (result.emailFound ? `メール取得: ${result.emailFound}` : "-")}
+                      {result.contactUrlWarning ? ` ⚠ ${result.contactUrlWarning}` : ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -395,7 +433,8 @@ export default function CollectPage() {
                   <div className="history-item-info">
                     <span className="history-item-date">{new Date(entry.runAt).toLocaleString("ja-JP")}</span>
                     <span className="history-item-condition">
-                      {entry.area} / {entry.targetTypes.join(",")} / 上限{entry.limit}件
+                      {entry.area}
+                      {entry.excludeArea ? `（${entry.excludeArea}を除く）` : ""} / {entry.targetTypes.join(",")} / 上限{entry.limit}件
                     </span>
                     <span className="history-item-result">{entry.resultCount}件取得</span>
                   </div>

@@ -30,10 +30,10 @@ type ApproachHistoryRow = {
 type ReplyMatch = {
   history: ApproachHistoryRow;
   message: GmailMessageMetadata;
-  matchType: "message-id" | "subject" | "from-after-sent";
+  matchType: "message-id" | "subject" | "from-after-sent" | "form-domain-after-sent";
 };
 
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 200;
 
 const printHelp = (): void => {
@@ -212,6 +212,28 @@ const isLikelyReply = (
   return "from-after-sent";
 };
 
+// 自動返信・配信エラー・受付完了通知などは、人からの返信ではないため除く
+const isAutomatedMessage = (message: GmailMessageMetadata): boolean => {
+  const isReplySubject = /^\s*(re|fw|fwd|返信)\s*[:：]/i.test(message.subject);
+
+  return (
+    /(no-?reply|do-?not-?reply|mailer-daemon|postmaster)/i.test(message.from) ||
+    /(自動返信|自動送信|【自動】|受付完了|受付番号|受け付けました|受付しました|確認メール|auto[- ]?reply|do not reply|delivery status|undeliverable)/i.test(
+      message.subject
+    ) ||
+    // 「お問い合わせありがとうございます」「ご応募ありがとうございます」など、返信（Re:）ではない受付の自動メール
+    (/ありがとう/.test(message.subject) && !isReplySubject)
+  );
+};
+
+const siteDomain = (url: string): string => {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
 const targetHistories = (
   histories: ApproachHistoryRow[],
   lookbackDays: number,
@@ -224,7 +246,7 @@ const targetHistories = (
       const sentDate = parseTokyoDate(history.sentAt);
 
       return (
-        history.method === "メール" &&
+        (history.method === "メール" || history.method === "フォーム") &&
         history.sendStatus === "送信済み" &&
         history.replyStatus !== "返信あり" &&
         Boolean(history.recipient) &&
@@ -239,7 +261,8 @@ const findReplyMatches = async (
   gmail: GmailClient,
   histories: ApproachHistoryRow[],
   replyToAddress: string,
-  lookbackDays: number
+  lookbackDays: number,
+  leadDomains: Map<string, string>
 ): Promise<ReplyMatch[]> => {
   const matches: ReplyMatch[] = [];
 
@@ -248,8 +271,35 @@ const findReplyMatches = async (
     const afterDate = sentDate
       ? new Date(sentDate.getTime() - 24 * 60 * 60 * 1000)
       : new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
-    const query = `from:${history.recipient} to:${replyToAddress} after:${formatGmailDate(afterDate)}`;
+    const isForm = history.method === "フォーム";
+    const domain = isForm ? leadDomains.get(history.leadId) ?? "" : "";
+
+    // フォーム送信は宛先のメールアドレスが分からないため、リードのサイトと同じドメインからの返信を探す
+    if (isForm && !domain) {
+      continue;
+    }
+
+    const query = isForm
+      ? `from:${domain} to:${replyToAddress} after:${formatGmailDate(afterDate)}`
+      : `from:${history.recipient} to:${replyToAddress} after:${formatGmailDate(afterDate)}`;
     const messages = await gmail.searchMessages(query, 10);
+
+    if (isForm) {
+      const formMatch = messages.find((message) => {
+        return (
+          !isAutomatedMessage(message) &&
+          Boolean(message.internalDate) &&
+          (!sentDate || (message.internalDate as Date) > sentDate)
+        );
+      });
+
+      if (formMatch) {
+        matches.push({ history, message: formMatch, matchType: "form-domain-after-sent" });
+      }
+
+      continue;
+    }
+
     const match = messages
       .map((message) => {
         const matchType = isLikelyReply(history, message, sentDate);
@@ -344,7 +394,9 @@ const main = async (): Promise<void> => {
     refreshToken: gmailConfig.refreshToken,
     userEmail: gmailConfig.userEmail
   });
-  const matches = await findReplyMatches(gmail, targets, replyToAddress, lookbackDays);
+  const table = await readSalesManagementTable(sheets);
+  const leadDomains = new Map(table.leads.map((lead) => [lead.leadId, siteDomain(lead.officialSiteUrl)]));
+  const matches = await findReplyMatches(gmail, targets, replyToAddress, lookbackDays, leadDomains);
 
   printMatches(matches);
 

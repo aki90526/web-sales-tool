@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, Send, ShieldCheck } from "lucide-react";
 
 type DashboardCommand =
@@ -36,8 +36,42 @@ type DashboardJob = {
   stderr: string;
   captchaDetections?: CaptchaDetection[];
   filledLeads?: FilledLead[];
+  confirmedLeadIds?: string[];
+  fillWarnings?: Array<{ leadId: string; message: string }>;
   resultCount?: number;
   resultMode?: string;
+};
+
+type FormWatchEntry = {
+  leadId: string;
+  companyName: string;
+  state: "watching" | "needs-confirm" | "manual-required" | "submit-error" | "recorded" | "already-recorded" | "failed" | "closed" | "timeout";
+  startedAt: string;
+  updatedAt: string;
+  message?: string;
+};
+
+const watchStateLabel = (state: FormWatchEntry["state"]): { text: string; className: string } => {
+  switch (state) {
+    case "watching":
+      return { text: "見張り中", className: "status-badge waiting" };
+    case "manual-required":
+      return { text: "手動送信が必要（スパム判定）", className: "status-badge reply" };
+    case "submit-error":
+      return { text: "フォームが送信エラー", className: "status-badge" };
+    case "needs-confirm":
+      return { text: "要確認（送信後にトップへ転送）", className: "status-badge reply" };
+    case "recorded":
+      return { text: "自動で送信済みに更新", className: "status-badge sent" };
+    case "already-recorded":
+      return { text: "記録済み", className: "status-badge sent" };
+    case "failed":
+      return { text: "記録に失敗", className: "status-badge" };
+    case "timeout":
+      return { text: "検知できず終了", className: "status-badge reply" };
+    default:
+      return { text: "見張り終了", className: "status-badge reply" };
+  }
 };
 
 type JobRequest = {
@@ -45,6 +79,7 @@ type JobRequest = {
   limit?: number;
   leadId?: string;
   testTo?: string;
+  bcc?: string;
   note?: string;
   confirm?: boolean;
 };
@@ -62,6 +97,20 @@ const jobStatusClass = (status: DashboardJob["status"]): string => {
 };
 
 const formatDateTime = (value: string): string => new Date(value).toLocaleString("ja-JP");
+
+function LeadLink({ leadId, label }: { leadId: string; label?: string }) {
+  return (
+    <a
+      className="text-[var(--accent)] hover:underline"
+      href={`/leads?leadId=${encodeURIComponent(leadId)}`}
+      target="_blank"
+      rel="noreferrer"
+      title="リード一覧で開く（別タブ）"
+    >
+      {label ?? leadId}
+    </a>
+  );
+}
 
 const buildResultMessage = (job: DashboardJob): string => {
   const count = job.resultCount ?? 0;
@@ -91,7 +140,11 @@ const outputText = (job: DashboardJob): string => {
 export default function ActionsPage() {
   const [limit, setLimit] = useState(1);
   const [emailTestTo, setEmailTestTo] = useState("aki90526@gmail.com");
+  const [emailBcc, setEmailBcc] = useState("");
+  const [bccLoaded, setBccLoaded] = useState(false);
   const [leadId, setLeadId] = useState("");
+  // リードID欄が、自動入力の結果で自動的に入ったもの（手入力ではない）か
+  const leadIdFromAutoFill = useRef(false);
   const [note, setNote] = useState("");
   const [confirmEmail, setConfirmEmail] = useState(false);
   const [confirmForm, setConfirmForm] = useState(false);
@@ -110,12 +163,15 @@ export default function ActionsPage() {
   );
   const [captchaWarning, setCaptchaWarning] = useState<CaptchaDetection | null>(null);
   const [autoFillResult, setAutoFillResult] = useState<FilledLead[] | null>(null);
+  const [confirmedLeadIds, setConfirmedLeadIds] = useState<string[]>([]);
+  const [fillWarnings, setFillWarnings] = useState<Array<{ leadId: string; message: string }>>([]);
   const [confirmGmail, setConfirmGmail] = useState(false);
   const [emailResult, setEmailResult] = useState<{ status: "success" | "failed"; text: string } | null>(null);
   const [gmailResult, setGmailResult] = useState<{ status: "success" | "failed"; text: string } | null>(null);
   const [formsTodoResult, setFormsTodoResult] = useState<{ status: "success" | "failed"; text: string } | null>(
     null
   );
+  const [watchEntries, setWatchEntries] = useState<FormWatchEntry[]>([]);
   const [jobs, setJobs] = useState<DashboardJob[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<DashboardJob | null>(null);
@@ -130,10 +186,46 @@ export default function ActionsPage() {
     }
     setJobs(body.jobs ?? []);
     setActiveJobId(body.activeJobId ?? null);
+    if (!bccLoaded) {
+      setEmailBcc(typeof body.defaultBcc === "string" ? body.defaultBcc : "");
+      setBccLoaded(true);
+    }
   };
 
   useEffect(() => {
     loadJobs().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const loadWatch = () => {
+      fetch("/api/form-watch", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((body) => {
+          const entries: FormWatchEntry[] = Array.isArray(body.entries) ? body.entries : [];
+          setWatchEntries(entries);
+
+          // 自動で「送信済み」になったリードが、リードID欄に自動入力されたままなら空にする
+          const recordedIds = new Set(
+            entries.filter((entry) => entry.state === "recorded" || entry.state === "already-recorded").map((entry) => entry.leadId)
+          );
+          if (leadIdFromAutoFill.current) {
+            setLeadId((current) => {
+              if (current && recordedIds.has(current.trim())) {
+                leadIdFromAutoFill.current = false;
+                return "";
+              }
+
+              return current;
+            });
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    loadWatch();
+    const timer = setInterval(loadWatch, 5000);
+
+    return () => clearInterval(timer);
   }, []);
 
   const runJob = async (request: JobRequest): Promise<DashboardJob | null> => {
@@ -167,11 +259,23 @@ export default function ActionsPage() {
   const handleAutoFill = async () => {
     setCaptchaWarning(null);
     setAutoFillResult(null);
-    const job = await runJob({ command: "forms-fill", limit, leadId });
+    setConfirmedLeadIds([]);
+    setFillWarnings([]);
+    // 前回の自動入力で自動的に入ったリードIDは、送信済みで対象外になっているため使わず、次の対象を自動選択する
+    const targetLeadId = leadIdFromAutoFill.current ? "" : leadId;
+    const job = await runJob({ command: "forms-fill", limit, leadId: targetLeadId });
+    setConfirmedLeadIds(job?.confirmedLeadIds ?? []);
+    setFillWarnings(job?.fillWarnings ?? []);
+
+    if (job?.status === "failed") {
+      const reason = (job.stderr || job.stdout || "").trim().split("\n").filter(Boolean).slice(-1)[0];
+      setError(`自動入力に失敗しました: ${reason || "原因不明（下のログを確認してください）"}`);
+    }
 
     if (job?.filledLeads && job.filledLeads.length > 0) {
       setAutoFillResult(job.filledLeads);
       setLeadId(job.filledLeads[0].leadId);
+      leadIdFromAutoFill.current = true;
     }
 
     if (job?.captchaDetections && job.captchaDetections.length > 0) {
@@ -232,6 +336,35 @@ export default function ActionsPage() {
     }
   };
 
+  const handleWatchMarkSent = async (entry: FormWatchEntry) => {
+    const job = await runJob({
+      command: "forms-mark-sent",
+      leadId: entry.leadId,
+      note:
+        entry.state === "manual-required"
+          ? "スパム判定のため手動で送信したことを確認して記録"
+          : "送信後にトップへ転送されたため、確認のうえ手動で記録",
+      confirm: true
+    });
+
+    if (job?.status === "success") {
+      await fetch("/api/form-watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: entry.leadId, state: "recorded", message: "確認のうえ「送信済み」に更新しました" })
+      }).catch(() => undefined);
+      setWatchEntries((current) =>
+        current.map((item) =>
+          item.leadId === entry.leadId
+            ? { ...item, state: "recorded", message: "確認のうえ「送信済み」に更新しました" }
+            : item
+        )
+      );
+    } else if (job?.status === "failed") {
+      setError(`送信済みへの更新に失敗しました: ${(job.stderr || job.stdout || "").trim().split("\n").filter(Boolean).slice(-1)[0] ?? ""}`);
+    }
+  };
+
   const handleMarkFormSent = async () => {
     setMarkSentFeedback(null);
     const job = await runJob({ command: "forms-mark-sent", leadId, note, confirm: confirmForm });
@@ -244,6 +377,7 @@ export default function ActionsPage() {
         text: `送信済みとして登録しました${leadId ? `(${leadId})` : ""}。アプローチ履歴にも記録済みです。`
       });
       setLeadId("");
+      leadIdFromAutoFill.current = false;
       setNote("");
       setConfirmForm(false);
       setAutoFillResult(null);
@@ -347,6 +481,16 @@ export default function ActionsPage() {
               <ClipboardCheck size={16} />
               dry-run
             </button>
+          </div>
+          <label className="field mt-4">
+            テスト送信先（複数はカンマ区切り）
+            <input
+              value={emailTestTo}
+              onChange={(event) => setEmailTestTo(event.target.value)}
+              placeholder="a@example.com, b@example.com"
+            />
+          </label>
+          <div className="btn-row mt-4">
             <button
               className="btn secondary"
               disabled={running}
@@ -357,8 +501,12 @@ export default function ActionsPage() {
             </button>
           </div>
           <label className="field mt-4">
-            テスト送信先
-            <input value={emailTestTo} onChange={(event) => setEmailTestTo(event.target.value)} />
+            本送信のBCC（複数はカンマ区切り、空欄でBCCなし）
+            <input
+              value={emailBcc}
+              onChange={(event) => setEmailBcc(event.target.value)}
+              placeholder="BCCなし"
+            />
           </label>
           <label className="check-pill mt-4">
             <input type="checkbox" checked={confirmEmail} onChange={(event) => setConfirmEmail(event.target.checked)} />
@@ -368,7 +516,7 @@ export default function ActionsPage() {
             <button
               className="btn danger"
               disabled={running || !confirmEmail}
-              onClick={() => handleEmailAction({ command: "email-send", limit, confirm: confirmEmail })}
+              onClick={() => handleEmailAction({ command: "email-send", limit, bcc: emailBcc, confirm: confirmEmail })}
             >
               <Send size={16} />
               メール本送信
@@ -404,7 +552,10 @@ export default function ActionsPage() {
             リードID
             <input
               value={leadId}
-              onChange={(event) => setLeadId(event.target.value)}
+              onChange={(event) => {
+                setLeadId(event.target.value);
+                leadIdFromAutoFill.current = false;
+              }}
               placeholder="空欄なら次の対象を自動選択"
             />
           </label>
@@ -445,11 +596,28 @@ export default function ActionsPage() {
               </div>
               {autoFillResult && (
                 <div className="success-box mt-4">
-                  <p>{autoFillResult.length}件のフォームを開いてタブに入力しました。内容を確認して送信してください。</p>
+                  <p>
+                    {autoFillResult.length}件のフォームを開いてタブに入力しました
+                    {confirmedLeadIds.length > 0 ? `（うち${confirmedLeadIds.length}件は確認画面まで進めています）` : ""}
+                    。内容を確認して送信してください。送信完了画面を検知すると、自動で「送信済み」に更新します。
+                  </p>
                   <ul className="mt-4">
                     {autoFillResult.map((lead) => (
                       <li key={lead.leadId}>
-                        {lead.leadId} {lead.companyName}
+                        <LeadLink leadId={lead.leadId} label={`${lead.leadId} ${lead.companyName}`} />
+                        {confirmedLeadIds.includes(lead.leadId) ? "（確認画面まで進行済み）" : "（入力のみ・確認ボタンは手動）"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {fillWarnings.length > 0 && (
+                <div className="error-box mt-4">
+                  <p>入力時の警告があります。</p>
+                  <ul className="mt-4">
+                    {fillWarnings.map((warning, index) => (
+                      <li key={`${warning.leadId}-${index}`}>
+                        <LeadLink leadId={warning.leadId} />: {warning.message}
                       </li>
                     ))}
                   </ul>
@@ -519,6 +687,78 @@ export default function ActionsPage() {
             </p>
           )}
         </div>
+      </section>
+
+      <section className="form-panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title">送信完了の自動検知</h3>
+            <p className="panel-caption">
+              フォーム入力後に開いたタブを見張り、送信完了画面を検知すると「送信済み」に自動更新します（5秒ごとに更新）。
+            </p>
+          </div>
+          <CheckCircle2 size={20} color="var(--success)" />
+        </div>
+        {watchEntries.length === 0 ? (
+          <p className="panel-caption">見張り中のフォームはありません。</p>
+        ) : (
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>リード</th>
+                  <th>状態</th>
+                  <th>更新</th>
+                  <th>内容</th>
+                </tr>
+              </thead>
+              <tbody>
+                {watchEntries.slice(0, 10).map((entry) => {
+                  const label = watchStateLabel(entry.state);
+
+                  return (
+                    <tr key={entry.leadId}>
+                      <td>
+                        <LeadLink leadId={entry.leadId} label={`${entry.leadId} ${entry.companyName}`} />
+                      </td>
+                      <td>
+                        <span className={label.className}>{label.text}</span>
+                      </td>
+                      <td>{formatDateTime(entry.updatedAt)}</td>
+                      <td>
+                        {entry.message ?? (entry.state === "watching" ? "送信完了画面を待っています" : "")}
+                        {entry.state === "manual-required" && (
+                          <button
+                            className="btn primary mt-4"
+                            disabled={manualLoading}
+                            onClick={() => {
+                              setFormMode("manual");
+                              setLeadId(entry.leadId);
+                              leadIdFromAutoFill.current = false;
+                              openManualForm(entry.leadId);
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            自分で入力で開く
+                          </button>
+                        )}
+                        {(entry.state === "needs-confirm" || entry.state === "manual-required") && (
+                          <button
+                            className="btn secondary mt-4"
+                            disabled={running}
+                            onClick={() => handleWatchMarkSent(entry)}
+                          >
+                            送信済みにする
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="form-panel">
