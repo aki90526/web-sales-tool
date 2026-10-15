@@ -592,6 +592,11 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     return aliases[key].some((alias) => {
       const normalizedAlias = normalize(alias);
 
+      // mail / tel / org / zip / age / name のような短い英字の別名は、単語の一部（mailform の mail、message の age など）では一致させない
+      if (/^[a-z]{2,4}$/.test(normalizedAlias)) {
+        return new RegExp(`(^|[^a-z])${normalizedAlias}([^a-z]|$)`).test(spacedText);
+      }
+
       return text.includes(normalizedAlias) || spacedText.includes(normalizedAlias.replace(/[_-]+/g, " "));
     });
   };
