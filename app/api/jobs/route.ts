@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   DashboardCommand,
+  isBrowserAutofillEnabled,
   listDashboardJobs,
   runDashboardJob
 } from "../../../src/dashboard/jobRunner";
@@ -22,7 +23,11 @@ const isDashboardCommand = (value: unknown): value is DashboardCommand => {
 
 export async function GET() {
   try {
-    return NextResponse.json({ ...(await listDashboardJobs()), defaultBcc: process.env.SMTP_BCC ?? "" });
+    return NextResponse.json({
+      ...(await listDashboardJobs()),
+      defaultBcc: process.env.SMTP_BCC ?? "",
+      features: { autofill: isBrowserAutofillEnabled() }
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });

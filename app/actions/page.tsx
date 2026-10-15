@@ -147,6 +147,8 @@ export default function ActionsPage() {
   const [confirmEmail, setConfirmEmail] = useState(false);
   const [confirmForm, setConfirmForm] = useState(false);
   const [formMode, setFormMode] = useState<"auto" | "manual">("auto");
+  // サーバー版（Chromeの遠隔操作ができない環境）では、自動入力と送信完了の自動検知を隠す
+  const [autofillEnabled, setAutofillEnabled] = useState(true);
   const [manualMessage, setManualMessage] = useState<{
     companyName: string;
     contactFormUrl: string;
@@ -188,6 +190,10 @@ export default function ActionsPage() {
     }
     setJobs(body.jobs ?? []);
     setActiveJobId(body.activeJobId ?? null);
+    if (body.features && body.features.autofill === false) {
+      setAutofillEnabled(false);
+      setFormMode("manual");
+    }
     loadTargets();
     if (!bccLoaded) {
       setEmailBcc(typeof body.defaultBcc === "string" ? body.defaultBcc : "");
@@ -567,7 +573,9 @@ export default function ActionsPage() {
           <div className="panel-header">
             <div>
               <h3 className="panel-title">フォーム</h3>
-              <p className="panel-caption">Mac側Chromeで自動入力するか、フォームを開いて自分で入力します。</p>
+              <p className="panel-caption">
+                {autofillEnabled ? "Mac側Chromeで自動入力するか、フォームを開いて自分で入力します。" : "フォームを開いて、自分で入力します。"}
+              </p>
             </div>
             <MousePointerClick size={20} color="var(--warning)" />
           </div>
@@ -603,6 +611,7 @@ export default function ActionsPage() {
               このリードをリード一覧で確認・編集する →
             </a>
           )}
+          {autofillEnabled && (
           <div className="segmented mt-4">
             <button
               type="button"
@@ -619,8 +628,9 @@ export default function ActionsPage() {
               自分で入力
             </button>
           </div>
+          )}
 
-          {formMode === "auto" ? (
+          {autofillEnabled && formMode === "auto" ? (
             <>
               <div className="btn-row mt-4">
                 <button className="btn primary" disabled={running} onClick={handleAutoFill}>
@@ -723,6 +733,7 @@ export default function ActionsPage() {
         </div>
       </section>
 
+      {autofillEnabled && (
       <section className="form-panel">
         <div className="panel-header">
           <div>
@@ -794,6 +805,7 @@ export default function ActionsPage() {
           </div>
         )}
       </section>
+      )}
 
       <section className="form-panel">
         <div className="panel-header">

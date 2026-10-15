@@ -11,6 +11,8 @@ RUN npm ci
 COPY . .
 
 ENV NODE_ENV=production
+# サーバーにはChromeがないため、フォーム自動入力（ブラウザの遠隔操作）は無効にする
+ENV WEBSALESTOOL_BROWSER_AUTOFILL=0
 RUN npm run dashboard:build
 
 # データ（実行履歴など）はボリュームに置く

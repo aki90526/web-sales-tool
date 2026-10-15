@@ -52,6 +52,9 @@ export type DashboardJobInput = {
   confirm?: unknown;
 };
 
+// Chromeの遠隔操作によるフォーム自動入力が使える環境か（サーバー版は WEBSALESTOOL_BROWSER_AUTOFILL=0 で無効にする）
+export const isBrowserAutofillEnabled = (): boolean => process.env.WEBSALESTOOL_BROWSER_AUTOFILL !== "0";
+
 const JOBS_PATH = path.resolve(process.cwd(), "data", "dashboard-jobs.json");
 const MAX_JOBS = 40;
 const MAX_OUTPUT_CHARS = 50000;
@@ -151,6 +154,9 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
       };
 
     case "forms-fill":
+      if (!isBrowserAutofillEnabled()) {
+        throw new Error("この環境ではフォームの自動入力（ブラウザの遠隔操作）は使えません。「自分で入力」を使ってください。");
+      }
       return {
         label: leadId ? `フォーム自動入力 ${leadId}` : `フォーム自動入力 ${limit}件`,
         args: leadId
