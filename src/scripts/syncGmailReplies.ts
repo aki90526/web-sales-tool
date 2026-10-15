@@ -1,8 +1,11 @@
 import { loadConfig, requireGmailConfig, requireSmtpConfig } from "../config/env";
 import { SHEETS, Status } from "../domain/lead";
+import { matchBookingToLeads, parseBookingNotification } from "../google/bookingNotifications";
 import {
   columnLetter,
+  fieldRangeForRow,
   readSalesManagementTable,
+  SalesManagementLead,
   statusRangeForRow
 } from "../google/salesManagementRepository";
 import { createGmailClient, GmailClient, GmailMessageMetadata } from "../google/gmailClient";
@@ -346,6 +349,73 @@ const updateLeadStatuses = async (
   }
 };
 
+type BookingSync = {
+  lead: SalesManagementLead;
+  when: string;
+  line: string;
+};
+
+// 予約システムの通知メール（aawebcreate@gmail.com から転送されたもの）を読み取り、該当リードを「返信あり」にして、メモに面談日時を残す
+const syncBookingNotifications = async (
+  gmail: GmailClient,
+  sheets: SheetsClient,
+  histories: ApproachHistoryRow[],
+  dryRun: boolean
+): Promise<BookingSync[]> => {
+  const messages = await gmail.searchMessages('"新しい面談の予約が入りました" newer_than:90d', 20);
+  const table = await readSalesManagementTable(sheets);
+  const applied: BookingSync[] = [];
+  const reflectedStatuses = ["未確認", "確認済み", "送信待ち", "送信済み"];
+
+  for (const message of messages) {
+    const booking = parseBookingNotification(await gmail.getMessageText(message.id));
+
+    if (!booking) {
+      continue;
+    }
+
+    const candidates = matchBookingToLeads(booking, table.leads);
+    const lead = candidates.find((entry) => entry.status === "送信済み") ?? candidates[0];
+
+    if (!lead) {
+      console.log(`Booking (${booking.company} / ${booking.email} / ${booking.when}): 該当するリードが見つかりません`);
+      continue;
+    }
+
+    if (lead.memo.includes(`面談予約: ${booking.when}`)) {
+      continue;
+    }
+
+    const line = `面談予約: ${booking.when} / ${booking.name}${booking.meetUrl ? ` / Meet: ${booking.meetUrl}` : ""}`;
+
+    console.log("");
+    console.log(`Booking: ${lead.leadId} ${lead.companyName} (${lead.status})`);
+    console.log(`  ${line}`);
+    console.log(`[DASHBOARD_UPDATE] leadId=${lead.leadId} company=${lead.companyName} type=booking detail=${line}`);
+
+    if (!dryRun) {
+      if (reflectedStatuses.includes(lead.status)) {
+        await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["返信あり" as Status]]);
+      }
+
+      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[lead.memo ? `${lead.memo}\n${line}` : line]]);
+
+      for (const history of histories.filter((row) => row.leadId === lead.leadId && row.sendStatus === "送信済み" && row.replyStatus !== "返信あり")) {
+        await sheets.updateValues(`'${SHEETS.approachHistory}'!I${history.rowNumber}:J${history.rowNumber}`, [
+          ["返信あり", [history.memo, `面談予約を検知: ${booking.when}`].filter(Boolean).join("\n")]
+        ]);
+      }
+
+      // 同じ実行内で、同じリードの別の予約通知を重複して追記しないよう、メモを更新しておく
+      lead.memo = lead.memo ? `${lead.memo}\n${line}` : line;
+    }
+
+    applied.push({ lead, when: booking.when, line });
+  }
+
+  return applied;
+};
+
 const printMatches = (matches: ReplyMatch[]): void => {
   if (matches.length === 0) {
     console.log("No replies detected.");
@@ -400,24 +470,32 @@ const main = async (): Promise<void> => {
 
   printMatches(matches);
 
+  const bookings = await syncBookingNotifications(gmail, sheets, histories, options.dryRun);
+  const totalCount = matches.length + bookings.length;
+
   if (options.dryRun || matches.length === 0) {
     if (options.dryRun) {
       console.log("");
       console.log("Dry run: sheets were not updated.");
     }
-    console.log(`[DASHBOARD_SUMMARY] count=${matches.length} mode=${options.dryRun ? "dry-run" : "sync"}`);
+    console.log(`[DASHBOARD_SUMMARY] count=${totalCount} mode=${options.dryRun ? "dry-run" : "sync"}`);
     return;
   }
 
   for (const match of matches) {
     await updateReplyStatus(sheets, match);
+
+    const company = table.leads.find((lead) => lead.leadId === match.history.leadId)?.companyName ?? "";
+    console.log(
+      `[DASHBOARD_UPDATE] leadId=${match.history.leadId} company=${company} type=reply detail=${match.message.from} / ${match.message.subject}`
+    );
   }
 
   await updateLeadStatuses(sheets, matches);
 
   console.log("");
   console.log(`Updated replies: ${matches.length}`);
-  console.log(`[DASHBOARD_SUMMARY] count=${matches.length} mode=sync`);
+  console.log(`[DASHBOARD_SUMMARY] count=${totalCount} mode=sync`);
 };
 
 main().catch((error: unknown) => {

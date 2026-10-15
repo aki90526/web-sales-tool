@@ -16,7 +16,6 @@ const isDashboardCommand = (value: unknown): value is DashboardCommand => {
     value === "forms-todo" ||
     value === "forms-fill" ||
     value === "forms-mark-sent" ||
-    value === "gmail-dry-run" ||
     value === "gmail-sync"
   );
 };

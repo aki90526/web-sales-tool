@@ -36,16 +36,51 @@ type GmailListMessagesResponse = {
   resultSizeEstimate?: number;
 };
 
+type GmailPayloadPart = {
+  mimeType?: string;
+  body?: { data?: string };
+  parts?: GmailPayloadPart[];
+};
+
 type GmailMessageResponse = {
   id: string;
   threadId: string;
   internalDate?: string;
-  payload?: {
+  payload?: GmailPayloadPart & {
     headers?: Array<{
       name: string;
       value: string;
     }>;
   };
+};
+
+const decodeBase64Url = (data: string): string => Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+
+const collectParts = (part: GmailPayloadPart | undefined, mimeType: string): string[] => {
+  if (!part) {
+    return [];
+  }
+
+  const own = part.mimeType === mimeType && part.body?.data ? [decodeBase64Url(part.body.data)] : [];
+
+  return [...own, ...(part.parts ?? []).flatMap((child) => collectParts(child, mimeType))];
+};
+
+// text/plain を優先し、無ければ text/html のタグを除いた文字を返す
+const extractMessageText = (payload: GmailPayloadPart | undefined): string => {
+  const plain = collectParts(payload, "text/plain").join("\n").trim();
+
+  if (plain) {
+    return plain;
+  }
+
+  return collectParts(payload, "text/html")
+    .join("\n")
+    .replace(/<(br|\/p|\/div|\/tr|\/li)\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .trim();
 };
 
 type JsonRequestOptions = {
@@ -70,6 +105,7 @@ export type GmailMessageMetadata = {
 
 export type GmailClient = {
   searchMessages: (query: string, maxResults: number) => Promise<GmailMessageMetadata[]>;
+  getMessageText: (messageId: string) => Promise<string>;
 };
 
 const requestJson = async <T>(options: JsonRequestOptions): Promise<T> => {
@@ -232,6 +268,15 @@ export const createGmailClient = async (config: GmailConfig): Promise<GmailClien
           return toMetadata(detail);
         })
       );
+    },
+    getMessageText: async (messageId: string): Promise<string> => {
+      const detail = await requestJson<GmailMessageResponse>({
+        method: "GET",
+        url: `${GMAIL_BASE_URL}/${user}/messages/${encodeURIComponent(messageId)}?${querystring.stringify({ format: "full" })}`,
+        accessToken
+      });
+
+      return extractMessageText(detail.payload);
     }
   };
 };

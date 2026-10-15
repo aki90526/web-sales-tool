@@ -10,7 +10,6 @@ export type DashboardCommand =
   | "forms-todo"
   | "forms-fill"
   | "forms-mark-sent"
-  | "gmail-dry-run"
   | "gmail-sync";
 
 export type CaptchaDetection = {
@@ -38,6 +37,7 @@ export type DashboardJob = {
   filledLeads?: FilledLead[];
   confirmedLeadIds?: string[];
   fillWarnings?: Array<{ leadId: string; message: string }>;
+  updates?: Array<{ leadId: string; company: string; type: string; detail: string }>;
   resultCount?: number;
   resultMode?: string;
 };
@@ -171,14 +171,7 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
         ]
       };
 
-    case "gmail-dry-run":
-      return {
-        label: `Gmail返信確認 dry-run ${gmailLimit}件`,
-        args: ["run", "gmail:sync-replies", "--", "--dry-run", "--limit", String(gmailLimit)]
-      };
-
     case "gmail-sync":
-      requireConfirmed(input, "Gmail返信同期");
       return {
         label: `Gmail返信同期 ${gmailLimit}件`,
         args: ["run", "gmail:sync-replies", "--", "--limit", String(gmailLimit)]
@@ -267,6 +260,18 @@ const parseFillWarnings = (stdout: string): Array<{ leadId: string; message: str
   return warnings;
 };
 
+const parseUpdates = (stdout: string): Array<{ leadId: string; company: string; type: string; detail: string }> => {
+  const pattern = /\[DASHBOARD_UPDATE\] leadId=(\S+) company=(.*?) type=(\S+) detail=(.+)/g;
+  const updates: Array<{ leadId: string; company: string; type: string; detail: string }> = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(stdout)) !== null) {
+    updates.push({ leadId: match[1], company: match[2].trim(), type: match[3], detail: match[4].trim() });
+  }
+
+  return updates;
+};
+
 const parseResultSummary = (stdout: string): { count: number; mode: string } | null => {
   const match = /\[DASHBOARD_SUMMARY\] count=(\d+) mode=(\S+)/.exec(stdout);
   if (!match) {
@@ -325,6 +330,10 @@ export const runDashboardJob = async (input: DashboardJobInput): Promise<Dashboa
       if (confirmedLeadIds.length > 0) {
         job.confirmedLeadIds = confirmedLeadIds;
       }
+    }
+    const updates = parseUpdates(result.stdout);
+    if (updates.length > 0) {
+      job.updates = updates;
     }
     const summary = parseResultSummary(result.stdout);
     if (summary) {

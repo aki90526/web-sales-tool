@@ -90,6 +90,7 @@ export default function CollectPage() {
   const [preview, setPreview] = useState<CollectResponse | null>(null);
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null);
   const [importing, setImporting] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const recentAreas = useMemo(() => {
@@ -123,6 +124,7 @@ export default function CollectPage() {
       return;
     }
 
+    setModalOpen(true);
     setLoading(true);
     try {
       const res = await fetch("/api/collect", {
@@ -167,6 +169,14 @@ export default function CollectPage() {
     }
   };
 
+  const closeModal = () => {
+    if (loading || importing) return;
+    setModalOpen(false);
+    setPreview(null);
+    setImportResults(null);
+    setError(null);
+  };
+
   const applyHistoryEntry = (entry: HistoryEntry) => {
     setArea(entry.area);
     setExcludeArea(entry.excludeArea ?? "");
@@ -190,7 +200,7 @@ export default function CollectPage() {
       searchTrace: entry.searchTrace ?? { queries: [], sourceUrls: [] },
       candidates: entry.candidates
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setModalOpen(true);
   };
 
   const applyArea = (value: string) => {
@@ -309,7 +319,7 @@ export default function CollectPage() {
           </label>
         </div>
 
-        <p className="notice mt-4">実行するとOpenAIの検索コストが発生します。まずプレビューを確認し、必要な候補だけ登録してください。</p>
+        <p className="notice mt-4">検索を実行すると、その時点でOpenAIの検索コストが発生します（登録する件数では変わりません）。結果は登録前にプレビューで確認でき、「最近の検索」から再検索せずに呼び出せます。</p>
 
         <div className="btn-row mt-4">
           <button className="btn primary" onClick={runCollect} disabled={loading}>
@@ -318,22 +328,53 @@ export default function CollectPage() {
           </button>
         </div>
 
-        {error && <p className="error-box mt-4">{error}</p>}
+        {error && !modalOpen && <p className="error-box mt-4">{error}</p>}
       </section>
 
-      {preview && (
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h3 className="panel-title">検索結果プレビュー</h3>
-              <p className="panel-caption">{preview.candidates.length}件見つかりました。まだ登録されていません。</p>
+      {modalOpen && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal-panel modal-wide" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 className="panel-title">
+                  {importResults ? "登録結果" : loading ? "検索中" : importing ? "登録中" : "検索結果プレビュー"}
+                </h3>
+                <p className="panel-caption">
+                  {importResults
+                    ? "営業管理シートへ追加しました。"
+                    : loading
+                      ? "OpenAIで候補を検索しています。数分かかることがあります。"
+                      : importing
+                        ? "営業管理シートへ登録しています。"
+                        : preview
+                          ? `${preview.candidates.length}件見つかりました。まだ登録されていません。`
+                          : ""}
+                </p>
+              </div>
+              <div className="btn-row-tight">
+                {preview && !importResults && (
+                  <button className="btn primary" onClick={confirmImport} disabled={importing || preview.candidates.length === 0}>
+                    <Database size={16} />
+                    {importing ? "登録中..." : "この内容で登録する"}
+                  </button>
+                )}
+                <button className="btn secondary" type="button" onClick={closeModal} disabled={loading || importing}>
+                  閉じる
+                </button>
+              </div>
             </div>
-            <button className="btn primary" onClick={confirmImport} disabled={importing || preview.candidates.length === 0}>
-              <Database size={16} />
-              {importing ? "登録中..." : "この内容で登録する"}
-            </button>
-          </div>
 
+            {(loading || importing) && (
+              <div className="modal-loading">
+                <span className="loading-spinner" />
+                <span>{loading ? "検索中です..." : "登録中です..."}</span>
+              </div>
+            )}
+
+            {error && !loading && !importing && <p className="error-box">{error}</p>}
+
+      {!loading && !importing && preview && !importResults && (
+        <>
           {preview.candidates.length === 0 ? (
             <p className="panel-caption">新規候補は見つかりませんでした。</p>
           ) : (
@@ -378,17 +419,10 @@ export default function CollectPage() {
               </table>
             </div>
           )}
-        </section>
+        </>
       )}
 
-      {importResults && (
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h3 className="panel-title">登録結果</h3>
-              <p className="panel-caption">営業管理シートへ追加しました。</p>
-            </div>
-          </div>
+      {!importing && importResults && (
           <div className="data-table-wrap">
             <table className="data-table">
               <thead>
@@ -410,7 +444,9 @@ export default function CollectPage() {
               </tbody>
             </table>
           </div>
-        </section>
+      )}
+          </div>
+        </div>
       )}
 
       <section className="panel">

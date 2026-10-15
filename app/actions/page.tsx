@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, Send, ShieldCheck } from "lucide-react";
 
 type DashboardCommand =
@@ -10,7 +10,6 @@ type DashboardCommand =
   | "forms-todo"
   | "forms-fill"
   | "forms-mark-sent"
-  | "gmail-dry-run"
   | "gmail-sync";
 
 type CaptchaDetection = {
@@ -38,6 +37,7 @@ type DashboardJob = {
   filledLeads?: FilledLead[];
   confirmedLeadIds?: string[];
   fillWarnings?: Array<{ leadId: string; message: string }>;
+  updates?: Array<{ leadId: string; company: string; type: string; detail: string }>;
   resultCount?: number;
   resultMode?: string;
 };
@@ -124,10 +124,8 @@ const buildResultMessage = (job: DashboardJob): string => {
       return `本メールを${count}件送信しました。`;
     case "forms-todo":
       return `フォーム送信対象を${count}件確認しました。`;
-    case "gmail-dry-run":
-      return `返信を${count}件確認しました（dry-run、シートは更新していません）。`;
     case "gmail-sync":
-      return `返信を${count}件シートに反映しました。`;
+      return count === 0 ? "新しい返信・面談予約は見つかりませんでした。" : `返信・面談予約を${count}件、シートに反映しました。`;
     default:
       return "処理が完了しました。";
   }
@@ -165,12 +163,16 @@ export default function ActionsPage() {
   const [autoFillResult, setAutoFillResult] = useState<FilledLead[] | null>(null);
   const [confirmedLeadIds, setConfirmedLeadIds] = useState<string[]>([]);
   const [fillWarnings, setFillWarnings] = useState<Array<{ leadId: string; message: string }>>([]);
-  const [confirmGmail, setConfirmGmail] = useState(false);
   const [emailResult, setEmailResult] = useState<{ status: "success" | "failed"; text: string } | null>(null);
-  const [gmailResult, setGmailResult] = useState<{ status: "success" | "failed"; text: string } | null>(null);
+  const [gmailResult, setGmailResult] = useState<{
+    status: "success" | "failed";
+    text: string;
+    items?: Array<{ leadId: string; company: string; type: string; detail: string }>;
+  } | null>(null);
   const [formsTodoResult, setFormsTodoResult] = useState<{ status: "success" | "failed"; text: string } | null>(
     null
   );
+  const [targetCounts, setTargetCounts] = useState<{ email: number; form: number; formAuto: number; formManualOnly: number } | null>(null);
   const [watchEntries, setWatchEntries] = useState<FormWatchEntry[]>([]);
   const [jobs, setJobs] = useState<DashboardJob[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -186,14 +188,25 @@ export default function ActionsPage() {
     }
     setJobs(body.jobs ?? []);
     setActiveJobId(body.activeJobId ?? null);
+    loadTargets();
     if (!bccLoaded) {
       setEmailBcc(typeof body.defaultBcc === "string" ? body.defaultBcc : "");
       setBccLoaded(true);
     }
   };
 
+  const loadTargets = () => {
+    fetch("/api/targets", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((body) => {
+        if (typeof body.email === "number") setTargetCounts(body);
+      })
+      .catch(() => undefined);
+  };
+
   useEffect(() => {
     loadJobs().catch(() => undefined);
+    loadTargets();
   }, []);
 
   useEffect(() => {
@@ -410,7 +423,7 @@ export default function ActionsPage() {
     if (!job) return;
 
     if (job.status === "success") {
-      setGmailResult({ status: "success", text: buildResultMessage(job) });
+      setGmailResult({ status: "success", text: buildResultMessage(job), items: job.updates });
     } else {
       setGmailResult({ status: "failed", text: job.stderr || job.stdout || "処理に失敗しました。" });
     }
@@ -450,6 +463,27 @@ export default function ActionsPage() {
           {running || activeJobId ? "処理中" : "実行可能"}
         </span>
       </div>
+
+      <section className="kpi-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        <article className="kpi-card" style={{ "--card-color": "#2f6df6", "--card-bg": "#dbeafe" } as CSSProperties}>
+          <div className="kpi-card-head">
+            <span>送信待ち（メール）</span>
+            <span className="kpi-icon"><Mail size={19} /></span>
+          </div>
+          <div className="kpi-value">{targetCounts ? targetCounts.email : "-"}</div>
+          <span className="kpi-note">今すぐ送信できる件数</span>
+        </article>
+        <article className="kpi-card" style={{ "--card-color": "#f59e0b", "--card-bg": "#fef3c7" } as CSSProperties}>
+          <div className="kpi-card-head">
+            <span>送信待ち（フォーム）</span>
+            <span className="kpi-icon"><MousePointerClick size={19} /></span>
+          </div>
+          <div className="kpi-value">{targetCounts ? targetCounts.form : "-"}</div>
+          <span className="kpi-note">
+            {targetCounts ? `自動入力できる${targetCounts.formAuto}件 / 手動のみ${targetCounts.formManualOnly}件` : "読み込み中"}
+          </span>
+        </article>
+      </section>
 
       <section className="form-panel">
         <div className="panel-header">
@@ -765,32 +799,30 @@ export default function ActionsPage() {
         <div className="panel-header">
           <div>
             <h3 className="panel-title">Gmail返信同期</h3>
-            <p className="panel-caption">返信検知を確認し、必要に応じてスプレッドシートへ反映します。</p>
+            <p className="panel-caption">Gmailの返信と面談予約の通知を確認し、スプレッドシートへ反映します。</p>
           </div>
           <RefreshCw size={20} color="var(--success)" />
         </div>
         <div className="btn-row">
-          <button className="btn secondary" disabled={running} onClick={() => handleGmailAction({ command: "gmail-dry-run" })}>
-            <ClipboardCheck size={16} />
-            返信確認 dry-run
-          </button>
-          <button
-            className="btn danger"
-            disabled={running || !confirmGmail}
-            onClick={() => handleGmailAction({ command: "gmail-sync", confirm: confirmGmail })}
-          >
+          <button className="btn primary" disabled={running} onClick={() => handleGmailAction({ command: "gmail-sync" })}>
             <RefreshCw size={16} />
-            返信ありを反映
+            返信を確認して反映
           </button>
         </div>
-        <label className="check-pill mt-4">
-          <input type="checkbox" checked={confirmGmail} onChange={(event) => setConfirmGmail(event.target.checked)} />
-          Gmail同期結果をスプレッドシートへ反映します
-        </label>
         {gmailResult && (
           <p className={gmailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
             {gmailResult.text}
           </p>
+        )}
+        {gmailResult?.items && gmailResult.items.length > 0 && (
+          <ul className="mt-4">
+            {gmailResult.items.map((item, index) => (
+              <li key={`${item.leadId}-${index}`}>
+                <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.company}`} /> ：
+                {item.type === "booking" ? "面談予約を反映（返信あり）" : "返信あり"} - {item.detail}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

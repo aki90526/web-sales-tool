@@ -711,6 +711,20 @@ button:disabled {
   padding: 22px;
 }
 
+.modal-wide {
+  max-width: 1100px;
+}
+
+.modal-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 48px 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .loading-overlay {
   position: fixed;
   inset: 0;
