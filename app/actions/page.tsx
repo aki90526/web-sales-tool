@@ -158,6 +158,10 @@ export default function ActionsPage() {
   const [manualLoading, setManualLoading] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
   const [manualCopied, setManualCopied] = useState(false);
+  // ブックマークレット（クリップボード経由の自動入力）用
+  const [bookmarkletStatus, setBookmarkletStatus] = useState<{ status: "success" | "failed"; text: string } | null>(null);
+  const [bookmarkletUrlCopied, setBookmarkletUrlCopied] = useState(false);
+  const [dashboardOrigin, setDashboardOrigin] = useState("");
   const [markSentFeedback, setMarkSentFeedback] = useState<{ status: "success" | "failed"; text: string } | null>(
     null
   );
@@ -213,6 +217,7 @@ export default function ActionsPage() {
   useEffect(() => {
     loadJobs().catch(() => undefined);
     loadTargets();
+    setDashboardOrigin(window.location.origin);
   }, []);
 
   useEffect(() => {
@@ -302,6 +307,40 @@ export default function ActionsPage() {
     }
   };
 
+  // ブックマークレットが読み取る入力データ（そのリード1件分の、送信者情報・件名・本文）をクリップボードへ入れる
+  const copyBookmarkletPayload = async (targetLeadId: string): Promise<boolean> => {
+    setBookmarkletStatus(null);
+
+    try {
+      const res = await fetch(`/api/bookmarklet/payload?leadId=${encodeURIComponent(targetLeadId)}`, { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      await navigator.clipboard.writeText(JSON.stringify(body));
+      setBookmarkletStatus({ status: "success", text: `${targetLeadId} の入力データをコピーしました。フォームのページで、ブックマーク「自動入力」を押してください。` });
+      return true;
+    } catch (err) {
+      setBookmarkletStatus({
+        status: "failed",
+        text: `コピーに失敗しました: ${err instanceof Error ? err.message : "原因不明"}（「ブックマークレット用にコピー」ボタンで、もう一度お試しください）`
+      });
+      return false;
+    }
+  };
+
+  const bookmarkletHref = `javascript:(function(){var s=document.createElement('script');s.src='${dashboardOrigin}/bookmarklet/autofill.js?'+Date.now();document.body.appendChild(s);})();`;
+
+  const copyBookmarkletUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(bookmarkletHref);
+      setBookmarkletUrlCopied(true);
+      setTimeout(() => setBookmarkletUrlCopied(false), 2000);
+    } catch {
+      setBookmarkletStatus({ status: "failed", text: "コピーに失敗しました。手動で選択してコピーしてください。" });
+    }
+  };
+
   const openManualForm = async (overrideLeadId?: string) => {
     setManualError(null);
     setManualMessage(null);
@@ -320,6 +359,8 @@ export default function ActionsPage() {
       if (!trimmedLeadId) {
         setLeadId(body.leadId);
       }
+      // フォームを開くのと同時に、ブックマークレット用の入力データも、クリップボードへ入れる
+      await copyBookmarkletPayload(trimmedLeadId || body.leadId);
       if (body.contactFormUrl) {
         window.open(body.contactFormUrl, "_blank", "noopener,noreferrer");
       }
@@ -706,6 +747,31 @@ export default function ActionsPage() {
                       {manualCopied ? <Check size={16} /> : <Copy size={16} />}
                       {manualCopied ? "コピーしました" : "件名・本文をコピー"}
                     </button>
+                    <button className="btn primary" type="button" onClick={() => copyBookmarkletPayload(leadId.trim())} disabled={!leadId.trim()}>
+                      <Copy size={16} />
+                      ブックマークレット用にコピー
+                    </button>
+                  </div>
+                  {bookmarkletStatus && (
+                    <p className={bookmarkletStatus.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
+                      {bookmarkletStatus.text}
+                    </p>
+                  )}
+                  <div className="notice mt-4">
+                    <p>
+                      <strong>ブックマークレット（フォームへの自動入力）</strong>
+                    </p>
+                    <p className="mt-4">
+                      下のリンクを、ブックマークバーへ<strong>ドラッグして登録</strong>してください（最初の1回だけ）。フォームのページを開いて、このブックマークを押すと、コピーした内容が、入力欄に入ります。
+                    </p>
+                    <p className="mt-4">
+                      <span dangerouslySetInnerHTML={{ __html: `<a class="btn secondary" href="${bookmarkletHref.replace(/"/g, "&quot;")}" onclick="return false">自動入力</a>` }} />
+                      <button className="btn secondary" type="button" onClick={copyBookmarkletUrl}>
+                        {bookmarkletUrlCopied ? <Check size={16} /> : <Copy size={16} />}
+                        {bookmarkletUrlCopied ? "コピーしました" : "ブックマーク用のURLをコピー"}
+                      </button>
+                    </p>
+                    <p className="mt-4">スマホは、ブックマークを新規作成して、URL欄に「ブックマーク用のURL」を貼り付けてください。</p>
                   </div>
                 </>
               )}

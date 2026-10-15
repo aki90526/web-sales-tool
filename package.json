@@ -19,7 +19,8 @@
     "gmail:exchange-code": "ts-node src/scripts/exchangeGmailCode.ts",
     "gmail:sync-replies": "ts-node src/scripts/syncGmailReplies.ts",
     "dashboard:dev": "next dev -H 0.0.0.0 -p 3100",
-    "dashboard:build": "next build",
+    "bookmarklet:build": "ts-node src/scripts/buildBookmarklet.ts",
+    "dashboard:build": "npm run bookmarklet:build && next build",
     "dashboard:start": "next start -H 0.0.0.0 -p 3100"
   },
   "engines": {

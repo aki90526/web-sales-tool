@@ -285,7 +285,7 @@ const mergeAutofillResults = (results: FormAutofillResult[]): FormAutofillResult
   };
 };
 
-const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
+export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   const detectCaptcha = (): string => {
     const recaptchaScripts = Array.from(
       document.querySelectorAll<HTMLScriptElement>('script[src*="recaptcha"]')
@@ -2427,7 +2427,7 @@ const runConfirmStep = async (client: ChromeClient, contextIds: Set<number>): Pr
 
 
 // 選択肢の点数づけ（pageAutofill内のscoreChoiceTextと同じ基準。タブ選択のためページ内へ関数ごと渡す）
-const scoreChoiceTextForTabs = (text: string): number => {
+export const scoreChoiceTextForTabs = (text: string): number => {
   if (/(採用|求人|応募|リクルート|見積|資料請求|取材|クレーム|修理|購入|注文|不具合|解約|退会|メディア)/i.test(text)) {
     return 0;
   }
@@ -2454,7 +2454,7 @@ const scoreChoiceTextForTabs = (text: string): number => {
 type TabSelectResult = { clicked: boolean; label: string; tabs: string[] };
 
 // お問い合わせ種別ごとにタブでフォームが切り替わるページで、協業・提案向けのタブを選ぶ
-const pageSelectBestTab = (score: (text: string) => number): TabSelectResult => {
+export const pageSelectBestTab = (score: (text: string) => number): TabSelectResult => {
   const normalize = (value: string): string => value.replace(/\s+/g, " ").trim();
   const isVisible = (element: HTMLElement): boolean => {
     const rect = element.getBoundingClientRect();
