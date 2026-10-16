@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { findFormCandidates } from "../../../../src/contact/formCandidates";
 import { buildSalesMessage, readSalesContentConfig } from "../../../../src/contact/salesMessage";
 import { loadConfig } from "../../../../src/config/env";
 import { readAnalysisSalesContexts } from "../../../../src/google/analysisDataRepository";
@@ -11,13 +12,24 @@ export const dynamic = "force-dynamic";
 // 営業先のフォームに送る内容と同じもので、他のリードの情報や秘密情報は含めない。
 export async function GET(request: Request) {
   try {
-    const leadId = new URL(request.url).searchParams.get("leadId")?.trim();
+    const searchParams = new URL(request.url).searchParams;
+    let leadId = searchParams.get("leadId")?.trim();
+    const sheets = await createSheetsClient(loadConfig());
+
+    // リードIDが空のときは、「次の対象のフォームリード」を選ぶ（「フォームを開く」と同じ）
+    if (!leadId && searchParams.get("next") === "form") {
+      const { candidates } = await findFormCandidates(sheets, 1, await readSalesContentConfig(sheets));
+      leadId = candidates[0]?.leadId;
+
+      if (!leadId) {
+        return NextResponse.json({ message: "対象のフォームリードが見つかりません" }, { status: 404 });
+      }
+    }
 
     if (!leadId) {
       return NextResponse.json({ message: "leadId is required" }, { status: 400 });
     }
 
-    const sheets = await createSheetsClient(loadConfig());
     const [table, contentConfig, salesContexts] = await Promise.all([
       readSalesManagementTable(sheets),
       readSalesContentConfig(sheets),

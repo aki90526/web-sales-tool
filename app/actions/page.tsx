@@ -307,26 +307,46 @@ export default function ActionsPage() {
     }
   };
 
-  // ブックマークレットが読み取る入力データ（そのリード1件分の、送信者情報・件名・本文）をクリップボードへ入れる
-  const copyBookmarkletPayload = async (targetLeadId: string): Promise<boolean> => {
+  // クリック直後に呼ぶ。データ取得を待つ間も「ボタンを押した操作」として扱われるよう、ClipboardItem に Promise を渡す
+  const copyBookmarkletPayloadFromGesture = (query: string): Promise<boolean> => {
     setBookmarkletStatus(null);
-
-    try {
-      const res = await fetch(`/api/bookmarklet/payload?leadId=${encodeURIComponent(targetLeadId)}`, { cache: "no-store" });
+    const payloadPromise = fetch(`/api/bookmarklet/payload?${query}`, { cache: "no-store" }).then(async (res) => {
       const body = await res.json();
       if (!res.ok) {
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
-      await navigator.clipboard.writeText(JSON.stringify(body));
-      setBookmarkletStatus({ status: "success", text: `${targetLeadId} の入力データをコピーしました。フォームのページで、ブックマーク「自動入力」を押してください。` });
-      return true;
-    } catch (err) {
-      setBookmarkletStatus({
-        status: "failed",
-        text: `コピーに失敗しました: ${err instanceof Error ? err.message : "原因不明"}（「ブックマークレット用にコピー」ボタンで、もう一度お試しください）`
+      return body;
+    });
+
+    const write = async (): Promise<void> => {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/plain": payloadPromise.then((body) => new Blob([JSON.stringify(body)], { type: "text/plain" }))
+          })
+        ]);
+        return;
+      }
+
+      await navigator.clipboard.writeText(JSON.stringify(await payloadPromise));
+    };
+
+    return write()
+      .then(async () => {
+        const body = await payloadPromise;
+        setBookmarkletStatus({
+          status: "success",
+          text: `${body.candidate.leadId} の入力データをコピーしました。フォームのページで、ブックマーク「自動入力」を押してください。`
+        });
+        return true;
+      })
+      .catch((err) => {
+        setBookmarkletStatus({
+          status: "failed",
+          text: `コピーに失敗しました: ${err instanceof Error ? err.message : "原因不明"}（「ブックマークレット用にコピー」ボタンで、もう一度お試しください）`
+        });
+        return false;
       });
-      return false;
-    }
   };
 
   const bookmarkletHref = `javascript:(function(){var s=document.createElement('script');s.src='${dashboardOrigin}/bookmarklet/autofill.js?'+Date.now();document.body.appendChild(s);})();`;
@@ -349,6 +369,8 @@ export default function ActionsPage() {
 
     const trimmedLeadId = (overrideLeadId ?? leadId).trim();
     const query = trimmedLeadId ? `leadId=${encodeURIComponent(trimmedLeadId)}` : "next=form";
+    // ボタンを押した直後（awaitの前）にコピーを開始する（iPhoneなどで、あとからのコピーが止められるのを避ける）
+    const copyPromise = copyBookmarkletPayloadFromGesture(query);
 
     try {
       const res = await fetch(`/api/leads/message?${query}`);
@@ -359,8 +381,7 @@ export default function ActionsPage() {
       if (!trimmedLeadId) {
         setLeadId(body.leadId);
       }
-      // フォームを開くのと同時に、ブックマークレット用の入力データも、クリップボードへ入れる
-      await copyBookmarkletPayload(trimmedLeadId || body.leadId);
+      await copyPromise;
       if (body.contactFormUrl) {
         window.open(body.contactFormUrl, "_blank", "noopener,noreferrer");
       }
@@ -747,7 +768,7 @@ export default function ActionsPage() {
                       {manualCopied ? <Check size={16} /> : <Copy size={16} />}
                       {manualCopied ? "コピーしました" : "件名・本文をコピー"}
                     </button>
-                    <button className="btn primary" type="button" onClick={() => copyBookmarkletPayload(leadId.trim())} disabled={!leadId.trim()}>
+                    <button className="btn primary" type="button" onClick={() => copyBookmarkletPayloadFromGesture(`leadId=${encodeURIComponent(leadId.trim())}`)} disabled={!leadId.trim()}>
                       <Copy size={16} />
                       ブックマークレット用にコピー
                     </button>
