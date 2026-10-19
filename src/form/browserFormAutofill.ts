@@ -74,6 +74,10 @@ export type CompletionSnapshot = {
   looksLikeConfirmPage: boolean;
   hasSubmitButton: boolean;
   cf7Sent: boolean;
+  // MW WP Form の完了画面（URLが変わらず、同じページ内に完了メッセージが出る）
+  mwWpFormComplete: boolean;
+  // 入力欄（テキスト・メール・本文など）が画面に見えているか。完了メッセージに置き換わると false になる
+  hasVisibleTextInputs: boolean;
   // 直前のページ遷移でリダイレクトが何回あったか（送信後に別ページへ転送されたかの判定用）
   redirectCount: number;
   referrer: string;
@@ -2285,6 +2289,16 @@ const pageReadCompletionSnapshot = (): CompletionSnapshot => {
     looksLikeConfirmPage: /(入力内容.{0,6}確認|内容を?ご確認|確認画面|以下の内容で|この内容で|内容でよろしければ)/.test(text),
     hasSubmitButton,
     cf7Sent: !!document.querySelector(".wpcf7-mail-sent-ok, .wpcf7 form.sent, .wpcf7-form.sent"),
+    mwWpFormComplete: !!document.querySelector(".mw_wp_form_complete"),
+    hasVisibleTextInputs: Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'textarea, input[type="text"], input[type="email"], input[type="tel"], input:not([type])'
+      )
+    ).some((element) => {
+      const rect = element.getBoundingClientRect();
+
+      return rect.width > 0 && rect.height > 0;
+    }),
     redirectCount:
       (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.redirectCount ?? 0,
     referrer: document.referrer,
@@ -2318,7 +2332,23 @@ export const isFormCompleted = (baseline: CompletionSnapshot | null, current: Co
     return true;
   }
 
+  if (current.mwWpFormComplete && !baseline?.mwWpFormComplete) {
+    return true;
+  }
+
   if (current.strictDone && !baseline?.strictDone) {
+    return true;
+  }
+
+  // URLが変わらないまま、フォームが消えて「ありがとうございました」等に置き換わったページ内完了
+  if (
+    !urlChanged &&
+    current.looseDone &&
+    !baseline?.looseDone &&
+    !current.looksLikeConfirmPage &&
+    !current.hasSubmitButton &&
+    !current.hasVisibleTextInputs
+  ) {
     return true;
   }
 
