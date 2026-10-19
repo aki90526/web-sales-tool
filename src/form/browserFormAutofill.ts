@@ -586,6 +586,13 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       }
     });
 
+    // 「セイ <input> メイ <input>」のように、1つの欄に複数の入力があり直前の文字だけが項目名になっている場合
+    const previousNode = element.previousSibling;
+    const previousText = previousNode?.nodeType === Node.TEXT_NODE ? previousNode.textContent?.trim() ?? "" : "";
+    if (previousText && previousText.length <= 10) {
+      parts.unshift(previousText);
+    }
+
     return normalize(Array.from(new Set(parts)).join(" "));
   };
 
@@ -665,11 +672,19 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const matchesLastNameKana = (text: string): boolean => {
-    return /(フリガナ|カナ|セイ|kana|furigana)/i.test(text) && (hasStandaloneJapaneseField(text, "姓") || hasStandaloneJapaneseField(text, "セイ"));
+    return (
+      (/(フリガナ|カナ|セイ|kana|furigana)/i.test(text) && (hasStandaloneJapaneseField(text, "姓") || hasStandaloneJapaneseField(text, "セイ"))) ||
+      // family_kana / last-name-kana のような項目名
+      /(family|last|sei)[\s_-]*(name[\s_-]*)?(kana|furigana)|(kana|furigana)[\s_-]*(family|last|sei)/i.test(text)
+    );
   };
 
   const matchesFirstNameKana = (text: string): boolean => {
-    return /(フリガナ|カナ|メイ|kana|furigana)/i.test(text) && (hasStandaloneJapaneseField(text, "名") || hasStandaloneJapaneseField(text, "メイ"));
+    return (
+      (/(フリガナ|カナ|メイ|kana|furigana)/i.test(text) && (hasStandaloneJapaneseField(text, "名") || hasStandaloneJapaneseField(text, "メイ"))) ||
+      // given_kana / first-name-kana のような項目名
+      /(given|first|mei)[\s_-]*(name[\s_-]*)?(kana|furigana)|(kana|furigana)[\s_-]*(given|first|mei)/i.test(text)
+    );
   };
 
   const matchesLastNameHiragana = (text: string): boolean => {
@@ -722,6 +737,24 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     }
 
     return false;
+  };
+
+  // 「住所1」「住所2」/ address_1・address_2 のように番号付きの住所欄の番号
+  const addressLineNumber = (text: string): number => {
+    const match = /(住所|address)[\s_-]*([12１２])(?![0-9０-９])/i.exec(text);
+    if (!match) {
+      return 0;
+    }
+
+    return match[2] === "1" || match[2] === "１" ? 1 : 2;
+  };
+
+  const hasAddressLineField = (element: HTMLElement, line: number): boolean => {
+    const scope: ParentNode = element.closest("form") ?? document;
+
+    return Array.from(scope.querySelectorAll<HTMLElement>("input")).some(
+      (other) => other !== element && visible(other) && addressLineNumber(labelFor(other)) === line
+    );
   };
 
   // 同じフォーム内に、都道府県・市区町村を入れる別の欄があるか
@@ -842,6 +875,17 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
       return "";
     }
 
+    // 「住所1」「住所2」に分かれている欄は、住所2を建物名などの続きとして空欄にし、
+    // 市区町村の欄が別にあれば住所1には番地以降だけを入れる
+    const addressLine = addressLineNumber(text);
+    if (addressLine === 2 && hasAddressLineField(element, 1)) {
+      return "";
+    }
+
+    if (addressLine === 1 && hasOtherAddressField(element, "city")) {
+      return "streetAddress";
+    }
+
     if (matchesCityStreetAddress(text)) {
       return "cityStreetAddress";
     }
@@ -939,8 +983,19 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
     return [value];
   };
 
+  // 郵便番号の「自動入力」ボタンなど、分割入力欄と同じ場所にあるボタン類を数えないための判定
+  const textLikeInput = (element: HTMLInputElement): boolean => {
+    return !["button", "submit", "reset", "image", "hidden", "checkbox", "radio", "file"].includes(
+      (element.getAttribute("type") || "text").toLowerCase()
+    );
+  };
+
   const telLike = (element: HTMLInputElement): boolean => {
     const type = (element.getAttribute("type") || "").toLowerCase();
+    if (!textLikeInput(element)) {
+      return false;
+    }
+
     const text = labelFor(element);
     if (matches(text, "postalCode")) {
       return false;
@@ -950,6 +1005,10 @@ const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult => {
   };
 
   const postalCodeLike = (element: HTMLInputElement): boolean => {
+    if (!textLikeInput(element)) {
+      return false;
+    }
+
     const text = labelFor(element);
     return matches(text, "postalCode");
   };
@@ -2633,6 +2692,44 @@ const fillIframeForms = async (
   return results;
 };
 
+// 外部サービスのiframe（別プロセス）内にある確認ボタンを押す
+const runConfirmStepInIframes = async (
+  CDP: ChromeRemoteInterface,
+  port: number,
+  parentTargetId: string
+): Promise<ConfirmStepResult | null> => {
+  let targets: Array<{ id: string; type: string; url: string; parentId?: string }> = [];
+
+  try {
+    targets = (await CDP.List({ port })).filter(
+      (entry) => entry.type === "iframe" && entry.parentId === parentTargetId && !IGNORED_IFRAME_URL.test(entry.url)
+    );
+  } catch {
+    return null;
+  }
+
+  for (const iframeTarget of targets) {
+    try {
+      const iframeClient = await CDP({ port, target: iframeTarget.id });
+
+      try {
+        await iframeClient.Runtime.enable();
+        const confirm = await runConfirmStep(iframeClient, new Set());
+
+        if (confirm.status !== "no-confirm-button") {
+          return confirm;
+        }
+      } finally {
+        await iframeClient.close();
+      }
+    } catch {
+      // The iframe may have navigated or closed while connecting.
+    }
+  }
+
+  return null;
+};
+
 const runInPage = async (
   client: ChromeClient,
   payload: FormAutofillPayload,
@@ -2911,6 +3008,10 @@ export const fillCandidateFormsInBrowser = async (
         confirm = { status: "skipped", detail: "入力の警告があるため、確認ボタンは押していません" };
       } else {
         confirm = await runConfirmStep(client, contextIds);
+
+        if (confirm.status === "no-confirm-button" && presence && presence.externalIframes.length > 0) {
+          confirm = (await runConfirmStepInIframes(CDP, options.chromePort, target.id)) ?? confirm;
+        }
 
         if (confirm.status === "validation-error") {
           result.warnings.push(`確認ボタンを押しましたが入力エラーがあります: ${confirm.detail ?? ""}`);
