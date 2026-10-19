@@ -2582,11 +2582,22 @@ const pageClickConfirmButton = (): ConfirmClickResult => {
   const candidates = elements.map(labelOf).filter(Boolean);
   const confirmPattern = /(確認|confirm|review)/i;
   const excludePattern = /(送信|送る|submit|send|戻る|戻|修正|キャンセル|クリア|リセット|reset|cancel|back|ログイン|検索)/i;
-  const target = elements.find((element) => {
-    const label = labelOf(element);
+  // 「送信内容確認」「入力内容を確認」「送信前の確認」は確認画面へ進むボタンなので押してよい。
+  // 「確認して送信」「確認の上送信」は送信まで進む可能性があるので押さない
+  const confirmOnlyPattern = /(送信内容|入力内容|送信前).{0,4}確認/;
+  const sendAfterConfirmPattern = /確認.{0,4}(して|の上|後).{0,3}(送信|送る)/;
+  const isConfirmButton = (label: string): boolean => {
+    if (!confirmPattern.test(label)) {
+      return false;
+    }
 
-    return confirmPattern.test(label) && !excludePattern.test(label);
-  });
+    if (confirmOnlyPattern.test(label) && !sendAfterConfirmPattern.test(label) && !/(戻|修正|キャンセル|クリア|リセット)/.test(label)) {
+      return true;
+    }
+
+    return !excludePattern.test(label);
+  };
+  const target = elements.find((element) => isConfirmButton(labelOf(element)));
 
   if (!target) {
     return { clicked: false, label: "", candidates: candidates.slice(0, 8) };
