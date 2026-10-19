@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, Filter, Mail, MessageSquare, MousePointerClick, RefreshCw, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, Filter, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Users, X } from "lucide-react";
 import { STATUSES } from "../../src/domain/lead";
 
 type Lead = {
@@ -164,6 +164,41 @@ export default function LeadsPage() {
     }
   };
 
+  const editFormUrl = async (lead: Lead) => {
+    const input = window.prompt(`${lead.companyName}（${lead.leadId}）のフォームURL`, lead.contactFormUrl);
+    if (input === null) return;
+
+    const nextUrl = input.trim();
+    if (nextUrl === lead.contactFormUrl) return;
+
+    const previousUrl = lead.contactFormUrl;
+    setStatusError(null);
+    setLeads((current) =>
+      current
+        ? current.map((entry) => (entry.leadId === lead.leadId ? { ...entry, contactFormUrl: nextUrl } : entry))
+        : current
+    );
+
+    try {
+      const res = await fetch("/api/leads/form-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.leadId, contactFormUrl: nextUrl })
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setLeads((current) =>
+        current
+          ? current.map((entry) => (entry.leadId === lead.leadId ? { ...entry, contactFormUrl: previousUrl } : entry))
+          : current
+      );
+      setStatusError(err instanceof Error ? err.message : "フォームURLの更新に失敗しました");
+    }
+  };
+
   const updateStatus = async (lead: Lead, nextStatus: string) => {
     if (nextStatus === lead.status) return;
 
@@ -315,7 +350,7 @@ export default function LeadsPage() {
         </button>
       </div>
 
-      {statusError && <p className="error-box">ステータス更新エラー: {statusError}</p>}
+      {statusError && <p className="error-box">更新エラー: {statusError}</p>}
 
       <section className="kpi-grid">
         <article className="kpi-card">
@@ -422,13 +457,25 @@ export default function LeadsPage() {
                     <td className="hide-mobile">{lead.leadType}</td>
                     <td className="hide-mobile col-fixed-120">{lead.region}</td>
                     <td className="hide-mobile">
-                      {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
-                        <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
-                          {lead.contactMethod}
-                        </a>
-                      ) : (
-                        <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
-                      )}
+                      <div className="btn-row-tight">
+                        {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
+                          <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
+                            {lead.contactMethod}
+                          </a>
+                        ) : (
+                          <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
+                        )}
+                        {lead.contactMethod === "フォーム" && (
+                          <button
+                            className="btn secondary icon-only"
+                            type="button"
+                            onClick={() => editFormUrl(lead)}
+                            title={lead.contactFormUrl ? `フォームURLを編集（${lead.contactFormUrl}）` : "フォームURLを設定"}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td><span className="score-badge">{lead.salesScore}</span></td>
                     <td>
