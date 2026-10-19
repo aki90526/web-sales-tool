@@ -1,0 +1,11 @@
+{
+  "checkbox[]": [
+    "その他"
+  ],
+  "office": "テスト商店",
+  "your-name": "山田 太郎",
+  "name-kana": "ヤマダ タロウ",
+  "email": "test@example.com",
+  "tel": "09012345678",
+  "textarea": "テスト本文"
+}

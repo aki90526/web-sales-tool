@@ -1,0 +1,9 @@
+{
+  "your-name": "山田 太郎",
+  "your-email": "test@example.com",
+  "your-email_confirm": "test@example.com",
+  "your-message": "テスト本文",
+  "privacy": [
+    "1"
+  ]
+}

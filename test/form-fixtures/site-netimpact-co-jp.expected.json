@@ -1,0 +1,22 @@
+{
+  "type": [],
+  "company": "テスト商店",
+  "your-name": "山田　太郎",
+  "kana": "ヤマダ　タロウ",
+  "zip": "344-0067",
+  "address-pre": "埼玉県",
+  "address": "春日部市中央1-2-3",
+  "address2": "中央1-2-3",
+  "address3": "",
+  "tel": "090",
+  "fax": "",
+  "your-email": "test@example.com",
+  "your-email-confirm": "test@example.com",
+  "koumoku[data][]": [
+    "その他"
+  ],
+  "other": "テスト本文",
+  "agree[data][]": [
+    "プライバシーポリシーに同意する"
+  ]
+}

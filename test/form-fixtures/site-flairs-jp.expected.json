@@ -1,0 +1,15 @@
+{
+  "your-email": "test@example.com",
+  "company": "テスト商店",
+  "kana-company": "テストショウテン",
+  "your-name": "山田 太郎",
+  "kana-name": "ヤマダ　タロウ",
+  "tel": "09012345678",
+  "your-message": "テスト本文",
+  "consent": [
+    "1"
+  ],
+  "confirmation": [
+    "1"
+  ]
+}

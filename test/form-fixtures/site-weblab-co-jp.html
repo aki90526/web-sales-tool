@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- source: https://www.weblab.co.jp/contact/form2/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-weblab-co-jp</title></head><body>
+<form action="/cgi-bin/mailer.cgi" method="post" name="frm1">
+<div class="contactform">
+<table class="tbr" width="100%">
+<tbody><tr>
+<th class="tbr" width="140">会社・団体名<span>必須</span></th>
+<td class="tbr"><input type="text" name="company" size="60" style="width:60%;" id="company" placeholder="例：株式会社ABC商事"></td>
+</tr>
+<tr>
+<th class="tbr" width="140">ご担当者名<span>必須</span></th>
+<td class="tbr"><input type="text" name="username" size="30" style="width:40%;" id="username" placeholder="例：山田 太郎"></td>
+</tr>
+<tr>
+<th class="tbr" width="140">ご担当者名［フリガナ］<span>必須</span></th>
+<td class="tbr"><input type="text" name="username_kana" size="30" style="width:40%;" id="username_kana" placeholder="例：ヤマダ タロウ"></td>
+</tr>
+<tr>
+<th class="tbr" width="140">所属部署名<span>必須</span></th>
+<td class="tbr"><input type="text" name="free1" size="60" style="width:60%;" id="free1"></td>
+</tr>
+<tr>
+<th class="tbr" width="140">電話番号<span>必須</span></th>
+<td class="tbr"><input type="tel" name="tel1" size="30" style="width:20%;" id="tel1" placeholder="03"> - <input type="tel" name="tel2" size="30" style="width:20%;" id="tel2" placeholder="4567"> - <input type="tel" name="tel3" size="30" style="width:20%;" id="tel3" placeholder="8910"></td>
+</tr>
+<tr>
+<th class="tbr" width="140">E-mail<span>必須</span></th>
+<td class="tbr">
+<p class="mb20"><input type="email" name="email" size="60" style="width:60%;" id="email" placeholder="例：yamada@example.com"></p>
+<p>※確認のため再度ご入力ください</p>
+<input type="text" name="email2" size="60" style="width:60%;" id="email2"></td>
+</tr>
+<tr>
+<th class="tbr" width="140">URL</th>
+<td class="tbr"><input type="url" name="url" size="60" style="width:70%;" id="url" placeholder="例：http://www.example.com"></td>
+</tr>
+<tr>
+<th class="tbr" width="140">お問い合わせ内容<span>必須</span></th>
+<td class="tbr"><textarea name="comment" rows="8" cols="60" style="width:80%;" id="comment"></textarea></td>
+</tr>
+</tbody></table>
+</div>
+
+<br>
+<div align="center"><input type="submit" class="btn" value="入力内容を確認する" onclick="return checkElements();"><input type="hidden" name="id" value="320" style="display:none"><input type="hidden" name="action" value="submit" style="display:none"><input type="hidden" name="kanji" value="漢" style="display:none"></div>
+</form>
+</body></html>

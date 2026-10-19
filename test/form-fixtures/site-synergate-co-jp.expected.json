@@ -1,0 +1,13 @@
+{
+  "name": "山田 太郎",
+  "company": "テスト商店",
+  "mail": "test@example.com",
+  "mail-confirm": "test@example.com",
+  "tel[data][0]": "090",
+  "tel[data][1]": "1234",
+  "tel[data][2]": "5678",
+  "message": "テスト本文",
+  "agree[data][]": [
+    "同意する"
+  ]
+}

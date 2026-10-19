@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- source: https://www.promo-ad.co.jp/contact/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-promo-ad-co-jp</title></head><body>
+<form method="post" action="mail01.php">
+						<table class="formTable">
+
+							<tbody><tr class="none" style="display:none">
+								<th>お問い合わせ項目<span>必須</span></th>
+								<td><input type="checkbox" name="お問い合わせ項目" value="サービス・広告について" checked="">サービス・広告について</td>
+							</tr>
+							<tr>
+								<th>会社名<span>必須</span></th>
+								<td><input type="text" name="会社名"></td>
+							</tr>
+							<tr>
+								<th>部署名</th>
+								<td><input type="text" name="部署名"></td>
+							</tr>
+							<tr>
+								<th>URL</th>
+								<td><input type="text" name="URL"></td>
+							</tr>
+							<tr>
+								<th>ご住所</th>
+
+								<td>郵便番号（ハイフンなし）<br>
+								〒 <input class="zip mb mt" type="text" name="郵便番号" size="10" maxlength="7" onkeyup="AjaxZip3.zip2addr(this,'','都道府県','市区町村');" inputmode="numeric" pattern="\d{7}"><br>
+								都道府県<br>
+								<input class="mb mt" type="text" name="都道府県"><br>
+								市区町村<br>
+								<input class="mb mt" type="text" name="市区町村"><br>
+								番地・建物<br>
+								<input class="mb mt" type="text" name="番地・建物"></td>
+							</tr>
+							<tr>
+								<th>電話番号</th>
+								<td><input type="tel" name="電話番号" inputmode="numeric" maxlength="11" pattern="\d{10,11}">（ハイフン無し）</td>
+							</tr>
+							<tr>
+								<th>メールアドレス<span>必須</span></th>
+								<td><input type="email" name="メールアドレス"></td>
+							</tr>
+							<tr>
+								<th>お名前</th>
+								<td><input type="text" name="お名前"></td>
+							</tr>
+							<tr>
+								<th>お問い合わせ内容<span>必須</span></th>
+								<td><textarea name="お問い合わせ内容" rows="5"></textarea></td>
+							</tr>
+							<tr>
+								<th>利用規約<span>必須</span></th>
+								<td>
+									<div class="kiyaku">
+										
+									</div>
+									<label><input type="checkbox" name="利用規約" value="利用規約に同意する">利用規約に同意する</label>
+								</td>
+							</tr>
+							
+							
+							
+						</tbody></table>
+
+						<div class="blackBtn">
+							<p class="center"><input type="submit" value="確認画面"></p>
+						</div>
+					</form>
+</body></html>

@@ -1,0 +1,14 @@
+{
+  "full-name": "山田 太郎",
+  "company-name": "テスト商店",
+  "tel": "09012345678",
+  "email": "test@example.com",
+  "budget": "",
+  "type": [
+    "協業について"
+  ],
+  "t-contents": "テスト本文",
+  "ag-check[data][]": [
+    "個人情報の取り扱いについて同意する"
+  ]
+}

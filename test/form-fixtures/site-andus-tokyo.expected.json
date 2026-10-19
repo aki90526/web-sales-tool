@@ -1,0 +1,8 @@
+{
+  "type": "お問い合わせ",
+  "name": "山田 太郎",
+  "furigana": "ヤマダ タロウ",
+  "mail": "test@example.com",
+  "corp": "テスト商店",
+  "body": "テスト本文"
+}

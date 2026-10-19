@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- source: https://mabataki.jp/access/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-mabataki-jp</title></head><body>
+<form method="POST" action="/form/mail.php" enctype="multipart/form-data">
+
+                            <table class="inview">
+                                <tbody><tr>
+                                    <th>お名前</th>
+                                    <td><input type="text" name="お名前" required=""></td>
+                                </tr>
+                                <tr>
+                                    <th>会社名</th>
+                                    <td><input type="text" name="会社名" required=""></td>
+                                </tr>
+                                <tr>
+                                    <th>メールアドレス</th>
+                                    <td><input type="email" name="メールアドレス" required=""></td>
+                                </tr>
+                                <tr>
+                                    <th>お問い合わせの種類</th>
+                                    <td>
+                                        <input type="radio" name="お問い合わせの種類" value="お仕事のご相談" id="type1" checked="" required="" style="display:none">
+                                        <label for="type1">お仕事のご相談</label>
+                                        <input type="radio" name="お問い合わせの種類" value="取材について" id="type2" style="display:none">
+                                        <label for="type2">取材について</label>
+                                        <input type="radio" name="お問い合わせの種類" value="エンジニア採用（2026/10/30締切）について" id="type4" style="display:none">
+                                        <label for="type4">エンジニア採用（<span class="en">2026</span>/<span class="en">10</span>/<span class="en">30</span>締切）について</label>
+                                        <input type="radio" name="お問い合わせの種類" value="デザイナー採用（2026/11/30締切）について" id="type5" style="display:none">
+                                        <label for="type5">デザイナー採用（<span class="en">2026</span>/<span class="en">11</span>/<span class="en">30</span>締切）について</label>
+                                        <input type="radio" name="お問い合わせの種類" value="その他" id="type3" style="display:none">
+                                        <label for="type3">その他</label>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>お問い合わせ内容</th>
+                                    <td><textarea name="お問い合わせ内容" required=""></textarea></td>
+                                </tr>
+                            </tbody></table>
+
+                            <div class="contact__button-wrap">
+                                <button class="common-link-with-icon inview">
+                                    <p class="common-link-with-icon__text"><span class="en">Confirm</span> <span class="en">Message</span></p>
+                                    <div class="common-link-with-icon__icon"></div>
+                                </button>
+                                <!-- /.common-link-with-icon -->
+                            </div>
+                        </form>
+</body></html>

@@ -1,0 +1,16 @@
+{
+  "homepage": "",
+  "company": "テスト商店",
+  "department": "代表",
+  "last_name": "山田",
+  "first_name": "太郎",
+  "email": "test@example.com",
+  "tel": "09012345678",
+  "contact_type": [
+    "other"
+  ],
+  "contact_detail": "テスト本文",
+  "privacy_agree": [
+    "agree"
+  ]
+}

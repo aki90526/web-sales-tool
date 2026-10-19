@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- source: https://www.andus.tokyo/contact.html -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-andus-tokyo</title></head><body>
+<form method="POST" action="check.php" id="mainForm" name="mainForm">
+        <div class="process"><img src="images/contact/process_01.png"></div>
+        <dl>
+          <dt>お問い合わせの種類</dt>
+          <dd class="select">
+            <select name="type" class="type">
+              <option value="">--　お問い合わせの種類　--</option>
+              <option value="お問い合わせ">　　お問い合わせ</option>
+              <option value="採用エントリー">　　採用エントリー</option>
+            </select>
+          </dd>
+          <dt>お名前</dt>
+          <dd>
+            <input type="text" title="お名前" class="tips name" name="name">
+          </dd>
+          <dt>フリガナ</dt>
+          <dd>
+            <input type="text" title="フリガナ" class="tips furigana" name="furigana">
+          </dd>
+          <dt>メールアドレス</dt>
+          <dd>
+            <input type="text" title="メールアドレス" class="tips mail" name="mail">
+          </dd>
+          <dt>会社名</dt>
+          <dd>
+            <input type="text" title="会社名" class="tips corp" name="corp">
+          </dd>
+          <dt>お問い合わせ内容</dt>
+          <dd>
+            <textarea title="お問い合わせ内容" class="tips body" name="body"></textarea>
+          </dd>
+        </dl>
+        <div class="submit"><img src="images/contact/btn_check.png" class="btn" onclick="validateAndSubmit();"></div>
+
+      </form>
+</body></html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- source: https://www.quantize.co.jp/#contact -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-quantize-co-jp</title></head><body>
+<form id="form_contact" method="post" action="contact.php" novalidate="novalidate">
+					<input type="hidden" name="mode" value="send" style="display:none">
+						<ul class="clearfix">
+							<li id="parts-category">
+								<div>お問い合わせ種別<span>※</span></div>
+								<div><select name="category" id="category">
+									<option value="" selected="">-- 選択してください --</option>
+									<option value="お仕事のご相談">お仕事のご相談</option>
+									<option value="お見積もり依頼">お見積もり依頼</option>
+									<option value="採用について">採用について</option>
+									<option value="その他">その他</option>
+								</select></div>
+							</li>
+							<li id="parts-name">
+								<div>お名前<span>※</span></div>
+								<div><input name="name" type="text" id="name"></div>
+							</li>
+							<li id="parts-company">
+								<div>貴社名</div>
+								<div><input name="company" type="text" id="company"></div>
+							</li>
+							<li id="parts-tel">
+								<div>TEL</div>
+								<div><input name="tel" type="text" id="tel"></div>
+							</li>
+							<li id="parts-emal">
+								<div>E-MAIL<span>※</span></div>
+								<div><input name="email" type="text" id="email"></div>
+							</li>
+							<li id="parts-email2_check">
+								<div>E-MAIL（確認用）<span>※</span></div>
+								<div><input name="email_check" type="text" id="email_check"></div>
+							</li>
+							<li id="parts-question">
+								<div>お問い合わせ内容<span>※</span></div>
+								<div><textarea name="question" cols="" rows="5" id="question"></textarea></div>
+							</li>
+						</ul>
+						
+						<div class="box">
+							<div class="g-recaptcha" data-theme="dark" data-callback="syncerRecaptchaCallback" data-sitekey="6LfifZoUAAAAAKv8aWAwwFe8mC9F6jKqXkllK8I5"><div style="width: 304px; height: 78px;"><div></div><textarea id="g-recaptcha-response" name="g-recaptcha-response" class="g-recaptcha-response" style="display:none"></textarea></div></div>
+						</div>
+						
+						<div class="btn-submit"><a href="javascript:void(0);" class="disabled">送信する<i class="icon-right-open"></i></a></div>
+						
+					</form>
+</body></html>

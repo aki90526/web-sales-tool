@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- source: https://www.anandan.co.jp/career/entry.html -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-anandan-co-jp</title></head><body>
+<form id="form" action="mail_form.php" method="post" name="form">
+<div class="t_form">
+<table width="100%" border="0" cellspacing="0" cellpadding="0" summary="アンアンドアンへの応募">
+<tbody><tr>
+<th>
+<p>氏名<span class="caution">※</span></p>
+</th>
+<td><input type="text" name="a_s" id="a" class="txtfld_m"></td>
+</tr>
+<tr>
+<th>
+<p>メールアドレス<span class="caution">※</span></p>
+</th>
+<td><input type="text" name="email_s" id="email_s" class="txtfld_m"></td>
+</tr>
+<tr>
+<th>
+<p>連絡先電話番号<span class="caution">※</span></p>
+</th>
+<td><input id="tel0" type="text" name="tel_s[0]" maxlength="4"> - <input id="tel1" type="text" name="tel_s[1]" maxlength="4"> - <input id="tel2" type="text" name="tel_s[2]" maxlength="4"></td>
+</tr>
+<tr>
+<th>
+<p>都道府県</p>
+</th>
+<td><select name="b" id="b">
+<option value="none" selected="selected">選択してください</option>
+<option value="北海道">北海道</option>
+<option value="青森県">青森県</option>
+<option value="岩手県">岩手県</option>
+<option value="宮城県">宮城県</option>
+<option value="秋田県">秋田県</option>
+<option value="山形県">山形県</option>
+<option value="福島県">福島県</option>
+<option value="茨城県">茨城県</option>
+<option value="栃木県">栃木県</option>
+<option value="群馬県">群馬県</option>
+<option value="埼玉県">埼玉県</option>
+<option value="千葉県">千葉県</option>
+<option value="東京都">東京都</option>
+<option value="神奈川県">神奈川県</option>
+<option value="山梨県">山梨県</option>
+<option value="長野県">長野県</option>
+<option value="新潟県">新潟県</option>
+<option value="富山県">富山県</option>
+<option value="石川県">石川県</option>
+<option value="福井県">福井県</option>
+<option value="岐阜県">岐阜県</option>
+<option value="静岡県">静岡県</option>
+<option value="愛知県">愛知県</option>
+<option value="三重県">三重県</option>
+<option value="滋賀県">滋賀県</option>
+<option value="京都府">京都府</option>
+<option value="大阪府">大阪府</option>
+<option value="兵庫県">兵庫県</option>
+<option value="奈良県">奈良県</option>
+<option value="和歌山県">和歌山県</option>
+<option value="鳥取県">鳥取県</option>
+<option value="島根県">島根県</option>
+<option value="岡山県">岡山県</option>
+<option value="広島県">広島県</option>
+<option value="山口県">山口県</option>
+<option value="香川県">香川県</option>
+<option value="愛媛県">愛媛県</option>
+<option value="高知県">高知県</option>
+<option value="徳島県">徳島県</option>
+<option value="福岡県">福岡県</option>
+<option value="佐賀県">佐賀県</option>
+<option value="長崎県">長崎県</option>
+<option value="熊本県">熊本県</option>
+<option value="大分県">大分県</option>
+<option value="宮崎県">宮崎県</option>
+<option value="鹿児島県">鹿児島県</option>
+<option value="沖縄県">沖縄県</option>
+</select></td>
+</tr>
+<tr>
+<th>
+<p>市区町村以下</p>
+</th>
+<td><input type="text" name="c" id="c" class="txtfld_l"></td>
+</tr>
+<tr>
+<th>
+<p>年齢<span class="caution">※</span></p>
+</th>
+<td><input id="age" type="text" name="age_s" maxlength="2"> 歳</td>
+</tr>
+<tr>
+<th class="txt_a">
+<p>実績<span class="caution">※</span></p>
+<p>作品のURLもご記入ください。</p>
+</th>
+<td class="txt_a"><textarea name="d_s" id="d" rows="6"></textarea></td>
+</tr>
+<tr>
+<th>
+<p>必須スキル<span class="caution">※</span></p>
+</th>
+<td>
+<ol>
+<li><input type="hidden" name="e_s" id="e0" value="none" style="display:none"><input type="radio" name="e_s" id="e1" value="コーディング（HTML ＋ CSS ＋ Javascript）またはWebデザイン">コーディング（HTML ＋ CSS ＋ Javascript）またはWebデザイン</li>
+</ol>
+</td>
+</tr>
+<tr>
+<th class="txt_a">
+<p>アピールできるスキル</p>
+</th>
+<td class="txt_a">
+<ol class="skill">
+<input type="hidden" name="f" value="none" style="display:none">
+<!-- <li><input type="checkbox" name="f[1]" value="HTML ＋ CSS ＋ Javascriptを使ったコーディングが得意" /> HTML ＋ CSS ＋ Javascriptを使ったコーディングが得意</li> -->
+<li><input type="checkbox" name="f[2]" value="Webデザインの実績が多数ある"> Webデザインの実績が多数ある</li>
+<li><input type="checkbox" name="f[3]" value="Movable Typeの構築ができる"> Movable Typeの構築ができる</li>
+<li><input type="checkbox" name="f[4]" value="WordPressの構築ができる"> WordPressの構築ができる</li>
+<!-- <li><input type="checkbox" name="f[5]" value="jsを使った様々な動作・表示制御ができる" /> jsを使った様々な動作・表示制御ができる</li> -->
+<li><input type="checkbox" name="f[6]" value="リスティング広告の知識がある"> リスティング広告の知識がある</li>
+<li><input type="checkbox" name="f[7]" value="Webマーケティングの知識がある"> Webマーケティングの知識がある</li>
+<!--
+<li><input type="checkbox" name="f[6]" value="PHPの知識がある" /> PHPの知識がある</li> -->
+<li><input type="checkbox" name="f[8]" value="サーバー周りの知識がある"> サーバー周りの知識がある</li>
+<!--<li><input type="checkbox" name="f[9]" value="データベースの知識がある" /> データベースの知識がある</li>
+<li><input type="checkbox" name="f[10]" value="Flashが得意" /> Flashが得意</li>
+<li><input type="checkbox" name="f[11]" value="モバイルサイト制作が得意" /> モバイルサイト制作が得意</li>
+<li><input type="checkbox" name="f[12]" value="イラストが描ける" /> イラストが描ける</li>
+<li><input type="checkbox" name="f[13]" value="ライティングが得意" /> ライティングが得意</li> -->
+<li><input type="checkbox" name="f[14]" value="制作スピードに自信あり"> 制作スピードに自信あり</li>
+</ol>
+</td>
+</tr>
+<tr>
+<th class="txt_a">
+<p>自己PR</p>
+</th>
+<td class="txt_a"><textarea name="g" id="g" rows="6"></textarea></td>
+</tr>
+</tbody></table>
+</div>
+<p><input type="hidden" name="mailToNum" id="mailToNum" value="3" style="display:none"> <input type="hidden" name="mode" id="mode" value="CONFIRM" style="display:none"> <input type="submit" name="submit" value="　　確認する　　"> <input type="reset" value="　リセット　"></p>
+</form>
+</body></html>

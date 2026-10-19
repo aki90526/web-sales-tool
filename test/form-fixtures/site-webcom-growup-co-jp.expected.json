@@ -1,0 +1,20 @@
+{
+  "your-company": "テスト商店",
+  "your-name": "山田　太郎",
+  "furigana": "ヤマダ タロウ",
+  "your-email": "test@example.com",
+  "address-post": "344-0067",
+  "todofuken": "埼玉県",
+  "address": "春日部市中央１－２－３",
+  "tel-no": "09012345678",
+  "checkbox-q1[]": [
+    "サイト・LP制作"
+  ],
+  "other": "",
+  "checkbox-q2[]": [],
+  "oter2": "",
+  "textarea-last": "テスト本文",
+  "shoudaku": [
+    "1"
+  ]
+}

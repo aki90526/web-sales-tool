@@ -1,0 +1,13 @@
+{
+  "lastname": "山田",
+  "firstname": "太郎",
+  "furi-lastname": "ヤマダ",
+  "furi-firstname": "タロウ",
+  "company": "テスト商店",
+  "company_url": "https://example.com/",
+  "email": "test@example.com",
+  "content": "テスト本文",
+  "policy": [
+    "同意する"
+  ]
+}

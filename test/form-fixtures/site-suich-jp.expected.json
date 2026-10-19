@@ -1,0 +1,15 @@
+{
+  "mail_address": "test@example.com",
+  "c_name": "山田 太郎",
+  "phone": "09012345678",
+  "c_company": "テスト商店",
+  "c_busho": "代表",
+  "c_url": "https://example.com/",
+  "num_address": "344-0067",
+  "address": "埼玉県春日部市中央1-2-3",
+  "c_txt": "テスト本文",
+  "c_webinsho": "",
+  "checkBtn": [
+    "on"
+  ]
+}

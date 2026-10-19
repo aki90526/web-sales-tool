@@ -1,0 +1,9 @@
+{
+  "お名前": "山田 太郎",
+  "メールアドレス": "test@example.com",
+  "email_confirm": "test@example.com",
+  "件名": [
+    "その他"
+  ],
+  "お問い合わせ内容": "テスト本文"
+}

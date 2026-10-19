@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- source: https://tasdesign.co.jp/contact/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-tasdesign-co-jp</title></head><body>
+<form action="confirm.php" method="post" novalidate="">
+<input type="hidden" name="csrf_token" value="808ae1645abd5b92314de476d0884e47e10568b99d756254e43ac0a7c15bec56" style="display:none">
+
+<div class="hp" aria-hidden="true">
+<label for="website">この項目は入力しないでください</label>
+<input type="text" name="website" id="website" tabindex="-1" autocomplete="off">
+</div>
+
+<label for="company">会社名・屋号</label>
+<input type="text" name="company" id="company" value="" autocomplete="organization">
+
+<label for="name">お名前 <span aria-hidden="true">(必須)</span></label>
+<input type="text" name="name" id="name" value="" required="" autocomplete="name">
+
+<label for="email">メールアドレス <span aria-hidden="true">(必須)</span></label>
+<input type="email" name="email" id="email" value="" required="" autocomplete="email">
+
+<label for="subject">件名 <span aria-hidden="true">(必須)</span></label>
+<input type="text" name="subject" id="subject" value="" required="">
+
+<label for="message">お問い合わせ内容 <span aria-hidden="true">(必須)</span></label>
+<textarea name="message" id="message" required=""></textarea>
+
+<div style="margin-top:20px;">
+<div class="cf-turnstile" data-sitekey="0x4AAAAAAC08lW_iG11MZvCJ"><div><div></div><input type="hidden" name="cf-turnstile-response" id="cf-chl-widget-mn0s0_response" style="display:none"></div></div>
+</div>
+
+<p class="note">送信前に確認画面が表示されます。</p>
+<div class="actions"><button type="submit">確認画面へ</button></div>
+</form>
+</body></html>

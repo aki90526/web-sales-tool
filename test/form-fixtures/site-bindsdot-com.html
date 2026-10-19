@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- source: https://bindsdot.com/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-bindsdot-com</title></head><body>
+<form id="form_comment" method="post" action="contact/confirm.php" novalidate="novalidate">
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <th>お名前<span class="attention">*</span></th>
+                                    <td>
+                                        <input name="お名前" type="text" placeholder="例：山田 太郎">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>会社名</th>
+                                    <td>
+                                        <input name="会社名" type="text" class="size100" placeholder="例：株式会社Binds.">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>部署</th>
+                                    <td>
+                                        <input name="部署" type="text" placeholder="例：営業部">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>メールアドレス<span class="attention">*</span></th>
+                                    <td>
+                                        <input name="メールアドレス" type="email" id="mailaddress" placeholder="例：t_yamada@binds.com">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>メールアドレス（確認）<span class="attention">*</span><small>確認のため、もう一度ご入力してください。</small></th>
+                                    <td>
+                                        <input type="email" name="メールアドレス（確認）">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>電話番号</th>
+                                    <td>
+                                        <input name="電話番号" type="text" placeholder="例：03-1234-5678">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>お問い合わせ内容<span class="attention">*</span></th>
+                                    <td>
+                                        <textarea name="お問い合わせ内容" cols="70" rows="10" class="size100"></textarea>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="verification">
+                            <button type="submit" id="transmit">確認する</button>
+                        </div>
+                    </form>
+</body></html>

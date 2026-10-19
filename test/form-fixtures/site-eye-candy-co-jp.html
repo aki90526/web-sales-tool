@@ -1,0 +1,98 @@
+<!doctype html>
+<!-- source: https://eye-candy.co.jp/contact -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-eye-candy-co-jp</title></head><body>
+<form action="/mail/mail.php" method="post" class="h-adr">
+                    <table>
+                        <tbody><tr>
+                            <td class="td_left">お問い合わせ内容<br>
+                                <p class="funome">(複数選択可)</p>
+                            </td>
+                            <td class="td_right checkbox mustIcon mustPsdding">
+                                <p class="mt35"><label><input type="checkbox" name="お問い合わせ内容[]" value="相談したい">相談したい</label></p>
+                                <p><label><input type="checkbox" name="お問い合わせ内容[]" value="無料 SEO分析希望">無料 SEO分析希望</label></p>
+                                <p><label><input type="checkbox" name="お問い合わせ内容[]" value="無料 来社相談希望（ビデオ通話可）">無料 来社相談希望（ビデオ通話可）</label></p>
+                                <p><label><input type="checkbox" name="お問い合わせ内容[]" value="その他">その他（備考欄に内容をご記入ください）</label></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">お名前</label></td>
+                            <td class="td_right checkbox mustIcon">
+                                <p class="textarea"><input type="text" name="お名前" class="textnomer" placeholder="例) 飴玉 瞳"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">フリガナ</label></td>
+                            <td class="td_right checkbox mustIcon">
+                                <p class="textarea"><input type="text" name="フリガナ" class="textnomer" placeholder="例) アメダマ ヒトミ"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">法人名/個人</label></td>
+                            <td class="td_right checkbox mustIcon">
+                                <p class="textarea"><input type="text" name="法人名/個人" class="textnomer" placeholder="例) 〇〇〇株式会社 / 個人"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">URL</label></td>
+                            <td class="td_right checkbox nomerIcon">
+                                <p class="textarea"><input type="text" name="URL" class="textnomer" placeholder="例) https://example.com"></p>
+                        </td></tr>
+                        <tr>
+                            <td class="td_left"><label for="username">メールアドレス</label></td>
+                            <td class="td_right checkbox mustIcon">
+                                <p class="textarea"><input type="text" name="Email" class="textnomer" placeholder="例) example@eye-candy.com"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">電話番号</label></td>
+                            <td class="td_right checkbox mustIcon">
+                                <p class="textarea"><input type="text" name="電話番号" class="textnomer" placeholder="例) 000-000-0000"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">郵便番号</label></td>
+                            <td class="td_right checkbox nomerIcon">
+                                <span class="p-country-name" style="display:none">Japan</span>
+                                <p class="textarea youbian">
+                                    <input type="text" name="郵便番号1" class="fmltt p-postal-code textnomer youbianJu" maxlength="3" onkeyup="nextfeild(this)"><span></span>
+                                    <input type="text" name="郵便番号2" class="fmltt p-postal-code textnomer" maxlength="4" onkeyup="nextfeild2(this)">
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">ご住所１</label></td>
+                            <td class="td_right checkbox nomerIcon">
+                                <p class="textarea"><input type="text" name="ご住所1" class="p-region p-locality textnomer" placeholder="都道府県・市町村"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">ご住所２</label></td>
+                            <td class="td_right checkbox nomerIcon">
+                                <p class="textarea"><input type="text" name="ご住所2" class="p-street-address p-extended-address textnomer" placeholder="番地・マンション名"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">お客様の業種</label></td>
+                            <td class="td_right checkbox nomerIcon">
+                                <p class="textarea"><input type="text" name="お客様の業種" class="textnomer" placeholder="例) 製造業"></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="td_left"><label for="username">備考</label></td>
+                            <td class="td_right checkbox nomerIcon">
+                                <p class="textarea"><textarea name="備考" class="textnomer textbox pformarea"></textarea></p>
+                            </td>
+                        </tr>
+
+                        <tr class="ppcb ppcbxx">
+                            <td>お問い合わせいただいた内容および個人情報は厳重に取り扱い、プライバシー保護に努めます。(<a href="/privacy" target="_blank">プライバシーポリシー</a>)</td>
+                        </tr>
+                        <tr class="ppcb">
+                            <td>同意する <input type="checkbox" name="プライバシー同意[]" value="同意する"></td>
+                        </tr>
+                        <tr class="sumbitbox">
+                            <td><input type="submit" id="btn_sub" value="確認画面へ"></td>
+                        </tr>
+                    </tbody></table>
+                </form>
+</body></html>

@@ -1,0 +1,10 @@
+{
+  "your-name": "山田 太郎",
+  "your-email": "test@example.com",
+  "your-group": "テスト商店",
+  "your-tel": "09012345678",
+  "content": "テスト本文",
+  "privacy": [
+    "1"
+  ]
+}

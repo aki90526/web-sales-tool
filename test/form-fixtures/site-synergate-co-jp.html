@@ -1,0 +1,75 @@
+<!doctype html>
+<!-- source: https://www.synergate.co.jp/contact/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-synergate-co-jp</title></head><body>
+<form method="post" action="" enctype="multipart/form-data"><p class="error-message" style="display:none">正しく入力されていない項目、または入力されていない必須項目があります。</p>
+
+<table class="detailTb sp wd">
+<tbody>
+<tr>
+<th>お名前<span class="notes">（必須）</span></th>
+<td>
+<input type="text" name="name" class="box1" size="30" maxlength="50" value="">
+</td>
+</tr>
+<tr>
+<th>御社名</th>
+<td>
+<input type="text" name="company" class="box1" size="30" maxlength="100" value="">
+</td>
+</tr>
+<tr>
+<th>メールアドレス<span class="notes">（必須）</span></th>
+<td>
+<p class="pb5 exTxt preNone">例）example@example.com</p>
+
+<input type="email" name="mail" class="boxmax" size="30" maxlength="100" value="" data-conv-half-alphanumeric="true">
+
+<p class="pt10 pb5 preNone">確認のため、もう一度入力してください。</p>
+<p class="preNone">
+<input type="email" name="mail-confirm" class="boxmax" size="30" maxlength="100" value="" data-conv-half-alphanumeric="true">
+</p>
+</td>
+</tr>
+<tr>
+<th>電話番号</th>
+<td>
+<p class="pb5 exTxt preNone">例）03-1234-5678</p>
+
+<span class="mwform-tel-field">
+	<input type="text" name="tel[data][0]" class="box3" size="6" maxlength="5" value="" data-conv-half-alphanumeric="true">
+	-	<input type="text" name="tel[data][1]" class="box3" size="5" maxlength="4" value="" data-conv-half-alphanumeric="true">
+	-	<input type="text" name="tel[data][2]" class="box3" size="5" maxlength="4" value="" data-conv-half-alphanumeric="true">
+</span>
+
+<input type="hidden" name="tel[separator]" value="-" style="display:none">
+</td>
+</tr>
+<tr>
+<th>お問い合わせ内容</th>
+<td>
+<p class="pb5 preNone">全角1000文字以内で入力してください。</p>
+
+<textarea name="message" class="boxarea" cols="50" rows="5"></textarea>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="alct pt20 pb10"><a href="/company/privacy/" target="_blank" rel="noopener">プライバシーポリシー</a>にご同意頂ける場合は「同意する」に<br>
+チェックを入れ「入力内容を確認する」ボタンをクリックしてください。</p>
+<p class="alct">
+	<span class="mwform-checkbox-field horizontal-item">
+		<label>
+			<input type="checkbox" name="agree[data][]" value="同意する">
+			<span class="mwform-checkbox-field-text">同意する</span>
+		</label>
+	</span>
+
+<input type="hidden" name="agree[separator]" value="," style="display:none">
+
+<input type="hidden" name="__children[agree][]" value="{&quot;\u540c\u610f\u3059\u308b&quot;:&quot;\u540c\u610f\u3059\u308b&quot;}" style="display:none">
+<b class="notes">（必須）</b></p>
+
+<div class="alct pt30">
+<input type="submit" name="submitConfirm" value="入力内容を確認する" class="nmlBtn">
+　</div><input type="hidden" name="mw-wp-form-form-id" value="304" style="display:none"><input type="hidden" name="mw_wp_form_token" value="ae9b642de54129afa0dde9e855494ad8db8ba109acd0b076e22cd47350d25b87" style="display:none"></form>
+</body></html>

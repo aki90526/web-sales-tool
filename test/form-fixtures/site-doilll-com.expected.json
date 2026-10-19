@@ -1,0 +1,10 @@
+{
+  "name": "山田 太郎",
+  "company": "テスト商店",
+  "department": "代表",
+  "email": "test@example.com",
+  "content": "テスト本文",
+  "input#5": [
+    "on"
+  ]
+}

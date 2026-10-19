@@ -1,0 +1,14 @@
+{
+  "form-company": "テスト商店",
+  "form-name": "山田 太郎",
+  "form-kana": "ヤマダ タロウ",
+  "form-email": "test@example.com",
+  "form-hp": "https://example.com/",
+  "form-tel": "09012345678",
+  "form-zip": "3440067",
+  "form-addr": "埼玉県春日部市中央1-2-3",
+  "form-contact": "テスト本文",
+  "form-privacy[]": [
+    "同意する"
+  ]
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- source: https://www.flex-ad.co.jp/contact/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-flex-ad-co-jp</title></head><body>
+<form method="POST" action="formail.cgi" accept-charset="Shift_JIS" enctype="multipart/form-data">
+				<input type="hidden" name="_subject" value="【FLEX WEB】お問い合わせが届きました" style="display:none">
+				<input type="hidden" name="_location" value="thanks.html" style="display:none">
+				<input type="hidden" name="_submit" value="1" style="display:none">
+				
+				<input type="hidden" name="_indispen" value="_name" style="display:none">
+				<input type="hidden" name="_indispen" value="_mail" style="display:none">
+				<input type="hidden" name="_indispen" value="お問い合わせ内容" style="display:none">
+				
+				<table class="normal anim formparts">
+					<tbody><tr>
+						<th>御社名</th>
+						<td><input type="text" name="御社名" value=""></td>
+					</tr>
+					<tr>
+						<th>御社名フリガナ</th>
+						<td><input type="text" name="御社名フリガナ" value=""></td>
+					</tr>
+					<tr>
+						<th>ご担当者名<span class="hissu">必須</span></th>
+						<td><input type="text" name="_name" value="" required=""></td>
+					</tr>
+					<tr>
+						<th>ご担当者名フリガナ</th>
+						<td><input type="text" name="担当者名フリガナ" value=""></td>
+					</tr>
+					<tr>
+						<th>メールアドレス<span class="hissu">必須</span></th>
+						<td><input type="email" name="_mail" value="" required=""></td>
+					</tr>
+					<tr>
+						<th>ご連絡先電話番号</th>
+						<td><input type="tel" name="ご連絡先電話番号" value=""></td>
+					</tr>
+					<tr>
+						<th>お問い合わせ内容<span class="hissu">必須</span></th>
+						<td><textarea name="お問い合わせ内容" required=""></textarea></td>
+					</tr>
+				</tbody></table>
+				<p class="btnSend anim">
+					<input type="submit" value="送信する" onclick="document.charset='Shift_JIS';">
+				</p>
+				</form>
+</body></html>

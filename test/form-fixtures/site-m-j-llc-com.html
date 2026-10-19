@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- source: https://www.m-j-llc.com/mail/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-m-j-llc-com</title></head><body>
+<form action="/mail/form.php" method="POST" target="myCon" id="contactForm">
+			<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response" style="display:none">
+			<table id="mail_tb">
+				<tbody><tr>
+					<th>お名前</th>
+					<td><input type="text" name="お名前"></td>
+				</tr>
+				<tr>
+					<th>メールアドレス</th>
+					<td><input type="email" name="email"></td>
+				</tr>
+				<tr>
+					<th>ご用件</th>
+					<td><textarea name="ご用件"></textarea></td>
+				</tr>
+				<tr>
+					<td colspan="2" align="center"><input class="form_btn" type="submit" value="確認" onclick="window.open('/mailform.php','myCon','width=530,height=600','scrollbars=yes');"></td>
+				</tr>
+			</tbody></table>
+			</form>
+</body></html>

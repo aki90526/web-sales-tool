@@ -1,0 +1,20 @@
+{
+  "your-select[]": [
+    "Webサイトの企画･編集･デザイン及びコーディング事業"
+  ],
+  "your-name": "山田",
+  "your-name2": "太郎",
+  "your-kana": "ヤマダ",
+  "your-kana2": "タロウ",
+  "your-zip": "3440067",
+  "your-address": "埼玉県",
+  "your-address2": "春日部市中央1-2-3",
+  "your-address3": "",
+  "your-tel": "09012345678",
+  "your-email": "test@example.com",
+  "your-email-confirm": "test@example.com",
+  "your-comment": "テスト本文",
+  "checkbox-648[]": [
+    "上記「個人情報の取扱い」に同意する"
+  ]
+}

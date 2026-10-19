@@ -7,6 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test:sheets": "ts-node src/scripts/testSheetsConnection.ts",
+    "test:forms": "ts-node src/scripts/testFormAutofill.ts",
+    "test:forms:save": "ts-node src/scripts/saveFormFixture.ts",
     "collect": "ts-node src/scripts/collectLeads.ts",
     "collect:import": "ts-node src/scripts/importPreviewLeads.ts",
     "forms:todo": "ts-node src/scripts/listFormSubmissions.ts",

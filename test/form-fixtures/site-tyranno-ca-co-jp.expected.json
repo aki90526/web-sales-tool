@@ -1,0 +1,15 @@
+{
+  "kind[]": [
+    "コーダー"
+  ],
+  "family-name": "山田",
+  "first-name": "太郎",
+  "family-name-kana": "ヤマダ",
+  "first-name-kana": "タロウ",
+  "age": "40",
+  "company-name": "テスト商店",
+  "prefecture": "埼玉県",
+  "website": "https://example.com/",
+  "mail-address": "test@example.com",
+  "problem": "テスト本文"
+}

@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- source: https://www.rise-a.net/contact/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-rise-a-net</title></head><body>
+<form action="mail_send.php" method="POST" enctype="multipart/form-data" name="form_b" id="form_b">
+
+
+<!-- CONTACT -->
+<div class="main_wrap">
+
+<table class="form">
+<tbody><tr>
+<th>お名前<span class="form_span01">[必須]</span></th>
+<td><input type="text" class="input01 validate[required]" name="お名前"></td>
+</tr><tr>
+<th>会社名</th>
+<td><input type="text" class="input01" name="会社名"></td>
+</tr><tr>
+<th>メールアドレス<span class="form_span01">[必須]</span></th>
+<td><input type="text" class="input01 validate[required,custom[email]]" name="メールアドレス"></td>
+</tr><tr>
+<th>お電話番号</th>
+<td><input type="text" class="input01" name="電話番号"></td>
+</tr><tr>
+<th>LINE ID</th>
+<td><input type="text" class="input01" name="LINEID"></td>
+</tr><tr>
+<th>希望の連絡方法</th>
+<td>
+
+
+<div class="button-group">
+
+<div class="item">
+<input type="radio" name="希望の連絡方法" class="radio-button" value="LINE" id="hen1" checked="">
+<label for="hen1">LINE</label>
+</div>
+ 
+<div class="item">
+<input type="radio" name="希望の連絡方法" class="radio-button" value="メール" id="hen2">
+<label for="hen2">メール</label>
+</div>
+
+<div class="item">
+<input type="radio" name="希望の連絡方法" class="radio-button" value="電話" id="hen3">
+<label for="hen3">電話</label>
+</div>
+
+</div>
+
+
+</td>
+</tr><tr>
+<th>問い合わせ内容</th>
+<td><textarea rows="8" name="問い合わせ内容"></textarea></td>
+</tr></tbody></table>
+
+<div><input value="確認の上で送信" class="button" type="submit"></div>
+
+
+
+</div>
+<!-- /CONTACT -->
+
+
+</form>
+</body></html>

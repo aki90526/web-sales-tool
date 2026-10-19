@@ -1,0 +1,16 @@
+{
+  "input[name]": "山田 太郎",
+  "input[kana]": "ヤマダ　タロウ",
+  "input[address_zip1]": "344",
+  "input[address_zip2]": "0067",
+  "input[address_prefectures]": "埼玉県",
+  "input[address_city]": "",
+  "input[address_address]": "春日部市中央1-2-3",
+  "input[tel]": "09012345678",
+  "input[email]": "test@example.com",
+  "input[email_confirm]": "test@example.com",
+  "input[body]": "テスト本文",
+  "input[rules_3]": [
+    "1"
+  ]
+}

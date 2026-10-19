@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- source: https://0top.jp/inquiry/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-0top-jp</title></head><body>
+<form method="post" action="./confirm.php" enctype="multipart/form-data" style="position: relative;">
+              <input type="hidden" name="form" value="1" style="display:none">
+
+
+              <p class="mt30"> <!-- ↓エラー文が表示されます↓ -->
+                <span class="red bold">
+                  
+                  
+                  
+                  
+                  
+                  
+                </span>
+                <br>
+                <!-- ↑エラー文が表示されます↑ -->
+              </p>
+
+              <p class="required"><span class="red bold">※</span>は必須です。</p>
+
+              <table class="formTableContainer" style="width:100%;" cellspacing="0" cellpadding="0" border="0" summary="">
+                <tbody><tr>
+                  <th class="title" style="width:33.3%;"><label for="campany">会社名</label></th>
+                  <td><input type="text" id="campany" name="text0" class="NameInputSize" value="" size="" maxlength=""></td>
+                </tr>
+                <tr>
+                  <th class="title"><label for="name">お名前<span class="red bold">※</span></label></th>
+                  <td><input type="text" id="name" name="text1" class="NameInputSize required" value="" size="" maxlength="" placeholder="お名前" style="background-color: rgb(255, 182, 193);"></td>
+                </tr>
+                <tr>
+                  <th class="title"><label for="mail">メールアドレス<span class="red bold">※</span></label></th>
+                  <td><input type="text" id="mail" name="email0" class="MailInputSize email hankaku required" size="" maxlength="" placeholder="aaa@bbb.jp" style="background-color: rgb(255, 182, 193);">
+</td>
+                </tr>
+                <tr>
+                  <th class="title"><label for="phone">お電話番号</label></th>
+                  <td><input type="text" id="phone" name="text2" class="NameInputSize" value="" size="" maxlength=""></td>
+                </tr>
+                <tr>
+                  <th class="title"><label for="msg">お問い合わせ内容<span class="red bold">※</span></label></th>
+                  <td><textarea name="textarea0" id="msg" class="required" cols="20" rows="4" placeholder="お問い合わせ内容" style="background-color: rgb(255, 182, 193);"></textarea></td>
+                </tr>
+              </tbody></table>
+
+              <div class="RulesArea center">
+                <textarea style="width:100%;">当社は、当社ウェブサイト上で、お客様のお持ちの機密またはその他の占有情報（お客様の技術、商品、販売などに関するお客様のアイデアを含みます。以下、当該情報等と呼びます。)の提供を要求する場合を除き、お客様から当該情報等の提供を受けることはお断りしています。
+万一、当社が特別に秘密保持の義務を負うとの意思を明示していない状態でお客様からそのような情報を当社へ提供されることがあっても、当社はそのような情報について機密を保持する義務を一切負わないことをご了解ください。さらに、当社は、そのような情報に関して利用または評価する義務を負いません。
+免責条項
+当社は、当社の他のサービスに関する利用規約で別途の定めがない限り、当社のウェブサイトの利用に関して、お客様その他の第三者の方に対して一切責任を負いません。また、当社は、当社ウェブサイトの内容の最新性、正確性、有用性、特定目的への適合性、機能性、コンピュータウィルスその他の有害性を含まないこと等の安全性に関し、一切保証いたしません。
+当社は、当社の利用規約の変更およびウェブサイトの停止に起因して生じるいかなる損害に対しても責任を負いません。
+当社は、リンクを通じてお客様がアクセスされるウェブサイトについて、いかなる責任も負いません。
+リンクされていることは、リンク先と当社が関連会社、取引先などの関係を有していることを意味しません。</textarea>
+
+                <div class="CheckArea center">
+                  <p><span><label class="check" id="checkarray" style="cursor: pointer;"><input type="checkbox" id="check0" name="check0[]" class="Rules" value=" "> 
+上記内容に同意して、お問い合わせフォームを利用します。<span class="red bold">※</span></label></span></p>
+                </div>
+
+
+
+                <div class="center">
+                  <input id="confirm" name="confirm" value="確認" title="確認" type="image" src="../img/inquiry/btn_confirm.png">
+                </div>
+            
+
+          </div><div id="navigation-required" style="position:fixed;right:5px;bottom:5px;"><div style="color:white;background-color:#00b8ff;padding:10px;border-radius:5px;">入力項目は残り<span style="color:red">4件</span>です</div></div></form>
+</body></html>

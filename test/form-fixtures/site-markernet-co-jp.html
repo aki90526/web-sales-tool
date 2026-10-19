@@ -1,0 +1,99 @@
+<!doctype html>
+<!-- source: https://www.markernet.co.jp/toiawase_mk/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-markernet-co-jp</title></head><body>
+<form method="post" enctype="multipart/form-data" action="/toiawase_mk/confirm.html#form" id="editform" novalidate="novalidate">
+  	<table class="p-form-table p-form-table--default u-m-t-tall"> 
+		<tbody><tr class="u-hidden-pc u-hidden-sp" style="display:none">
+			<th>
+				<div class="p-form-title">職種</div>
+			</th>
+			<td> 
+			  <div><input type="text" name="data[Contact][shokushu]" value="" class="p-form-text" id="shokushu"> </div>
+			</td>
+		</tr>
+		<tr>
+			<th>
+				<div class="p-form-title">お名前<span class="p-form-require">必須</span></div>
+			</th>
+			<td> 
+			  <div><input type="text" name="data[Contact][yourname]" value="" class="p-form-text" id="yourname"></div>
+							</td>
+		</tr>
+		<tr>
+			<th>
+				<div class="p-form-title">会社名</div>
+			</th>
+			<td> 
+			  <div><input type="text" name="data[Contact][company]" value="" class="p-form-text" id="company"></div>
+							</td>
+		</tr>
+		<tr>
+			<th>
+				<div class="p-form-title">メールアドレス<span class="p-form-require">必須</span></div>
+			</th>
+			<td> 
+			  <div><input type="text" name="data[Contact][mail]" value="" class="p-form-text" id="mail"></div>
+							</td>
+		</tr>
+		<tr>
+			<th>
+				<div class="p-form-title">メールアドレス(確認用)<span class="p-form-require">必須</span></div>
+			</th>
+			<td> 
+			  <div><input type="text" name="data[Contact][mail_confirm]" value="" class="p-form-text" id="mail_confirm"></div>
+							</td>
+		</tr>
+		<tr>
+			<th>
+				<div class="p-form-title">電話番号</div>
+			</th>
+			<td> 
+			  <div><input type="tel" name="data[Contact][tel]" value="" size="15" maxlength="15" class="p-form-text" id="tel"></div>
+							</td>
+		</tr>
+		<tr>
+			<th class="u-va-t"> 
+				<div class="p-form-title">解決したい課題</div>
+			</th>
+			<td> 
+				<div class="p-form-checkbox-area">
+					<input type="checkbox" name="data[Contact][kadai][]" value="1" class="p-form-checkbox" id="checkbox01" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox01">見込み顧客からの問い合わせ増加</label>
+					<input type="checkbox" name="data[Contact][kadai][]" value="2" class="p-form-checkbox" id="checkbox02" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox02">採用のエントリー数を増やしたい</label>
+					<input type="checkbox" name="data[Contact][kadai][]" value="3" class="p-form-checkbox" id="checkbox03" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox03">コンテンツやコピーをプロにお任せしたい</label>
+					<input type="checkbox" name="data[Contact][kadai][]" value="4" class="p-form-checkbox" id="checkbox04" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox04">会社の情報を上手に整理したい</label>
+					<input type="checkbox" name="data[Contact][kadai][]" value="5" class="p-form-checkbox" id="checkbox05" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox05">会社のブランディングを行いたい</label>
+					<input type="checkbox" name="data[Contact][kadai][]" value="6" class="p-form-checkbox" id="checkbox06" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox06">使いやすく見やすいウェブサイトにしたい</label>
+					<input type="checkbox" name="data[Contact][kadai][]" value="7" class="p-form-checkbox" id="checkbox07" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox07">CMSを刷新し更新のしやすいWEBサイトを制作したい</label>
+					<input type="checkbox" name="data[Contact][kadai][]" value="8" class="p-form-checkbox" id="checkbox08" style="display:none">
+					<label class="p-form-checkbox__label" for="checkbox08">その他</label>
+				</div>
+							</td>
+		</tr>
+		<tr>
+			<th class="u-va-t"> 
+				<div class="p-form-title">お問い合わせ内容<span class="p-form-require">必須</span></div>
+			</th>
+			<td> 
+				<div><textarea name="data[Contact][remarks]" class="p-form-text" style="ime-mode: active;" id="remarks"></textarea></div>
+							</td>
+		</tr>
+
+		<tr>
+			<th class="u-hidden-tb u-hidden-sp"></th>
+			<td>
+				<p>
+				<input type="checkbox" name="data[Contact][privacy][]" value="1" id="agree1" style="appearance: checkbox;">
+				<label class="p-form-checkbox__label" for="agree1"><a class="p-link-text" href="/privacy/#treat" target="_blank">個人情報の取扱いについて</a>に同意の上、確認するボタンをクリックしてください。</label></p>
+								<button class="p-form-button u-m-t-40" type="submit">確認する</button>
+			</td>
+		</tr>
+	</tbody></table>
+</form>
+</body></html>

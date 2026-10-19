@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- source: https://www.lavan7.co.jp/contacts -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-lavan7-co-jp</title></head><body>
+<form action="/contacts" class="stn-form" id="ContactIndexForm" method="post" accept-charset="utf-8"><div style="display:none"><input type="hidden" name="_method" value="POST" style="display:none"></div>								<div class="clear cf">
+									<div class="form-group col-md-6"><label for="ContactCompany" class="title">会社名</label><input name="data[Contact][company]" class="form-control" placeholder="例:株式会社ラバン7" maxlength="255" type="text" id="ContactCompany"></div>								</div>
+								<div class="clear cf">
+									<div class="form-group col-md-6"><label for="ContactName" class="title">ご担当者名</label><span class="requi">必須項目</span><input name="data[Contact][name]" class="form-control" placeholder="例:山田太郎" maxlength="255" type="text" id="ContactName"></div>								</div>
+								<div class="form-group col-md-6"><label for="ContactMail" class="title">E-mailアドレス</label><span class="requi">必須項目</span><input name="data[Contact][mail]" class="form-control" placeholder="例:sample@sample.com" maxlength="255" type="text" id="ContactMail"></div>								<div class="form-group col-md-6">
+									<label for="ContactTel1" class="title">電話番号</label>									<div class="input-group">
+										<input name="data[Contact][tel_1]" class="form-control" maxlength="5" type="text" id="ContactTel1">										<span class="input-group-addon">-</span>
+										<input name="data[Contact][tel_2]" class="form-control" maxlength="4" type="text" id="ContactTel2">										<span class="input-group-addon">-</span>
+										<input name="data[Contact][tel_3]" class="form-control" maxlength="4" type="text" id="ContactTel3">									</div>
+																	</div>
+								<div class="form-group col col-md-12"><label for="ContactAddr" class="title">ご住所</label><input name="data[Contact][addr]" class="form-control" placeholder="例:東京都渋谷区千駄ケ谷2-39-3" maxlength="255" type="text" id="ContactAddr"></div>								<div class="form-group col col-md-12">
+									<span class="title">お問合わせ項目</span><span class="requi">必須項目</span>
+									<input type="hidden" name="data[Contact][checks]" value="" id="ContactChecks" style="display:none">
+
+<div class="checkbox"><input type="checkbox" name="data[Contact][checks][]" value="WEB制作について" id="ContactChecksWEB制作について" style="display:none"><label for="ContactChecksWEB制作について">WEB制作について</label></div>
+<div class="checkbox"><input type="checkbox" name="data[Contact][checks][]" value="アプリ開発について" id="ContactChecksアプリ開発について" style="display:none"><label for="ContactChecksアプリ開発について">アプリ開発について</label></div>
+<div class="checkbox"><input type="checkbox" name="data[Contact][checks][]" value="マンガ制作について" id="ContactChecksマンガ制作について" style="display:none"><label for="ContactChecksマンガ制作について">マンガ制作について</label></div>
+<div class="checkbox"><input type="checkbox" name="data[Contact][checks][]" value="イラスト制作について" id="ContactChecksイラスト制作について" style="display:none"><label for="ContactChecksイラスト制作について">イラスト制作について</label></div>
+<div class="checkbox"><input type="checkbox" name="data[Contact][checks][]" value="その他のお問合わせ" id="ContactChecksその他のお問合わせ" style="display:none"><label for="ContactChecksその他のお問合わせ">その他のお問合わせ</label></div>
+<div class="checkbox"><input type="checkbox" name="data[Contact][checks][]" value="求人について" id="ContactChecks求人について" style="display:none"><label for="ContactChecks求人について">求人について</label></div>
+								</div>
+								<div class="form-group col-md-12 required"><label for="ContactBody" class="title">お問合わせ内容</label><span class="requi">必須項目</span><textarea name="data[Contact][body]" class="form-control" cols="40" rows="6" id="ContactBody" required="required"></textarea></div>								<p class="form-group col-md-12">
+									<button type="submit" name="is_confirm" class="btn btn-primary">送信確認する</button>								</p>
+							</form>
+</body></html>

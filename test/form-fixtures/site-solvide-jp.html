@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- source: https://solvide.jp/contact/ -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-solvide-jp</title></head><body>
+<form class="c-form" action="https://forms-cms.solvide.jp/f/contact" method="post" accept-charset="UTF-8">
+<div class="c-form__hp" aria-hidden="true"><label>この欄は空のままにしてください<input type="text" name="homepage" value="" tabindex="-1" autocomplete="off"></label></div>
+<div class="c-form__item --half">
+<label for="f-contact-company" class="c-form__item-label">
+<span class="c-form__item-label-text">会社名</span>
+<span class="c-form__item-label-required">必須</span>
+</label>
+<input type="text" id="f-contact-company" name="company" class="c-form__item-input" value="" maxlength="100" placeholder="株式会社SOLVIDE" autocomplete="organization" required="">
+</div>
+<div class="c-form__item --half">
+<label for="f-contact-department" class="c-form__item-label">
+<span class="c-form__item-label-text">部署名</span>
+<span class="c-form__item-label-required">必須</span>
+</label>
+<input type="text" id="f-contact-department" name="department" class="c-form__item-input" value="" maxlength="100" placeholder="人事部" autocomplete="organization-title" required="">
+</div>
+<div class="c-form__item --half">
+<label for="f-contact-last_name" class="c-form__item-label">
+<span class="c-form__item-label-text">姓</span>
+<span class="c-form__item-label-required">必須</span>
+</label>
+<input type="text" id="f-contact-last_name" name="last_name" class="c-form__item-input" value="" maxlength="50" placeholder="山田" autocomplete="family-name" required="">
+</div>
+<div class="c-form__item --half">
+<label for="f-contact-first_name" class="c-form__item-label">
+<span class="c-form__item-label-text">名</span>
+<span class="c-form__item-label-required">必須</span>
+</label>
+<input type="text" id="f-contact-first_name" name="first_name" class="c-form__item-input" value="" maxlength="50" placeholder="太郎" autocomplete="given-name" required="">
+</div>
+<div class="c-form__item --half">
+<label for="f-contact-email" class="c-form__item-label">
+<span class="c-form__item-label-text">メールアドレス</span>
+<span class="c-form__item-label-required">必須</span>
+</label>
+<input type="email" id="f-contact-email" name="email" class="c-form__item-input" value="" maxlength="254" placeholder="solvide@solvide.com" autocomplete="email" required="">
+</div>
+<div class="c-form__item --half">
+<label for="f-contact-tel" class="c-form__item-label">
+<span class="c-form__item-label-text">電話番号</span>
+<span class="c-form__item-label-required">必須</span>
+</label>
+<input type="tel" id="f-contact-tel" name="tel" class="c-form__item-input" value="" maxlength="24" placeholder="09012345678" autocomplete="tel" required="">
+</div>
+<div class="c-form__item">
+<div class="c-form__item-label">
+<span id="f-contact-contact_type-label" class="c-form__item-label-text">お問い合わせ内容</span>
+<span class="c-form__item-label-required">必須</span>
+</div>
+<div class="c-form__radio" role="radiogroup" aria-labelledby="f-contact-contact_type-label" aria-required="true">
+<label class="c-form__radio-item">
+<input class="c-form__radio-input" type="radio" name="contact_type" value="estimate" checked="" required="">
+<span class="c-form__radio-text">お見積もりのご相談</span>
+</label>
+<label class="c-form__radio-item">
+<input class="c-form__radio-input" type="radio" name="contact_type" value="service_question" required="">
+<span class="c-form__radio-text">サービスに関するご質問</span>
+</label>
+<label class="c-form__radio-item">
+<input class="c-form__radio-input" type="radio" name="contact_type" value="other" required="">
+<span class="c-form__radio-text">その他ご相談</span>
+</label>
+</div>
+</div>
+<div class="c-form__item">
+<label for="f-contact-contact_detail" class="c-form__item-label">
+<span class="c-form__item-label-text">お問い合わせ内容の詳細</span>
+<span class="c-form__item-label-required">必須</span>
+</label>
+<textarea id="f-contact-contact_detail" class="c-form__item-textarea" name="contact_detail" maxlength="5000" placeholder="お問い合わせ内容" required=""></textarea>
+</div>
+<div class="c-form__item">
+<div class="c-form__item-label">
+<span id="f-contact-privacy_agree-label" class="c-form__item-label-text">個人情報の取り扱い</span>
+<span class="c-form__item-label-required">必須</span>
+</div>
+<div class="c-form__radio" role="radiogroup" aria-labelledby="f-contact-privacy_agree-label" aria-required="true">
+<label class="c-form__radio-item">
+<input class="c-form__radio-input" type="radio" name="privacy_agree" value="agree" required="">
+<span class="c-form__radio-text">同意する</span>
+<a href="/privacy-policy/" class="c-form__radio-link">個人情報の取り扱いについて</a>
+</label>
+</div>
+</div>
+<div class="c-form__item">
+<button class="c-form__submit-btn" type="submit">送信する<img class="c-form__submit-btn-arrow" src="/assets/059a8c3af350/img/common/form-submit-arrow.svg" alt="">
+</button>
+</div>
+</form>
+</body></html>

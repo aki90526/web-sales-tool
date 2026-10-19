@@ -1,0 +1,11 @@
+{
+  "category_id": [
+    "1"
+  ],
+  "name": "山田 太郎",
+  "company": "テスト商店",
+  "email": "test@example.com",
+  "tel": "09012345678",
+  "prefecture_id": "11",
+  "message": "テスト本文"
+}

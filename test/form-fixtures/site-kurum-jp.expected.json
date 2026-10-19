@@ -1,0 +1,10 @@
+{
+  "company": "テスト商店",
+  "name": "山田 太郎",
+  "mail": "test@example.com",
+  "category": "その他のご相談",
+  "contents": "テスト本文",
+  "privacy[data][]": [
+    "プライバシーポリシーに同意します"
+  ]
+}

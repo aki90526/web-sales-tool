@@ -1,0 +1,23 @@
+{
+  "company-name": "テスト商店",
+  "your-name": "山田 太郎",
+  "your-name-kana": "やまだ たろう",
+  "your-email": "test@example.com",
+  "your-tel": "09012345678",
+  "your-pref": "埼玉県春日部市中央1-2-3",
+  "company-url": "https://example.com/",
+  "inquiry-category": "協業について",
+  "inquiry-type": [
+    "協業について問い合わせたい"
+  ],
+  "preferred-timing": [
+    "時期未定"
+  ],
+  "budget": "",
+  "current-issues": "",
+  "request-detail": "テスト本文",
+  "free-message": "",
+  "privacy-policy": [
+    "1"
+  ]
+}

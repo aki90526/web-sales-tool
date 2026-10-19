@@ -1,0 +1,19 @@
+{
+  "company-name": "テスト商店",
+  "name01": "山田",
+  "name02": "太郎",
+  "name03": "やまだ",
+  "name04": "たろう",
+  "telnumber": "09012345678",
+  "mail_add": "test@example.com",
+  "title[data][]": [
+    "協業・パートナーについて"
+  ],
+  "acc[data][]": [
+    "弊社WEBサイトを見て"
+  ],
+  "naiyou": "テスト本文",
+  "doui[data][]": [
+    "プライバシーポリシーに同意"
+  ]
+}

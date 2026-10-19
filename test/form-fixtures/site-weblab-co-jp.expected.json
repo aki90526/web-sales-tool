@@ -1,0 +1,13 @@
+{
+  "company": "テスト商店",
+  "username": "山田 太郎",
+  "username_kana": "ヤマダ タロウ",
+  "free1": "代表",
+  "tel1": "090",
+  "tel2": "1234",
+  "tel3": "5678",
+  "email": "test@example.com",
+  "email2": "test@example.com",
+  "url": "https://example.com/",
+  "comment": "テスト本文"
+}

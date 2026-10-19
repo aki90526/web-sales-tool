@@ -1,0 +1,8 @@
+{
+  "website": "https://example.com/",
+  "company": "テスト商店",
+  "name": "山田 太郎",
+  "email": "test@example.com",
+  "subject": "テスト件名",
+  "message": "テスト本文"
+}

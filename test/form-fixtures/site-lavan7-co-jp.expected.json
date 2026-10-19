@@ -1,0 +1,13 @@
+{
+  "data[Contact][company]": "テスト商店",
+  "data[Contact][name]": "山田 太郎",
+  "data[Contact][mail]": "test@example.com",
+  "data[Contact][tel_1]": "090",
+  "data[Contact][tel_2]": "1234",
+  "data[Contact][tel_3]": "5678",
+  "data[Contact][addr]": "埼玉県春日部市中央1-2-3",
+  "data[Contact][checks][]": [
+    "その他のお問合わせ"
+  ],
+  "data[Contact][body]": "テスト本文"
+}

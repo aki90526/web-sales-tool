@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- source: https://travision.jp/contact/index.php -->
+<html lang="ja"><head><meta charset="utf-8"><title>site-travision-jp</title></head><body>
+<form action="confirm.php" method="post" class="stack" novalidate="">
+      <p><span class="red">＊</span>がついている項目は<span>必須になります。</span></p>
+
+      <div>
+        <label for="company">会社名 <span class="red">＊</span></label>
+        <input type="text" id="company" name="company" value="" required="">
+              </div>
+
+      <div>
+        <label for="division">部署名</label>
+        <input type="text" id="division" name="division" value="">
+              </div>
+
+      <div>
+        <label for="name">お名前 <span class="red">＊</span></label>
+        <input type="text" id="name" name="name" value="" required="">
+              </div>
+
+      <div>
+        <label for="ruby">フリガナ <span class="red">＊</span></label>
+        <input type="text" id="ruby" name="ruby" value="" required="">
+              </div>
+
+      <div>
+        <label for="mailaddress">メールアドレス <span class="red">＊</span></label>
+        <input type="email" id="mailaddress" name="mailaddress" value="" required="">
+              </div>
+
+      <div>
+        <label for="phone">電話番号</label>
+        <input type="text" id="phone" name="phone" value="">
+              </div>
+
+      <div>
+        <label for="detail">お仕事の内容 <span class="red">＊</span></label>
+        <textarea id="detail" name="detail" required=""></textarea>
+              </div>
+
+      <div>
+        <label>
+          <input type="checkbox" id="confirm" name="agree" value="1" required="">
+          <a href="#privacy" id="pp_link">プライバシーポリシー</a>を<span>確認・了承しました。</span><span class="red">＊</span>
+        </label>
+              </div>
+
+      <button type="submit" class="bg_bla">次　へ</button>
+    </form>
+</body></html>
