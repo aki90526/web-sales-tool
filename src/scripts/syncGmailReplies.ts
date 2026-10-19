@@ -229,6 +229,32 @@ const isAutomatedMessage = (message: GmailMessageMetadata): boolean => {
   );
 };
 
+// フォーム送信直後に届くメールは、件名に目印がなくても受付の自動送信とみなす
+const FORM_AUTO_REPLY_WINDOW_MS = 10 * 60 * 1000;
+
+// 「以下の内容を受付けました」など、送信内容を控えとして返す受付メールの本文
+const isFormReceiptBody = (text: string): boolean => {
+  return /(以下の内容[をで]?.{0,10}(受け?付け?|承り|送信)|受け?付け?(いた)?しました|自動(返信|送信|配信)(され|して|い?た?し)?)/.test(
+    text
+  );
+};
+
+const isFormAutoReply = async (
+  gmail: GmailClient,
+  message: GmailMessageMetadata,
+  sentDate: Date | null
+): Promise<boolean> => {
+  if (isAutomatedMessage(message)) {
+    return true;
+  }
+
+  if (sentDate && message.internalDate && message.internalDate.getTime() - sentDate.getTime() <= FORM_AUTO_REPLY_WINDOW_MS) {
+    return true;
+  }
+
+  return isFormReceiptBody(await gmail.getMessageText(message.id));
+};
+
 const siteDomain = (url: string): string => {
   try {
     return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
@@ -288,16 +314,17 @@ const findReplyMatches = async (
     const messages = await gmail.searchMessages(query, 10);
 
     if (isForm) {
-      const formMatch = messages.find((message) => {
-        return (
-          !isAutomatedMessage(message) &&
-          Boolean(message.internalDate) &&
-          (!sentDate || (message.internalDate as Date) > sentDate)
-        );
-      });
+      for (const message of messages) {
+        if (!message.internalDate || (sentDate && message.internalDate <= sentDate)) {
+          continue;
+        }
 
-      if (formMatch) {
-        matches.push({ history, message: formMatch, matchType: "form-domain-after-sent" });
+        if (await isFormAutoReply(gmail, message, sentDate)) {
+          continue;
+        }
+
+        matches.push({ history, message, matchType: "form-domain-after-sent" });
+        break;
       }
 
       continue;
