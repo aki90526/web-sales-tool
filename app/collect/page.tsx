@@ -91,6 +91,18 @@ export default function CollectPage() {
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null);
   const [importing, setImporting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  // プレビューのうち、登録する候補（番号）。新しいプレビューが出るたびに、全件が選ばれた状態に戻す
+  const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
+
+  useEffect(() => {
+    setSelectedIndexes(preview ? preview.candidates.map((_, index) => index) : []);
+  }, [preview]);
+
+  const toggleCandidate = (index: number) => {
+    setSelectedIndexes((current) =>
+      current.includes(index) ? current.filter((entry) => entry !== index) : [...current, index].sort((a, b) => a - b)
+    );
+  };
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const recentAreas = useMemo(() => {
@@ -146,7 +158,7 @@ export default function CollectPage() {
   };
 
   const confirmImport = async () => {
-    if (!preview) return;
+    if (!preview || selectedIndexes.length === 0) return;
 
     setImporting(true);
     setError(null);
@@ -154,7 +166,10 @@ export default function CollectPage() {
       const res = await fetch("/api/collect/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(preview)
+        body: JSON.stringify({
+          ...preview,
+          candidates: preview.candidates.filter((_, index) => selectedIndexes.includes(index))
+        })
       });
       const body = await res.json();
       if (!res.ok) {
@@ -347,15 +362,15 @@ export default function CollectPage() {
                       : importing
                         ? "営業管理シートへ登録しています。"
                         : preview
-                          ? `${preview.candidates.length}件見つかりました。まだ登録されていません。`
+                          ? `${preview.candidates.length}件見つかりました。登録する候補を選んでください（まだ登録されていません）。`
                           : ""}
                 </p>
               </div>
               <div className="btn-row-tight">
                 {preview && !importResults && (
-                  <button className="btn primary" onClick={confirmImport} disabled={importing || preview.candidates.length === 0}>
+                  <button className="btn primary" onClick={confirmImport} disabled={importing || selectedIndexes.length === 0}>
                     <Database size={16} />
-                    {importing ? "登録中..." : "この内容で登録する"}
+                    {importing ? "登録中..." : `選んだ${selectedIndexes.length}件を登録する`}
                   </button>
                 )}
                 <button className="btn secondary" type="button" onClick={closeModal} disabled={loading || importing}>
@@ -382,6 +397,16 @@ export default function CollectPage() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th className="cell-nowrap">
+                      <input
+                        type="checkbox"
+                        aria-label="すべて選択"
+                        checked={selectedIndexes.length === preview.candidates.length}
+                        onChange={(event) =>
+                          setSelectedIndexes(event.target.checked ? preview.candidates.map((_, index) => index) : [])
+                        }
+                      />
+                    </th>
                     <th className="cell-number cell-nowrap hide-mobile">No.</th>
                     <th>企業名</th>
                     <th className="cell-nowrap hide-mobile">種別</th>
@@ -394,7 +419,18 @@ export default function CollectPage() {
                 </thead>
                 <tbody>
                   {preview.candidates.map((candidate, index) => (
-                    <tr key={`${candidate.companyName}-${candidate.officialSiteUrl}`}>
+                    <tr
+                      key={`${candidate.companyName}-${candidate.officialSiteUrl}`}
+                      style={selectedIndexes.includes(index) ? undefined : { opacity: 0.45 }}
+                    >
+                      <td className="cell-nowrap">
+                        <input
+                          type="checkbox"
+                          aria-label={`${candidate.companyName}を登録する`}
+                          checked={selectedIndexes.includes(index)}
+                          onChange={() => toggleCandidate(index)}
+                        />
+                      </td>
                       <td className="cell-number cell-nowrap hide-mobile">{index + 1}</td>
                       <td>{candidate.companyName}</td>
                       <td className="cell-nowrap hide-mobile">{candidate.leadType}</td>
