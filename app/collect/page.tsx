@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import AreaPicker from "./AreaPicker";
 import { Database, Eye, History, RotateCcw, Search, Sparkles } from "lucide-react";
 
 const TARGET_TYPES = ["Web制作会社", "広告代理店", "直クライアント"] as const;
@@ -256,6 +257,8 @@ export default function CollectPage() {
               placeholder="例: 東京都（複数はカンマ区切り）"
             />
           </label>
+
+          <AreaPicker onChange={applyArea} />
 
           <div className="area-suggestion-panel">
             <div className="area-suggestion-group">
