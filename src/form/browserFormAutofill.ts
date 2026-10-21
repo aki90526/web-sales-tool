@@ -524,6 +524,11 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
 
     let context = element.parentElement;
     for (let depth = 0; context && depth < 4; depth += 1, context = context.parentElement) {
+      // <form> の外側にある前の要素（ページ冒頭の説明文など）は、項目名ではない。説明文中の「電話」等で全項目が誤判定されるのを防ぐ
+      if (context.tagName === "FORM") {
+        break;
+      }
+
       const dataName = context.getAttribute("data-name");
       if (dataName) {
         parts.push(dataName);
@@ -2153,8 +2158,16 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     return /スペース|空白|空け/.test(fullWidthHintTextFor(element)) ? value.replace(/ /g, "\u3000") : value.replace(/[ \u3000]/g, "");
   };
 
+  // ボット除けのハニーポット欄（人には見えない・タブ移動もされない欄）。入力するとスパム扱いになるため触らない
+  const isHoneypotField = (element: HTMLElement): boolean => {
+    const rect = element.getBoundingClientRect();
+    const tinyBox = rect.width <= 2 && rect.height <= 2;
+    const hiddenFromPeople = element.getAttribute("tabindex") === "-1" && element.closest("[aria-hidden='true']") !== null;
+    return tinyBox || hiddenFromPeople || /(honeypot|honey_pot|^hp_|_hp$)/i.test(element.getAttribute("name") ?? "");
+  };
+
   const fillTextControl = (element: HTMLInputElement | HTMLTextAreaElement): void => {
-    if (!visible(element) || element.disabled || element.readOnly) {
+    if (!visible(element) || element.disabled || element.readOnly || isHoneypotField(element)) {
       return;
     }
 
@@ -2340,6 +2353,7 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       element.disabled ||
       (element.readOnly && element.getAttribute("role") !== "combobox") ||
       !visible(element) ||
+      isHoneypotField(element) ||
       element.value.trim() !== ""
     ) {
       return;

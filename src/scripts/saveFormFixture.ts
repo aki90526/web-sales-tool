@@ -80,7 +80,7 @@ const main = async (): Promise<void> => {
   const args = process.argv.slice(2);
   const nameIndex = args.indexOf("--name");
   const name = nameIndex >= 0 ? args[nameIndex + 1] : "";
-  const urls = args.filter((arg, index) => /^https?:\/\//.test(arg) && index !== nameIndex + 1);
+  const urls = args.filter((arg, index) => /^https?:\/\//.test(arg) && (nameIndex < 0 || index !== nameIndex + 1));
 
   if (urls.length === 0) {
     throw new Error("Usage: npm run test:forms:save -- <フォームURL> [--name 保存名]");
