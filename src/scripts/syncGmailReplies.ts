@@ -8,6 +8,7 @@ import {
   SalesManagementLead,
   statusRangeForRow
 } from "../google/salesManagementRepository";
+import { detectOptOut } from "../email/optOutDetection";
 import { createGmailClient, GmailClient, GmailMessageMetadata } from "../google/gmailClient";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
@@ -34,6 +35,7 @@ type ReplyMatch = {
   history: ApproachHistoryRow;
   message: GmailMessageMetadata;
   matchType: "message-id" | "subject" | "from-after-sent" | "form-domain-after-sent";
+  optOut?: string;
 };
 
 const DEFAULT_LIMIT = 200;
@@ -352,7 +354,8 @@ const updateReplyStatus = async (
   const replyDate = match.message.internalDate ? formatTokyoDateTime(match.message.internalDate) : match.message.date;
   const memo = [
     match.history.memo,
-    `Gmail返信検知: ${replyDate} / match=${match.matchType} / from=${match.message.from}`
+    `Gmail返信検知: ${replyDate} / match=${match.matchType} / from=${match.message.from}`,
+    match.optOut ? `配信停止・営業お断りの返信を検知: 「${match.optOut}」` : ""
   ]
     .filter(Boolean)
     .join("\n");
@@ -367,10 +370,28 @@ const updateLeadStatuses = async (
   matches: ReplyMatch[]
 ): Promise<void> => {
   const table = await readSalesManagementTable(sheets);
+  const optOuts = new Map(matches.filter((match) => match.optOut).map((match) => [match.history.leadId, match.optOut as string]));
   const replyLeadIds = new Set(matches.map((match) => match.history.leadId));
 
   for (const lead of table.leads) {
-    if (replyLeadIds.has(lead.leadId) && lead.status !== "返信あり") {
+    if (!replyLeadIds.has(lead.leadId)) {
+      continue;
+    }
+
+    const optOut = optOuts.get(lead.leadId);
+
+    if (optOut) {
+      // 配信停止・営業お断りの返信は「除外」にして、以後の送信・フォーム入力の対象から外す
+      const line = `配信停止・営業お断りの返信を検知: 「${optOut}」`;
+
+      if (lead.status !== "除外") {
+        await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["除外" as Status]]);
+      }
+
+      if (!lead.memo.includes(line)) {
+        await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[lead.memo ? `${lead.memo}\n${line}` : line]]);
+      }
+    } else if (lead.status !== "返信あり") {
       await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["返信あり" as Status]]);
     }
   }
@@ -460,6 +481,10 @@ const printMatches = (matches: ReplyMatch[]): void => {
     console.log(`From: ${match.message.from}`);
     console.log(`Subject: ${match.message.subject}`);
     console.log(`Match: ${match.matchType}`);
+
+    if (match.optOut) {
+      console.log(`Opt-out detected: ${match.optOut}`);
+    }
   });
 };
 
@@ -495,6 +520,14 @@ const main = async (): Promise<void> => {
   const leadDomains = new Map(table.leads.map((lead) => [lead.leadId, siteDomain(lead.officialSiteUrl)]));
   const matches = await findReplyMatches(gmail, targets, replyToAddress, lookbackDays, leadDomains);
 
+  for (const match of matches) {
+    const optOut = detectOptOut(await gmail.getMessageText(match.message.id));
+
+    if (optOut) {
+      match.optOut = optOut;
+    }
+  }
+
   printMatches(matches);
 
   const bookings = await syncBookingNotifications(gmail, sheets, histories, options.dryRun);
@@ -514,7 +547,7 @@ const main = async (): Promise<void> => {
 
     const company = table.leads.find((lead) => lead.leadId === match.history.leadId)?.companyName ?? "";
     console.log(
-      `[DASHBOARD_UPDATE] leadId=${match.history.leadId} company=${company} type=reply detail=${match.message.from} / ${match.message.subject}`
+      `[DASHBOARD_UPDATE] leadId=${match.history.leadId} company=${company} type=${match.optOut ? "optout" : "reply"} detail=${match.optOut ? `「${match.optOut}」 / ` : ""}${match.message.from} / ${match.message.subject}`
     );
   }
 
