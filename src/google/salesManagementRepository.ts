@@ -59,7 +59,7 @@ const HEADER_ALIASES: Record<keyof SalesManagementColumnMap, string[]> = {
   memo: ["メモ"]
 };
 
-const RANGE = `'${SHEETS.salesManagement}'!A1:AZ1000`;
+const RANGE = `'${SHEETS.salesManagement}'!A:AZ`;
 
 const cell = (row: unknown[], index: number): string => {
   const value = row[index];

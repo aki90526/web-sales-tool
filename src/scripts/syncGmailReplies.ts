@@ -109,7 +109,7 @@ const cell = (row: unknown[], index: number): string => {
 };
 
 const readApproachHistory = async (sheets: SheetsClient): Promise<ApproachHistoryRow[]> => {
-  const rows = await sheets.getValues(`'${SHEETS.approachHistory}'!A1:J1000`);
+  const rows = await sheets.getValues(`'${SHEETS.approachHistory}'!A:J`);
 
   return rows
     .slice(1)

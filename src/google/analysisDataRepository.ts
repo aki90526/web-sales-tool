@@ -72,7 +72,7 @@ export type AnalysisSalesContext = {
 export const readAnalysisSalesContexts = async (
   sheets: SheetsClient
 ): Promise<Map<string, AnalysisSalesContext>> => {
-  const rows = await sheets.getValues(`'${SHEETS.analysisData}'!A1:AH1000`);
+  const rows = await sheets.getValues(`'${SHEETS.analysisData}'!A:AH`);
   const headers = (rows[0] ?? []).map((value) => String(value ?? "").trim());
   const leadIdColumn = headers.findIndex((header) => header === "リードID");
   const recommendedApproachColumn = headers.findIndex((header) => header === "推奨アプローチ");

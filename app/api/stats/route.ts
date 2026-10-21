@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const sheets = await createSheetsClient(loadConfig());
-    const rows = await sheets.getValues(`'${SHEETS.approachHistory}'!A1:J2000`);
+    const rows = await sheets.getValues(`'${SHEETS.approachHistory}'!A:J`);
     const contacted = new Set<string>();
     const responded = new Set<string>();
 
