@@ -280,6 +280,8 @@ const targetHistories = (
         (history.method === "メール" || history.method === "フォーム") &&
         history.sendStatus === "送信済み" &&
         history.replyStatus !== "返信あり" &&
+        // 「別の窓口から再送してください」という案内だけの返信は、反応として数えず、再検知の対象にもしない
+        history.replyStatus !== "再送案内" &&
         Boolean(history.recipient) &&
         Boolean(sentDate) &&
         (sentDate as Date) >= threshold
