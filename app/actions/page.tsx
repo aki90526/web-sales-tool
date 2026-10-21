@@ -51,6 +51,26 @@ type FormWatchEntry = {
   message?: string;
 };
 
+type FormOutcomeSummary = {
+  periodDays: number;
+  total: number;
+  counts: Partial<Record<string, number>>;
+  topProblemDomains: Array<{ domain: string; count: number }>;
+  recentProblems: Array<{ at: string; leadId: string; companyName: string; domain: string; kind: string; detail?: string }>;
+};
+
+const OUTCOME_LABELS: Record<string, string> = {
+  success: "送信成功",
+  spam: "スパム判定",
+  invalid: "入力エラー",
+  failed: "送信失敗",
+  captcha: "CAPTCHA",
+  "wrong-page": "本物のフォームでない",
+  "needs-confirm": "送信後に要確認",
+  closed: "タブが閉じられた",
+  timeout: "結果を検知できず"
+};
+
 const watchStateLabel = (state: FormWatchEntry["state"]): { text: string; className: string } => {
   switch (state) {
     case "watching":
@@ -173,6 +193,7 @@ export default function ActionsPage() {
     null
   );
   const [targetCounts, setTargetCounts] = useState<{ email: number; form: number; formAuto: number; formManualOnly: number } | null>(null);
+  const [outcomeSummary, setOutcomeSummary] = useState<FormOutcomeSummary | null>(null);
   const [watchEntries, setWatchEntries] = useState<FormWatchEntry[]>([]);
   const [jobs, setJobs] = useState<DashboardJob[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -203,6 +224,13 @@ export default function ActionsPage() {
       })
       .catch(() => undefined);
   };
+
+  useEffect(() => {
+    fetch("/api/form-outcomes", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((body) => setOutcomeSummary(body))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     loadJobs().catch(() => undefined);
@@ -792,6 +820,73 @@ export default function ActionsPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="form-panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title">フォーム送信の結果（直近{outcomeSummary?.periodDays ?? 30}日）</h3>
+            <p className="panel-caption">送信の成功・エラーの傾向です。「送信完了の自動検知」が記録した結果を、集計しています。</p>
+          </div>
+          <CheckCircle2 size={20} color="var(--accent)" />
+        </div>
+        {!outcomeSummary || outcomeSummary.total === 0 ? (
+          <p className="panel-caption">まだ記録がありません。フォームを自動入力して、送信すると、ここに集計されます。</p>
+        ) : (
+          <>
+            <div className="legend">
+              {Object.entries(outcomeSummary.counts).map(([kind, count]) => (
+                <span className="legend-item" key={kind}>
+                  <span
+                    className="legend-dot"
+                    style={{ "--dot": kind === "success" ? "#10b981" : ["spam", "invalid", "failed"].includes(kind) ? "#ef4444" : "#f59e0b" } as CSSProperties}
+                  />
+                  {OUTCOME_LABELS[kind] ?? kind} {count}
+                </span>
+              ))}
+            </div>
+            {(() => {
+              const success = outcomeSummary.counts.success ?? 0;
+              const errors = (outcomeSummary.counts.spam ?? 0) + (outcomeSummary.counts.invalid ?? 0) + (outcomeSummary.counts.failed ?? 0);
+              return success + errors > 0 ? (
+                <p className="panel-caption mt-4">
+                  送信の成功率: {Math.round((success / (success + errors)) * 100)}%（成功{success}件 / エラー{errors}件）
+                </p>
+              ) : null;
+            })()}
+            {outcomeSummary.topProblemDomains.length > 0 && (
+              <p className="panel-caption mt-4">
+                問題が多いサイト: {outcomeSummary.topProblemDomains.map((item) => `${item.domain}（${item.count}件）`).join("、")}
+              </p>
+            )}
+            {outcomeSummary.recentProblems.length > 0 && (
+              <div className="data-table-wrap mt-4">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>日時</th>
+                      <th>リード</th>
+                      <th>結果</th>
+                      <th className="hide-mobile">内容</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {outcomeSummary.recentProblems.map((item, index) => (
+                      <tr key={`${item.leadId}-${item.at}-${index}`}>
+                        <td className="cell-nowrap">{formatDateTime(item.at)}</td>
+                        <td>
+                          <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.companyName}`} />
+                        </td>
+                        <td className="cell-nowrap">{OUTCOME_LABELS[item.kind] ?? item.kind}</td>
+                        <td className="hide-mobile">{item.detail ?? ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </section>
 

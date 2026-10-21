@@ -10,6 +10,7 @@ import {
   readCompletionSnapshot
 } from "../form/browserFormAutofill";
 import { appendCaptchaNote } from "../form/formCaptchaNote";
+import { appendFormOutcome, domainOf, FormOutcomeKind } from "../form/formOutcomeLog";
 import { touchFormWatchHeartbeat, upsertFormWatchEntry } from "../form/formWatchStatus";
 import { loadConfig } from "../config/env";
 import { createSheetsClient } from "../google/sheetsClient";
@@ -17,6 +18,7 @@ import { createSheetsClient } from "../google/sheetsClient";
 type WatchEntry = {
   leadId: string;
   companyName: string;
+  formUrl?: string;
   targetId: string;
   baseline: CompletionSnapshot | null;
 };
@@ -121,6 +123,20 @@ const log = (message: string): void => {
   fs.appendFileSync(logPath, `${line}\n`, "utf8");
 };
 
+const recordOutcome = (entry: WatchEntry, kind: FormOutcomeKind, detail?: string): void => {
+  try {
+    appendFormOutcome({
+      leadId: entry.leadId,
+      companyName: entry.companyName,
+      domain: entry.formUrl ? domainOf(entry.formUrl) : "",
+      kind,
+      detail: detail?.slice(0, 200)
+    });
+  } catch {
+    // 集計用の記録に失敗しても、見張り本体は止めない
+  }
+};
+
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const notify = (title: string, message: string): void => {
@@ -221,6 +237,7 @@ const main = async (): Promise<void> => {
           message: `スパムと判定され、自動では送信できません。「自分で入力」で、普段のブラウザから手動で送信してください（${submitError.slice(0, 80)}）`
         });
         notify("スパム判定のため手動送信が必要です", `${entry.leadId} ${entry.companyName}`);
+        recordOutcome(entry, "spam", submitError);
         pending.delete(entry.leadId);
         continue;
       }
@@ -228,6 +245,7 @@ const main = async (): Promise<void> => {
       if (state === "waiting" && submitError && lastSubmitErrors.get(entry.leadId) !== submitError) {
         lastSubmitErrors.set(entry.leadId, submitError);
         log(`${entry.leadId} ${entry.companyName}: form reported an error: ${submitError}`);
+        recordOutcome(entry, /（invalid）|（unaccepted）/.test(submitError) ? "invalid" : "failed", submitError);
         upsertFormWatchEntry(entry.leadId, entry.companyName, {
           state: "submit-error",
           message: `フォームが送信エラーを返しました: ${submitError}`
@@ -237,6 +255,7 @@ const main = async (): Promise<void> => {
 
       if (state === "gone") {
         log(`${entry.leadId} ${entry.companyName}: tab closed. Stopped watching.`);
+        recordOutcome(entry, "closed");
         upsertFormWatchEntry(entry.leadId, entry.companyName, {
           state: "closed",
           message: "タブが閉じられたため、見張りを終了しました（送信した場合は手動で「送信済みにする」を押してください）"
@@ -249,6 +268,7 @@ const main = async (): Promise<void> => {
           message: "送信後にトップページへ転送されました。送信できた可能性があります（完了画面が無いサイトです）。送信できていれば「送信済みにする」を押してください"
         });
         notify("送信後にトップへ転送されました（要確認）", `${entry.leadId} ${entry.companyName}`);
+        recordOutcome(entry, "needs-confirm");
         pending.delete(entry.leadId);
       } else if (state === "done") {
         log(`${entry.leadId} ${entry.companyName}: completion page detected. Marking as sent...`);
@@ -256,6 +276,10 @@ const main = async (): Promise<void> => {
 
         log(`${entry.leadId}: ${result.ok ? "marked as sent" : "mark-sent failed"} ${result.output.split("\n").pop() ?? ""}`);
         const alreadySent = !result.ok && /status is 送信済み/.test(result.output);
+
+        if (result.ok || alreadySent) {
+          recordOutcome(entry, "success");
+        }
 
         upsertFormWatchEntry(entry.leadId, entry.companyName, {
           state: result.ok ? "recorded" : alreadySent ? "already-recorded" : "failed",
@@ -283,6 +307,7 @@ const main = async (): Promise<void> => {
 
   if (pending.size > 0) {
     log(`Watch timed out. Not recorded: ${Array.from(pending.keys()).join(", ")}`);
+    pending.forEach((entry) => recordOutcome(entry, "timeout"));
     pending.forEach((entry) =>
       upsertFormWatchEntry(entry.leadId, entry.companyName, {
         state: "timeout",

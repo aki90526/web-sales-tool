@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { loadConfig } from "../config/env";
 import { appendCaptchaNote } from "../form/formCaptchaNote";
+import { appendFormOutcome, domainOf } from "../form/formOutcomeLog";
 import { upsertFormWatchEntry } from "../form/formWatchStatus";
 import { findFormCandidates, FormCandidate, FormSkipReason } from "../contact/formCandidates";
 import { readSalesContentConfig } from "../contact/salesMessage";
@@ -145,7 +146,7 @@ const printSkippedSummary = (skipped: Map<FormSkipReason, number>): void => {
 
 const startCompletionWatcher = (
   port: number,
-  entries: Array<{ leadId: string; companyName: string; targetId: string; baseline: unknown }>
+  entries: Array<{ leadId: string; companyName: string; formUrl: string; targetId: string; baseline: unknown }>
 ): void => {
   if (entries.length === 0) {
     return;
@@ -212,7 +213,7 @@ const main = async (): Promise<void> => {
     }
   );
 
-  for (const { candidate, result, confirm } of results) {
+  for (const { candidate, result, confirm, wrongPage } of results) {
     saveLastFormFillSession({
       leadId: candidate.leadId,
       companyName: candidate.companyName,
@@ -235,7 +236,24 @@ const main = async (): Promise<void> => {
       console.log(`[DASHBOARD_CONFIRM] leadId=${candidate.leadId} status=advanced`);
     }
 
+    if (wrongPage) {
+      appendFormOutcome({
+        leadId: candidate.leadId,
+        companyName: candidate.companyName,
+        domain: domainOf(candidate.formUrl),
+        kind: "wrong-page",
+        detail: result.warnings[result.warnings.length - 1]
+      });
+    }
+
     if (result.captcha) {
+      appendFormOutcome({
+        leadId: candidate.leadId,
+        companyName: candidate.companyName,
+        domain: domainOf(candidate.formUrl),
+        kind: "captcha",
+        detail: result.captcha
+      });
       console.log(`Captcha detected: ${result.captcha} (自動送信不可の可能性が高いため手動対応推奨)`);
       await appendCaptchaNote(sheets, candidate.leadId, result.captcha);
       console.log(`メモに記録しました: [CAPTCHA] ${result.captcha}`);
@@ -252,6 +270,7 @@ const main = async (): Promise<void> => {
       .map(({ candidate, targetId, baseline }) => ({
       leadId: candidate.leadId,
       companyName: candidate.companyName,
+      formUrl: candidate.formUrl,
       targetId,
       baseline
     }))
