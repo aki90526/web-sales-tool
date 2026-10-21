@@ -10,6 +10,9 @@ import { WebSearchTrace } from "../../../src/openai/openAIClient";
 const HISTORY_PATH = path.resolve(process.cwd(), "data", "collect-history.json");
 const MAX_HISTORY_ENTRIES = 30;
 
+// 収集は OpenAI の従量課金が発生するため、連打や複数タブからの同時実行を防ぐ
+let collectionRunning = false;
+
 type HistoryEntry = {
   id: string;
   runAt: string;
@@ -57,6 +60,12 @@ const parseTargetTypes = (value: unknown): LeadType[] => {
 };
 
 export async function POST(request: Request) {
+  if (collectionRunning) {
+    return NextResponse.json({ message: "別の候補収集が実行中です。完了してから再実行してください。" }, { status: 429 });
+  }
+
+  collectionRunning = true;
+
   try {
     const body = (await request.json()) as {
       area?: unknown;
@@ -106,5 +115,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });
+  } finally {
+    collectionRunning = false;
   }
 }
