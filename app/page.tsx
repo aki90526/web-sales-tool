@@ -123,7 +123,8 @@ export default function DashboardPage() {
   }, [leads, historyStats]);
 
   const recentLeads = useMemo(() => {
-    return [...(leads ?? [])]
+    return (leads ?? [])
+      .filter((lead) => lead.status === "送信待ち")
       .sort((a, b) => b.salesScore - a.salesScore)
       .slice(0, 6);
   }, [leads]);
@@ -268,7 +269,7 @@ export default function DashboardPage() {
         <div className="panel-header">
           <div>
             <h3 className="panel-title">優先リード</h3>
-            <p className="panel-caption">スコアの高いリードを上から表示しています。</p>
+            <p className="panel-caption">送信待ちのリードを、スコアの高い順に表示しています。</p>
           </div>
         </div>
         <div className="data-table-wrap">
@@ -284,6 +285,11 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
+              {recentLeads.length === 0 && (
+                <tr>
+                  <td colSpan={6}>送信待ちのリードはありません。</td>
+                </tr>
+              )}
               {recentLeads.map((lead) => (
                 <tr key={lead.leadId}>
                   <td className="hide-mobile">{lead.leadId}</td>
