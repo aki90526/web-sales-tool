@@ -342,3 +342,17 @@ GitHubにはソースコード、設定サンプル、仕様書、READMEのみ�
 2. 公式サイトの深いクロールを追加する
 3. 送信前レビュー用の一覧・下書き生成を強化する
 4. 人間承認後のメール送信またはフォーム入力支援を追加する
+
+## Gmail返信同期の定期実行
+
+返信と面談予約の反映（`npm run gmail:sync-replies`）を、毎日 9:00 と 17:00 に自動実行するLaunchAgentを用意しています。Macが、その時刻にスリープしていた場合は、起きたときに実行されます。
+
+```bash
+./scripts/install-gmail-sync.sh install     # 登録
+./scripts/install-gmail-sync.sh run         # いますぐ1回実行
+./scripts/install-gmail-sync.sh uninstall   # 解除
+```
+
+- 反映があった場合は、macOS通知「返信・面談予約をN件、シートに反映しました」が出ます。認証切れ（`invalid_grant`）などで失敗したときも、通知が出ます。
+- ログは `~/Library/Logs/websalestool-gmailsync.log` です。
+- 時刻は `scripts/launchd/com.websalestool.gmailsync.plist` の `Hour` / `Minute` で変えて、もう一度 `install` します。
