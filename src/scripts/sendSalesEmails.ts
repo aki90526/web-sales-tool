@@ -2,6 +2,7 @@ import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
 import { isValidEmail, parseEmailList } from "../email/emailList";
+import { acquireSendLock } from "../email/sendLock";
 import { createSmtpMailer } from "../email/smtpMailer";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
@@ -41,7 +42,8 @@ type SkipReason =
   | "ステータスが送信待ちではない"
   | "次回対応日が未来"
   | "連絡方法がメールではない"
-  | "メールアドレスが空またはメール形式ではない";
+  | "メールアドレスが空またはメール形式ではない"
+  | "同じ実行内に同じメールアドレスの候補がある";
 
 const DEFAULT_LIMIT = 1;
 const MAX_LIMIT = 10;
@@ -229,6 +231,7 @@ const findCandidates = async (
   const salesContexts = await readAnalysisSalesContexts(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: SalesEmailCandidate[] = [];
+  const queuedAddresses = new Set<string>();
 
   table.leads.forEach((lead) => {
     if (candidates.length >= limit) {
@@ -243,6 +246,14 @@ const findCandidates = async (
     );
 
     if (result.candidate) {
+      const address = result.candidate.emailAddress.trim().toLowerCase();
+
+      if (queuedAddresses.has(address)) {
+        skipped.set("同じ実行内に同じメールアドレスの候補がある", (skipped.get("同じ実行内に同じメールアドレスの候補がある") ?? 0) + 1);
+        return;
+      }
+
+      queuedAddresses.add(address);
       candidates.push(result.candidate);
       return;
     }
@@ -305,10 +316,24 @@ const appendApproachHistory = async (
   ]);
 };
 
-const markLeadAsSent = async (sheets: SheetsClient, rowNumber: number): Promise<void> => {
+const setLeadStatus = async (sheets: SheetsClient, rowNumber: number, status: string): Promise<void> => {
   const table = await readSalesManagementTable(sheets);
-  await sheets.updateValues(statusRangeForRow(table.columns, rowNumber), [["送信済み"]]);
+  await sheets.updateValues(statusRangeForRow(table.columns, rowNumber), [[status]]);
 };
+
+// 送信直前に最新のシートを読み直し、まだ「送信待ち」の同じリードか確認する（別プロセスが先に送った場合の二重送信防止）
+const isStillWaitingToSend = async (sheets: SheetsClient, candidate: SalesEmailCandidate): Promise<boolean> => {
+  const table = await readSalesManagementTable(sheets);
+  const current = table.leads.find((lead) => lead.rowNumber === candidate.rowNumber);
+
+  return (
+    current !== undefined &&
+    current.leadId === candidate.leadId &&
+    current.status === "送信待ち" &&
+    current.emailAddress.trim().toLowerCase() === candidate.emailAddress.trim().toLowerCase()
+  );
+};
+
 
 const main = async (): Promise<void> => {
   const options = parseArgs(process.argv.slice(2));
@@ -364,23 +389,55 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  for (const candidate of candidates) {
-    console.log(`Sending ${candidate.leadId} ${candidate.companyName} to ${candidate.emailAddress}...`);
-    const result = await mailer.send({
-      to: candidate.emailAddress,
-      bcc: options.bcc,
-      subject: candidate.subject,
-      text: candidate.body
-    });
-    const sentAt = formatTokyoDateTime(new Date());
+  const releaseLock = await acquireSendLock();
+  let sentCount = 0;
 
-    await appendApproachHistory(sheets, candidate, result.messageId, sentAt);
-    await markLeadAsSent(sheets, candidate.rowNumber);
+  try {
+    for (const candidate of candidates) {
+      if (!(await isStillWaitingToSend(sheets, candidate))) {
+        console.log(`Skipped ${candidate.leadId} ${candidate.companyName}: 送信直前の確認でステータスが送信待ちではなくなっていました（二重送信防止）。`);
+        continue;
+      }
 
-    console.log(`Sent ${candidate.leadId}. Message ID: ${result.messageId}`);
+      console.log(`Sending ${candidate.leadId} ${candidate.companyName} to ${candidate.emailAddress}...`);
+
+      // 先に「送信済み」にしてから送る。途中で落ちても再実行で同じ相手に再送されない（送れていない場合は目視で確認できる）
+      await setLeadStatus(sheets, candidate.rowNumber, "送信済み");
+
+      let messageId: string;
+      try {
+        const result = await mailer.send({
+          to: candidate.emailAddress,
+          bcc: options.bcc,
+          subject: candidate.subject,
+          text: candidate.body
+        });
+        messageId = result.messageId;
+      } catch (error) {
+        // SMTP が明確に失敗した場合のみ送信待ちへ戻す
+        await setLeadStatus(sheets, candidate.rowNumber, "送信待ち");
+        throw error;
+      }
+
+      sentCount += 1;
+      const sentAt = formatTokyoDateTime(new Date());
+
+      try {
+        await appendApproachHistory(sheets, candidate, messageId, sentAt);
+      } catch (error) {
+        console.error(
+          `WARNING: ${candidate.leadId} は送信済みですが、アプローチ履歴への記録に失敗しました。手動で追記してください。Message ID: ${messageId}`
+        );
+        throw error;
+      }
+
+      console.log(`Sent ${candidate.leadId}. Message ID: ${messageId}`);
+    }
+  } finally {
+    await releaseLock();
   }
 
-  console.log(`[DASHBOARD_SUMMARY] count=${candidates.length} mode=send`);
+  console.log(`[DASHBOARD_SUMMARY] count=${sentCount} mode=send`);
 };
 
 main().catch((error: unknown) => {
