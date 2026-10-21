@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { loadConfig } from "../config/env";
+import { excludeLeadForSalesForbidden } from "../form/formSalesForbiddenNote";
 import { appendCaptchaNote } from "../form/formCaptchaNote";
 import { appendFormOutcome, domainOf } from "../form/formOutcomeLog";
 import { upsertFormWatchEntry } from "../form/formWatchStatus";
@@ -213,7 +214,17 @@ const main = async (): Promise<void> => {
     }
   );
 
-  for (const { candidate, result, confirm, wrongPage } of results) {
+  for (const { candidate, result, confirm, wrongPage, salesForbidden, finalUrl } of results) {
+    if (salesForbidden) {
+      console.log("");
+      console.log(`Skipped ${candidate.leadId} ${candidate.companyName}: 営業お断りの記載を検出したため入力せず、ステータスを「除外」にしました。`);
+      console.log(`Detected text: ${salesForbidden}`);
+      await excludeLeadForSalesForbidden(sheets, candidate.leadId, salesForbidden, finalUrl);
+      console.log(`[DASHBOARD_WARNING] leadId=${candidate.leadId} message=営業お断りの記載（「${salesForbidden}」）を検出したため、入力せずに「除外」にしました`);
+      console.log(`[DASHBOARD_UPDATE] leadId=${candidate.leadId} company=${candidate.companyName} type=salesforbidden detail=「${salesForbidden}」`);
+      continue;
+    }
+
     saveLastFormFillSession({
       leadId: candidate.leadId,
       companyName: candidate.companyName,

@@ -4,12 +4,14 @@ import path from "path";
 import { DEMO_PAGE_PATH_PATTERN, isRedirectedElsewhere } from "../collection/contactUrlVerifier";
 import { FormCandidate } from "../contact/formCandidates";
 import { FormFieldAliases, SenderInfo } from "../contact/salesMessage";
+import { detectSalesForbidden } from "../domain/salesForbiddenDetection";
 
 type ChromeRemoteInterface = {
   (options?: Record<string, unknown>): Promise<ChromeClient>;
   New: (options: Record<string, unknown>) => Promise<{ id: string }>;
   List: (options: Record<string, unknown>) => Promise<Array<{ id: string; type: string; url: string; parentId?: string }>>;
   Activate: (options: Record<string, unknown>) => Promise<void>;
+  Close: (options: Record<string, unknown>) => Promise<void>;
 };
 
 export type ChromeClient = {
@@ -96,6 +98,8 @@ export type BrowserFillResult = {
   finalUrl: string;
   // デモページやトップへ転送された（本物のフォームではない）場合 true。確認ボタンの自動クリックと送信完了の自動検知を行わない
   wrongPage: boolean;
+  // ページに営業お断りの記載があり、入力せずに中止した場合の該当文言（抜粋）
+  salesForbidden?: string;
 };
 
 type BrowserFillOptions = {
@@ -3258,6 +3262,30 @@ export const fillCandidateFormsInBrowser = async (
         } catch {
           wrongPage = false;
         }
+      }
+
+      const pageTextResponse = await client.Runtime.evaluate({
+        expression: "document.body ? document.body.innerText : ''",
+        returnByValue: true
+      }).catch(() => undefined);
+      const salesForbidden = detectSalesForbidden(
+        typeof pageTextResponse?.result?.value === "string" ? pageTextResponse.result.value : ""
+      );
+
+      if (salesForbidden) {
+        // 営業お断りの記載があるページには入力せず、タブを閉じて中止する
+        results.push({
+          candidate,
+          result: { filled: [], checked: [], selected: [], warnings: [`営業お断りの記載を検出したため入力を中止しました: 「${salesForbidden}」`], captcha: "" },
+          confirm: { status: "skipped", detail: "営業お断りの記載があるため中止しました" },
+          targetId: target.id,
+          baseline: null,
+          finalUrl,
+          wrongPage: true,
+          salesForbidden
+        });
+        await CDP.Close({ port: options.chromePort, id: target.id }).catch(() => undefined);
+        continue;
       }
 
       const tabSelection = await runTabSelection(client);
