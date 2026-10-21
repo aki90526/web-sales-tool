@@ -345,7 +345,7 @@ GitHubにはソースコード、設定サンプル、仕様書、READMEのみ�
 
 ## Gmail返信同期の定期実行
 
-返信と面談予約の反映（`npm run gmail:sync-replies`）を、毎日 9:00 と 17:00 に自動実行するLaunchAgentを用意しています。Macが、その時刻にスリープしていた場合は、起きたときに実行されます。
+返信と面談予約の反映（`npm run gmail:sync-replies`）を、毎日 9:00 に自動実行するLaunchAgentを用意しています。Macが、その時刻にスリープしていた場合は、起きたときに実行されます。
 
 ```bash
 ./scripts/install-gmail-sync.sh install     # 登録

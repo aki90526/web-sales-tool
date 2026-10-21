@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gmail返信同期の定期実行（毎日 9:00 と 17:00）を、LaunchAgentとして登録する。
+# Gmail返信同期の定期実行（毎日 9:00）を、LaunchAgentとして登録する。
 #   ./scripts/install-gmail-sync.sh install     # 登録（既定）
 #   ./scripts/install-gmail-sync.sh uninstall   # 解除
 #   ./scripts/install-gmail-sync.sh run         # いますぐ1回実行
@@ -19,7 +19,7 @@ case "${1:-install}" in
       "$APP_DIR/scripts/launchd/$LABEL.plist" > "$TARGET"
     launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null || true
     launchctl bootstrap "gui/$UID_NUM" "$TARGET"
-    echo "登録しました: $TARGET（毎日 9:00 / 17:00）"
+    echo "登録しました: $TARGET（毎日 9:00）"
     ;;
   uninstall)
     launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null || true
