@@ -189,6 +189,8 @@ export const importLeadCandidates = async (
         : undefined,
       contactUrlCorrection: targetCheck.note
         ? targetCheck.note
+        : requestOnlyCheck.replaced
+        ? `${requestOnlyCheck.replaced.from} -> ${requestOnlyCheck.replaced.to} (依頼・予約専用フォームのため一般の問い合わせページへ差し替え)`
         : requestOnlyCheck.excluded
         ? `除外: ${requestOnlyCheck.excluded.url} (${requestOnlyCheck.excluded.reason})`
         : contactVerification.correction

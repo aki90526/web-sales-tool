@@ -2012,13 +2012,38 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     });
 
     groups.forEach((elements) => {
-      if (elements.some((element) => element.checked)) {
-        return;
-      }
-
       const groupLabel = checkboxGroupLabelFor(elements);
       const labelWithHeading = `${groupLabel} ${nearestPreviousLabelText(elements[0])}`;
       const isTopic = isContactTopicCheckboxGroup(labelWithHeading) || isReferralSourceCheckboxGroup(labelWithHeading);
+
+      if (elements.some((element) => element.checked)) {
+        // サイト側が最初の選択肢を初期選択にしている種別欄で、協業・パートナー向けの選択肢があるときは、そちらに切り替える
+        // （初期選択は「広告の相談」など依頼向けの項目であることが多い）
+        if (!isContactTopicCheckboxGroup(labelWithHeading)) {
+          return;
+        }
+
+        const partnerChoice = elements
+          .map((element) => ({ element, score: scoreChoiceText(normalize(checkboxOptionLabelFor(element))) }))
+          .sort((a, b) => b.score - a.score)[0];
+        const checkedElements = elements.filter((element) => element.checked);
+
+        if (
+          partnerChoice &&
+          partnerChoice.score >= 90 &&
+          !partnerChoice.element.checked &&
+          checkedElements.every((element) => scoreChoiceText(normalize(checkboxOptionLabelFor(element))) < 30)
+        ) {
+          checkedElements.forEach((element) => element.click());
+          checkInput(partnerChoice.element);
+
+          if (partnerChoice.element.checked) {
+            result.selected.push({ label: groupLabel, option: checkboxOptionLabelFor(partnerChoice.element) });
+          }
+        }
+
+        return;
+      }
 
       if (!isTopic && !isRequiredChoiceGroup(elements, groupLabel)) {
         return;

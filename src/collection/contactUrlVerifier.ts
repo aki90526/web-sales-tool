@@ -285,7 +285,10 @@ export const verifyContactUrlTarget = async (candidate: LeadCandidate): Promise<
 const REQUIRED_MARK = "(?:必須|[*＊]|required)";
 const BUDGET_OR_DEADLINE = "(?:予算|納期|希望時期|budget|deadline)";
 
-// 予算・希望納期などが必須入力の「制作依頼専用フォーム」かを判定する
+// 打合せ・来店などの希望日時が必須入力の「予約・依頼専用フォーム」の項目名
+const SCHEDULE_LABEL = "(?:打合せ|打ち合わせ|ミーティング|面談|来店|見学)?(?:ご)?希望日(?:時)?";
+
+// 予算・希望納期・希望日時などが必須入力の「制作依頼・予約専用フォーム」かを判定する
 export const isRequestOnlyForm = (html: string): boolean => {
   if (!pageAppearsToContainForm(html)) {
     return false;
@@ -293,21 +296,72 @@ export const isRequestOnlyForm = (html: string): boolean => {
 
   const text = htmlToText(html).replace(/\s+/g, " ");
   const labelPattern = new RegExp(`${BUDGET_OR_DEADLINE}[^。.]{0,10}?${REQUIRED_MARK}`, "i");
+  // 「必須 打合せご希望日時」のように、必須マークが項目名の前に付くサイトもある
+  const markFirstSchedulePattern = new RegExp(`${REQUIRED_MARK}\\s*${SCHEDULE_LABEL}`, "i");
 
-  if (labelPattern.test(text)) {
+  if (labelPattern.test(text) || markFirstSchedulePattern.test(text)) {
     return true;
   }
 
   const fieldTags = html.match(/<(?:input|select|textarea)\b[^>]*>/gi) ?? [];
+  const isRequiredTag = (tag: string): boolean => /(\brequired\b|aria-required="true"|validates-as-required)/i.test(tag);
 
   return fieldTags.some((tag) => {
-    return /(budget|yosan|nouki|deadline|予算|納期)/i.test(tag) && /(\brequired\b|aria-required="true")/i.test(tag);
+    return (
+      (/(budget|yosan|nouki|deadline|予算|納期)/i.test(tag) && isRequiredTag(tag)) ||
+      // 日付の入力が必須のフォームは、予約・依頼専用の可能性が高い
+      (/type=["']?date\b/i.test(tag) && isRequiredTag(tag))
+    );
   });
 };
 
 export type RequestOnlyFormResult = {
   candidate: LeadCandidate;
   excluded?: { url: string; reason: string };
+  replaced?: { from: string; to: string };
+};
+
+const GENERAL_CONTACT_PATH = /^\/(contact|contact-us|contactus|inquiry|toiawase|otoiawase|form)(\/|$)/i;
+
+// 依頼・予約専用フォームだったとき、同じサイトの一般的な問い合わせページ（/contact/ など）に、使えるフォームがあれば探す
+const findGeneralContactFallback = async (candidate: LeadCandidate, requestOnlyHtml: string): Promise<string | null> => {
+  const sources = [candidate.contactUrl, candidate.officialSiteUrl].filter(Boolean);
+  const currentKey = normalizeUrlKey(candidate.contactUrl);
+  const tried = new Set<string>([currentKey]);
+  const urls: string[] = [];
+
+  for (const source of sources) {
+    try {
+      const html = source === candidate.contactUrl ? requestOnlyHtml : await fetchText(source);
+
+      extractLinks(html, source).forEach((link) => {
+        const path = new URL(link.url).pathname;
+        const isGeneral = GENERAL_CONTACT_PATH.test(path) || /^(お問い合わせ|お問合せ|問い合わせ|contact)$/i.test(link.text.trim());
+
+        if (isGeneral && !/(採用|求人|recruit|career|partner)/i.test(`${link.text} ${path}`) && !tried.has(normalizeUrlKey(link.url))) {
+          tried.add(normalizeUrlKey(link.url));
+          urls.push(link.url);
+        }
+      });
+    } catch {
+      // 取得できない場合は次の候補へ
+    }
+  }
+
+  for (const url of urls.slice(0, 3)) {
+    try {
+      const page = await fetchPage(url);
+
+      if (pageAppearsToContainForm(page.text) && !isRequestOnlyForm(page.text)) {
+        // 転送されるリンク（/imake/contact/ → /contact/ など）は、転送先のURLを使う
+        return page.finalUrl;
+      }
+    } catch {
+      // 取得できない場合は次の候補へ
+    }
+  }
+
+  return null;
 };
 
 export const excludeRequestOnlyForm = async (candidate: LeadCandidate): Promise<RequestOnlyFormResult> => {
@@ -315,10 +369,12 @@ export const excludeRequestOnlyForm = async (candidate: LeadCandidate): Promise<
     return { candidate };
   }
 
-  try {
-    const html = await fetchText(candidate.contactUrl);
+  let requestOnlyHtml = "";
 
-    if (!isRequestOnlyForm(html)) {
+  try {
+    requestOnlyHtml = await fetchText(candidate.contactUrl);
+
+    if (!isRequestOnlyForm(requestOnlyHtml)) {
       return { candidate };
     }
   } catch {
@@ -326,7 +382,18 @@ export const excludeRequestOnlyForm = async (candidate: LeadCandidate): Promise<
     return { candidate };
   }
 
-  const reason = "予算・希望納期などが必須の制作依頼専用フォームのため、問い合わせ先から除外";
+  const fallbackUrl = await findGeneralContactFallback(candidate, requestOnlyHtml);
+
+  if (fallbackUrl) {
+    const note = `連絡先差し替え: ${candidate.contactUrl} は依頼・予約専用フォームのため、一般の問い合わせページ ${fallbackUrl} に変更`;
+
+    return {
+      candidate: { ...candidate, contactUrl: fallbackUrl, memo: [candidate.memo, note].filter(Boolean).join("\n") },
+      replaced: { from: candidate.contactUrl, to: fallbackUrl }
+    };
+  }
+
+  const reason = "予算・希望納期・希望日時などが必須の制作依頼・予約専用フォームのため、問い合わせ先から除外";
   const memo = [candidate.memo, `連絡先除外: ${reason} (${candidate.contactUrl})`].filter(Boolean).join("\n");
   const hasOtherContact = Boolean(candidate.email);
 
