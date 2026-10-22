@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
+import ActionMenu, { type ActionMenuItem } from "./ActionMenu";
 import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
 
@@ -472,6 +473,58 @@ export default function LeadsPage() {
     };
   }, [leads]);
 
+  // 「操作」メニューの項目（メール送信・フォーム自動入力・フォーム手動入力など）
+  const menuItemsFor = (lead: Lead): ActionMenuItem[] => {
+    const busy = runningLeadId !== null;
+    const items: ActionMenuItem[] = [];
+
+    if (lead.contactMethod === "メール") {
+      items.push({
+        key: "email",
+        label: "メール送信",
+        icon: <Mail size={15} />,
+        primary: true,
+        disabled: !canSendEmail(lead) || busy,
+        hint: busy ? "別の処理が実行中です" : "「送信待ち」で、メールアドレスが正しいときだけ送信できます",
+        onClick: () => void sendEmailToLead(lead)
+      });
+    }
+
+    if (lead.contactMethod === "フォーム") {
+      items.push(
+        {
+          key: "autofill",
+          label: "フォーム自動入力",
+          icon: <Sparkles size={15} />,
+          primary: true,
+          disabled: !canAutoFill(lead) || busy,
+          hint: busy ? "別の処理が実行中です" : "「送信待ち」で、フォームURLがあるときだけ使えます",
+          onClick: () => void autoFillLead(lead)
+        },
+        {
+          key: "manual",
+          label: "フォーム手動入力",
+          icon: <MousePointerClick size={15} />,
+          disabled: !/^https?:\/\//i.test(lead.contactFormUrl),
+          hint: "フォームURLがありません",
+          onClick: () => manualFillLead(lead)
+        },
+        {
+          key: "mark-sent",
+          label: "フォーム送信済みにする",
+          icon: <CheckCircle2 size={15} />,
+          disabled: markSentLeadId === lead.leadId || busy,
+          hint: "処理中です",
+          onClick: () => void markFormSent(lead)
+        }
+      );
+    }
+
+    items.push({ key: "message", label: "メッセージを見る", icon: <MessageSquare size={15} />, onClick: () => void openMessage(lead) });
+
+    return items;
+  };
+
   if (error) {
     return <p className="error-box">読み込みエラー: {error}</p>;
   }
@@ -598,7 +651,7 @@ export default function LeadsPage() {
           </>
         ) : (
           <div className="data-table-wrap">
-            <table className="data-table lead-two-row-table">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th className="hide-mobile col-fixed-80">リードID</th>
@@ -607,24 +660,23 @@ export default function LeadsPage() {
                   <th className="hide-mobile col-fixed-120">地域</th>
                   <th className="hide-mobile">連絡方法</th>
                   <th>スコア</th>
+                  <th>ステータス</th>
                   <th className="col-memo">メモ</th>
+                  <th className="cell-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((lead) => {
-                  const rowTone = `${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""}`;
-
-                  return (
-                    <Fragment key={lead.leadId}>
-                      {/* 1行目: 基本情報とメモ */}
-                      <tr
-                        ref={(el) => {
-                          rowRefs.current[lead.leadId] = el;
-                        }}
-                        className={`${rowTone} lead-main-row`}
-                      >
-                        <td className="hide-mobile col-fixed-80">{lead.leadId}</td>
-                        <td className="col-fixed-180">
+                {filtered.map((lead) => (
+                  <Fragment key={lead.leadId}>
+                    <tr
+                      ref={(el) => {
+                        rowRefs.current[lead.leadId] = el;
+                      }}
+                      className={`${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""}`}
+                    >
+                      <td className="hide-mobile col-fixed-80">{lead.leadId}</td>
+                      <td className="col-fixed-180">
+                        <div className="clamp-2" title={lead.companyName}>
                           {lead.officialSiteUrl ? (
                             <a className="text-[var(--accent)] hover:underline" href={lead.officialSiteUrl} target="_blank" rel="noreferrer">
                               {lead.companyName}
@@ -632,128 +684,81 @@ export default function LeadsPage() {
                           ) : (
                             lead.companyName
                           )}
-                        </td>
-                        <td className="hide-mobile">{lead.leadType}</td>
-                        <td className="hide-mobile col-fixed-120">{lead.region}</td>
-                        <td className="hide-mobile">
-                          <div className="btn-row-tight">
-                            {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
-                              <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
-                                {lead.contactMethod}
-                              </a>
-                            ) : (
-                              <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
-                            )}
-                            {lead.contactMethod === "フォーム" && (
-                              <button
-                                className="btn secondary icon-only"
-                                type="button"
-                                onClick={() => editFormUrl(lead)}
-                                title={lead.contactFormUrl ? `フォームURLを編集（${lead.contactFormUrl}）` : "フォームURLを設定"}
-                              >
-                                <Pencil size={13} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                        <td><span className="score-badge">{lead.salesScore}</span></td>
-                        <td className="col-memo">
-                          <textarea
-                            key={lead.memo}
-                            ref={autoResizeTextarea}
-                            className="memo-input"
-                            rows={1}
-                            defaultValue={lead.memo}
-                            placeholder="メモを入力"
-                            onInput={(event) => autoResizeTextarea(event.currentTarget)}
-                            onBlur={(event) => updateMemo(lead, event.target.value)}
-                          />
-                        </td>
-                      </tr>
-                      {/* 2行目: ステータスと操作 */}
-                      <tr className={`${rowTone} lead-action-row`}>
-                        <td colSpan={7}>
-                          <div className="lead-action-bar">
-                            {autoRecordedLeadIds.has(lead.leadId) && lead.status === "送信済み" && (
-                              <span className="status-badge sent" title="送信完了画面を検知して自動で更新しました">自動記録</span>
-                            )}
-                            <select
-                              className={`${statusClass(lead.status)} status-select`}
-                              aria-label={`${lead.leadId} のステータス`}
-                              value={STATUSES.includes(lead.status as (typeof STATUSES)[number]) ? lead.status : ""}
-                              disabled={updatingLeadId === lead.leadId}
-                              onChange={(event) => updateStatus(lead, event.target.value)}
-                            >
-                              {!STATUSES.includes(lead.status as (typeof STATUSES)[number]) && (
-                                <option value="">{lead.status || "未設定"}</option>
-                              )}
-                              {STATUSES.map((status) => (
-                                <option key={status} value={status}>
-                                  {status}
-                                </option>
-                              ))}
-                            </select>
-                            <div className="btn-row-tight">
-                              {lead.contactMethod === "メール" && (
-                                <button
-                                  className="btn primary"
-                                  type="button"
-                                  onClick={() => sendEmailToLead(lead)}
-                                  disabled={!canSendEmail(lead) || runningLeadId !== null}
-                                  title={canSendEmail(lead) ? "このリードへメールを送信" : "「送信待ち」で、メールアドレスが正しいリードだけ送信できます"}
-                                >
-                                  <Mail size={15} />
-                                  メール送信
-                                </button>
-                              )}
-                              {lead.contactMethod === "フォーム" && (
-                                <>
-                                  <button
-                                    className="btn primary"
-                                    type="button"
-                                    onClick={() => autoFillLead(lead)}
-                                    disabled={!canAutoFill(lead) || runningLeadId !== null}
-                                    title={canAutoFill(lead) ? "フォーム自動入力（送信は自分で行います）" : "「送信待ち」で、フォームURLがあるリードだけ使えます"}
-                                  >
-                                    <Sparkles size={15} />
-                                    フォーム自動入力
-                                  </button>
-                                  <button
-                                    className="btn secondary"
-                                    type="button"
-                                    onClick={() => manualFillLead(lead)}
-                                    disabled={!/^https?:\/\//i.test(lead.contactFormUrl)}
-                                    title="フォームを開き、件名・本文をコピーして自分で入力します"
-                                  >
-                                    <MousePointerClick size={15} />
-                                    フォーム手動入力
-                                  </button>
-                                  <button
-                                    className="btn secondary icon-only"
-                                    type="button"
-                                    onClick={() => markFormSent(lead)}
-                                    disabled={markSentLeadId === lead.leadId}
-                                    title="フォーム送信済みにする"
-                                  >
-                                    <CheckCircle2 size={15} />
-                                  </button>
-                                </>
-                              )}
-                              <button className="btn secondary icon-only" type="button" onClick={() => openMessage(lead)} title="メッセージを見る">
-                                <MessageSquare size={15} />
-                              </button>
-                            </div>
-                          </div>
-                          {cardNotices[lead.leadId] && (
-                            <p className={`${cardNotices[lead.leadId].status === "success" ? "success-box" : "error-box"} mt-4`}>
-                              {cardNotices[lead.leadId].text}
-                            </p>
+                        </div>
+                      </td>
+                      <td className="hide-mobile cell-nowrap">{lead.leadType}</td>
+                      <td className="hide-mobile col-fixed-120">
+                        <div className="clamp-2" title={lead.region}>
+                          {lead.region}
+                        </div>
+                      </td>
+                      <td className="hide-mobile">
+                        <div className="btn-row-tight">
+                          {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
+                            <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
+                              {lead.contactMethod}
+                            </a>
+                          ) : (
+                            <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
                           )}
+                          {lead.contactMethod === "フォーム" && (
+                            <button
+                              className="btn secondary icon-only"
+                              type="button"
+                              onClick={() => editFormUrl(lead)}
+                              title={lead.contactFormUrl ? `フォームURLを編集（${lead.contactFormUrl}）` : "フォームURLを設定"}
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td><span className="score-badge">{lead.salesScore}</span></td>
+                      <td>
+                        {autoRecordedLeadIds.has(lead.leadId) && lead.status === "送信済み" && (
+                          <span className="status-badge sent" title="送信完了画面を検知して自動で更新しました">自動記録</span>
+                        )}
+                        <select
+                          className={`${statusClass(lead.status)} status-select`}
+                          aria-label={`${lead.leadId} のステータス`}
+                          value={STATUSES.includes(lead.status as (typeof STATUSES)[number]) ? lead.status : ""}
+                          disabled={updatingLeadId === lead.leadId}
+                          onChange={(event) => updateStatus(lead, event.target.value)}
+                        >
+                          {!STATUSES.includes(lead.status as (typeof STATUSES)[number]) && (
+                            <option value="">{lead.status || "未設定"}</option>
+                          )}
+                          {STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="col-memo">
+                        <textarea
+                          key={lead.memo}
+                          className="memo-input memo-fixed"
+                          defaultValue={lead.memo}
+                          placeholder="メモを入力"
+                          onBlur={(event) => updateMemo(lead, event.target.value)}
+                        />
+                      </td>
+                      <td className="cell-nowrap">
+                        <ActionMenu items={menuItemsFor(lead)} />
+                      </td>
+                    </tr>
+                    {cardNotices[lead.leadId] && (
+                      <tr>
+                        <td colSpan={9}>
+                          <p className={cardNotices[lead.leadId].status === "success" ? "success-box" : "error-box"}>
+                            {lead.leadId} {lead.companyName}: {cardNotices[lead.leadId].text}
+                          </p>
                         </td>
                       </tr>
-                    </Fragment>
-                  );
-                })}
+                    )}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>

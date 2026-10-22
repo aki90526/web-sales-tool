@@ -1413,34 +1413,92 @@ a.method-badge:hover {
   color: var(--muted);
 }
 
-/* リスト表示は、1リードを2行（上: 基本情報とメモ、下: ステータスと操作）で表示する */
-.data-table tr.lead-main-row td {
-  border-bottom: 0;
-  padding-bottom: 4px;
-  vertical-align: top;
-}
-
-.data-table tr.lead-action-row td {
-  padding: 0 14px 10px;
-}
-
-.lead-action-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
+/* リスト表示: メモは幅300px・高さ固定（2行分）。長いメモは中でスクロールし、入力中は少し広がる */
 .data-table th.col-memo,
 .data-table td.col-memo {
   width: 300px;
   min-width: 300px;
   max-width: 300px;
   white-space: normal;
-  overflow-wrap: anywhere;
 }
 
-.data-table td.col-memo .memo-input {
-  max-height: 120px;
+.data-table td.col-memo .memo-fixed {
+  height: 48px;
+  resize: none;
   overflow-y: auto;
+  line-height: 1.45;
+  transition: height 0.15s ease-out;
+}
+
+.data-table td.col-memo .memo-fixed:focus {
+  height: 140px;
+  border-color: var(--accent);
+  background: #fff;
+}
+
+/* 「操作」ボタンから浮かんで表示するメニュー */
+.action-menu-button {
+  gap: 4px;
+}
+
+.action-menu {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+}
+
+.action-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 9px 10px;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.action-menu-item:hover:not(:disabled) {
+  background: #eef5ff;
+  color: var(--accent);
+}
+
+.action-menu-item.primary {
+  color: var(--accent);
+}
+
+.action-menu-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.action-menu-item small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.action-menu-icon {
+  display: inline-flex;
+  margin-top: 1px;
+}
+
+/* 長い企業名・地域は2行までで省略して、行の高さをそろえる */
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
