@@ -510,6 +510,12 @@ export default function LeadsPage() {
           onClick: () => manualFillLead(lead)
         },
         {
+          key: "edit-url",
+          label: "フォームURLを変更",
+          icon: <Pencil size={15} />,
+          onClick: () => void editFormUrl(lead)
+        },
+        {
           key: "mark-sent",
           label: "フォーム送信済みにする",
           icon: <CheckCircle2 size={15} />,
@@ -654,7 +660,7 @@ export default function LeadsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th className="hide-mobile col-fixed-80">リードID</th>
+                  <th className="hide-mobile cell-nowrap">リードID</th>
                   <th className="col-fixed-180">企業名</th>
                   <th className="hide-mobile">種別</th>
                   <th className="hide-mobile col-fixed-120">地域</th>
@@ -674,7 +680,7 @@ export default function LeadsPage() {
                       }}
                       className={`${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""}`}
                     >
-                      <td className="hide-mobile col-fixed-80">{lead.leadId}</td>
+                      <td className="hide-mobile cell-nowrap">{lead.leadId}</td>
                       <td className="col-fixed-180">
                         <div className="clamp-2" title={lead.companyName}>
                           {lead.officialSiteUrl ? (
@@ -700,16 +706,6 @@ export default function LeadsPage() {
                             </a>
                           ) : (
                             <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
-                          )}
-                          {lead.contactMethod === "フォーム" && (
-                            <button
-                              className="btn secondary icon-only"
-                              type="button"
-                              onClick={() => editFormUrl(lead)}
-                              title={lead.contactFormUrl ? `フォームURLを編集（${lead.contactFormUrl}）` : "フォームURLを設定"}
-                            >
-                              <Pencil size={13} />
-                            </button>
                           )}
                         </div>
                       </td>
