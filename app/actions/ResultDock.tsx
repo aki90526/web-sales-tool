@@ -72,6 +72,7 @@ export default function ResultDock({ job, watchEntries, watchLoaded, onOpenLog }
 
   return (
     <div className="result-dock" aria-live="polite">
+      <div className="dock-popups">
       {jobOpen && job && (
         <section className="dock-popup" role="dialog" aria-label="直近の実行結果">
           <div className="dock-popup-head">
@@ -118,6 +119,8 @@ export default function ResultDock({ job, watchEntries, watchLoaded, onOpenLog }
           </p>
         </section>
       )}
+
+      </div>
 
       <div className="dock-pills">
         {job && !jobOpen && (
