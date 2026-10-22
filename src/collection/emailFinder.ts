@@ -9,7 +9,7 @@ export type FoundEmail = {
 
 const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
 const IGNORED_EMAIL_PATTERN =
-  /(example\.|sample\.|your-?(?:name|mail|email|address)|youremail|test@|noreply|no-reply|donotreply|wixpress|sentry|\.(?:png|jpe?g|gif|svg|webp)(?:$|@)|@\d+x$|domain\.com|email\.com)/i;
+  /(example\.|sample\.|your-?(?:name|mail|email|address)|youremail|test@|noreply|no-reply|donotreply|wixpress|sentry|\.(?:png|jpe?g|gif|svg|webp)(?:$|@)|@\d+x$|domain\.com|email\.com|^(?:privacy|privacypolicy|personal|abuse|security|dpo|compliance|recruit|saiyo|career|careers|jobs|press|ir)@)/i;
 const PREFERRED_PREFIX_PATTERN = /^(info|contact|inquiry|support|hello|sales|mail|office|webmaster|toiawase|otoiawase)@/i;
 
 // Cloudflareのメール難読化（data-cfemail）を元のアドレスに戻す

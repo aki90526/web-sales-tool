@@ -70,6 +70,8 @@ const pageAppearsToContainForm = (html: string): boolean => {
 // お知らせ・ブログ・コラムなどの記事ページのパス（問い合わせフォームではない）
 export const ARTICLE_PATH_PATTERN = /\/(news|blog|column|columns|topics?|press|release|releases|archives?|article|articles|post|posts|info|information|story|stories|case|works?)\/[^/]+/i;
 
+const PARTNER_FORM_PATTERN = /(制作パートナー|ビジネスパートナー|パートナー|協業|提携|業務委託|外注|partner|alliance|collabo)/i;
+
 const isProductionOrAgencyLead = (leadType: string): boolean => {
   return leadType === "Web制作会社" || leadType === "広告代理店";
 };
@@ -86,8 +88,13 @@ const scoreContactLink = (link: LinkCandidate, sourceUrl: string, leadType: stri
     score += 35;
   }
 
-  if (/(相談|見積|依頼|資料請求)/.test(haystack)) {
+  if (/(相談|見積|依頼)/.test(haystack)) {
     score += 8;
+  }
+
+  // 資料ダウンロード・セミナー申込などは、/contact/ の下にあっても問い合わせ窓口ではない
+  if (/(資料請求|資料ダウンロード|ダウンロード|download|ホワイトペーパー|whitepaper|セミナー|ウェビナー|webinar|イベント)/i.test(haystack)) {
+    score -= 60;
   }
 
   if (isProductionOrAgencyLead(leadType)) {
@@ -437,6 +444,8 @@ export const verifyContactUrl = async (
       const currentUrl = candidate.contactUrl || sourceUrl;
       const currentHasForm = contactPageHasForm;
       const currentIsArticle = ARTICLE_PATH_PATTERN.test(safeUrl(currentUrl)?.pathname ?? "");
+      // 今のURLが、すでに協業・パートナー向けのフォームなら、そうした言葉を含まない別ページには差し替えない
+      const currentIsPartnerForm = contactPageHasForm && PARTNER_FORM_PATTERN.test(safeUrl(currentUrl)?.pathname ?? "");
 
       for (const best of findBestContactLinks(html, sourceUrl, candidate.leadType, currentUrl)) {
         const shouldReplace =
@@ -444,6 +453,10 @@ export const verifyContactUrl = async (
 
         // 今のURLが入力フォームのあるページなら、差し替え先もフォームのあるページである場合だけ差し替える
         if (!shouldReplace || (currentHasForm && !(await hasUsableForm(best.link.url)))) {
+          continue;
+        }
+
+        if (currentIsPartnerForm && !PARTNER_FORM_PATTERN.test(`${best.link.text} ${safeUrl(best.link.url)?.pathname ?? ""}`)) {
           continue;
         }
 
