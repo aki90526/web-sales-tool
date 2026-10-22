@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
 
@@ -32,6 +32,14 @@ const autoResizeTextarea = (el: HTMLTextAreaElement | null): void => {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
 };
+
+const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+const canSendEmail = (lead: { status: string; contactMethod: string; emailAddress: string }): boolean =>
+  lead.status === "送信待ち" && lead.contactMethod === "メール" && isValidEmail(lead.emailAddress);
+
+const canAutoFill = (lead: { status: string; contactMethod: string; contactFormUrl: string }): boolean =>
+  lead.status === "送信待ち" && lead.contactMethod === "フォーム" && /^https?:\/\//i.test(lead.contactFormUrl);
 
 const leadIdSortValue = (leadId: string): number => {
   const match = /^L-(\d+)$/.exec(leadId);
@@ -601,13 +609,13 @@ export default function LeadsPage() {
                   <th>スコア</th>
                   <th>ステータス</th>
                   <th className="hide-mobile col-flex-wide">メモ</th>
-                  <th className="cell-nowrap">メッセージ</th>
+                  <th className="cell-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((lead) => (
+                  <Fragment key={lead.leadId}>
                   <tr
-                    key={lead.leadId}
                     ref={(el) => {
                       rowRefs.current[lead.leadId] = el;
                     }}
@@ -681,6 +689,39 @@ export default function LeadsPage() {
                     </td>
                     <td className="cell-nowrap">
                       <div className="btn-row-tight">
+                        {lead.contactMethod === "メール" && (
+                          <button
+                            className="btn primary icon-only"
+                            type="button"
+                            onClick={() => sendEmailToLead(lead)}
+                            disabled={!canSendEmail(lead) || runningLeadId !== null}
+                            title={canSendEmail(lead) ? "このリードへメールを送信" : "「送信待ち」で、メールアドレスが正しいリードだけ送信できます"}
+                          >
+                            <Mail size={15} />
+                          </button>
+                        )}
+                        {lead.contactMethod === "フォーム" && (
+                          <>
+                            <button
+                              className="btn primary icon-only"
+                              type="button"
+                              onClick={() => autoFillLead(lead)}
+                              disabled={!canAutoFill(lead) || runningLeadId !== null}
+                              title={canAutoFill(lead) ? "フォーム自動入力（送信は自分で行います）" : "「送信待ち」で、フォームURLがあるリードだけ使えます"}
+                            >
+                              <Sparkles size={15} />
+                            </button>
+                            <button
+                              className="btn secondary icon-only"
+                              type="button"
+                              onClick={() => manualFillLead(lead)}
+                              disabled={!/^https?:\/\//i.test(lead.contactFormUrl)}
+                              title="フォーム手動入力（フォームを開き、件名・本文をコピー）"
+                            >
+                              <MousePointerClick size={15} />
+                            </button>
+                          </>
+                        )}
                         <button className="btn secondary icon-only" type="button" onClick={() => openMessage(lead)} title="メッセージを見る">
                           <MessageSquare size={15} />
                         </button>
@@ -698,6 +739,16 @@ export default function LeadsPage() {
                       </div>
                     </td>
                   </tr>
+                  {cardNotices[lead.leadId] && (
+                    <tr>
+                      <td colSpan={9}>
+                        <p className={cardNotices[lead.leadId].status === "success" ? "success-box" : "error-box"}>
+                          {lead.leadId} {lead.companyName}: {cardNotices[lead.leadId].text}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
