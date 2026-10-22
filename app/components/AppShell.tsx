@@ -31,9 +31,11 @@ const isActivePath = (pathname: string, href: string): boolean => {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // 実行操作は、サイドバー以外の画面いっぱい（幅・高さとも100%）に表示する
+  const fill = pathname.startsWith("/actions");
 
   return (
-    <div className="app-shell">
+    <div className={fill ? "app-shell fill" : "app-shell"}>
       <aside className="sidebar">
         <Link href="/" className="brand">
           <span className="brand-mark">
@@ -82,7 +84,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="content">{children}</main>
+        <main className={fill ? "content content-fill" : "content"}>{children}</main>
       </div>
 
       <nav className="mobile-nav" aria-label="モバイルメニュー">

@@ -20,6 +20,8 @@ type ResultDockProps = {
   watchEntries: FormWatchEntry[];
   // 見張りの一覧を最初に読み込み終えたか（読み込み直後は、自動で開かない）
   watchLoaded: boolean;
+  // 「ログ」（一覧）を開く
+  onOpenLog?: () => void;
 };
 
 const latestEntry = (entries: FormWatchEntry[]): FormWatchEntry | null => {
@@ -27,7 +29,7 @@ const latestEntry = (entries: FormWatchEntry[]): FormWatchEntry | null => {
 };
 
 // 画面の右下に浮かべるパネル。「直近の実行結果」と「送信完了の自動検知」の最新を表示し、閉じても下のボタンから開き直せる
-export default function ResultDock({ job, watchEntries, watchLoaded }: ResultDockProps) {
+export default function ResultDock({ job, watchEntries, watchLoaded, onOpenLog }: ResultDockProps) {
   const [jobOpen, setJobOpen] = useState(false);
   const [watchOpen, setWatchOpen] = useState(false);
   const lastJobKey = useRef("");
@@ -107,7 +109,13 @@ export default function ResultDock({ job, watchEntries, watchLoaded }: ResultDoc
             <LeadLink leadId={latest.leadId} label={`${latest.leadId} ${latest.companyName}`} />
             {latest.message ? `：${latest.message}` : latest.state === "watching" ? "：送信完了画面を待っています" : ""}
           </p>
-          <p className="dock-popup-hint">一覧は、ページ下の「送信完了の自動検知」で確認できます。</p>
+          <p className="dock-popup-hint">
+            一覧は、
+            <button type="button" className="link-button" onClick={onOpenLog}>
+              ログ
+            </button>
+            で確認できます。
+          </p>
         </section>
       )}
 

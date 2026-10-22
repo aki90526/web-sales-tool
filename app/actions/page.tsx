@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, Send, X } from "lucide-react";
+import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
 import CandidatePanel, { isManualOnly, type Candidate } from "./CandidatePanel";
 import ResultDock from "./ResultDock";
 import {
@@ -32,6 +32,8 @@ export default function ActionsPage() {
   const [confirmEmail, setConfirmEmail] = useState(false);
   const [confirmForm, setConfirmForm] = useState(false);
   const [tab, setTab] = useState<"email" | "form">("email");
+  const [logOpen, setLogOpen] = useState(false);
+  const [logTab, setLogTab] = useState<"watch" | "outcomes" | "gmail" | "jobs">("watch");
   const [allLeads, setAllLeads] = useState<Candidate[] | null>(null);
   // チェックの状態。触っていない間は、スコア上位から「件数」分を自動で選ぶ
   const [selection, setSelection] = useState<{ touched: boolean; ids: string[] }>({ touched: false, ids: [] });
@@ -498,7 +500,7 @@ export default function ActionsPage() {
   const overlayMessage = running ? "処理を実行しています..." : manualLoading ? "読み込み中です..." : null;
 
   return (
-    <div className="page-stack">
+    <div className="actions-page">
       {overlayMessage && (
         <div className="loading-overlay" role="status" aria-live="polite">
           <div className="loading-overlay-box">
@@ -507,18 +509,17 @@ export default function ActionsPage() {
           </div>
         </div>
       )}
-      <div className="page-heading">
-        <div>
-          <h2>実行操作</h2>
-          <p>ターミナルで行っていた処理をボタンから実行します。</p>
-        </div>
-        <span className={running || activeJobId ? "status-badge waiting" : "status-badge sent"}>
-          {running || activeJobId ? "処理中" : "実行可能"}
-        </span>
-      </div>
-
       <div className="actions-layout">
         <div className="actions-main">
+        <div className="page-heading">
+          <div>
+            <h2>実行操作</h2>
+            <p>ターミナルで行っていた処理をボタンから実行します。</p>
+          </div>
+          <span className={running || activeJobId ? "status-badge waiting" : "status-badge sent"}>
+            {running || activeJobId ? "処理中" : "実行可能"}
+          </span>
+        </div>
           <section className="kpi-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             <button
               type="button"
@@ -768,6 +769,7 @@ export default function ActionsPage() {
               <p className={emailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>{emailResult.text}</p>
             )}
           </section>
+        {error && <p className="error-box">{error}</p>}
         </div>
 
         <CandidatePanel
@@ -784,217 +786,265 @@ export default function ActionsPage() {
         />
       </div>
 
-      <section className="form-panel">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">送信完了の自動検知</h3>
-            <p className="panel-caption">
-              フォーム入力後に開いたタブを見張り、送信完了画面を検知すると「送信済み」に自動更新します（5秒ごとに更新）。
-            </p>
-          </div>
-          <CheckCircle2 size={20} color="var(--success)" />
-        </div>
-        {watchEntries.length === 0 ? (
-          <p className="panel-caption">見張り中のフォームはありません。</p>
-        ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>リード</th>
-                  <th>状態</th>
-                  <th>更新</th>
-                  <th>内容</th>
-                </tr>
-              </thead>
-              <tbody>
-                {watchEntries.slice(0, 10).map((entry) => {
-                  const label = watchStateLabel(entry.state);
+      <footer className="actions-footer">
+        <button type="button" className="btn secondary" onClick={() => setLogOpen(true)}>
+          <ScrollText size={16} />
+          ログ
+          {watchEntries.filter((entry) => entry.state === "watching").length > 0 && (
+            <span className="status-badge waiting">見張り中 {watchEntries.filter((entry) => entry.state === "watching").length}</span>
+          )}
+        </button>
+        <span className="panel-caption">送信完了の自動検知・フォーム送信の結果・Gmail返信同期・実行ログを開きます。</span>
+      </footer>
 
-                  return (
-                    <tr key={entry.leadId}>
-                      <td>
-                        <LeadLink leadId={entry.leadId} label={`${entry.leadId} ${entry.companyName}`} />
-                      </td>
-                      <td>
-                        <span className={label.className}>{label.text}</span>
-                      </td>
-                      <td>{formatDateTime(entry.updatedAt)}</td>
-                      <td>
-                        {entry.message ?? (entry.state === "watching" ? "送信完了画面を待っています" : "")}
-                        {entry.state === "manual-required" && (
-                          <button
-                            className="btn primary mt-4"
-                            disabled={manualLoading}
-                            onClick={() => {
-                              setTab("form");
-                              setLeadId(entry.leadId);
-                              leadIdFromAutoFill.current = false;
-                              openManualForm(entry.leadId);
-                              window.scrollTo({ top: 0, behavior: "smooth" });
-                            }}
-                          >
-                            自分で入力で開く
-                          </button>
-                        )}
-                        {(entry.state === "needs-confirm" || entry.state === "manual-required") && (
-                          <button
-                            className="btn secondary mt-4"
-                            disabled={running}
-                            onClick={() => handleWatchMarkSent(entry)}
-                          >
-                            送信済みにする
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="form-panel">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">フォーム送信の結果（直近{outcomeSummary?.periodDays ?? 30}日）</h3>
-            <p className="panel-caption">送信の成功・エラーの傾向です。「送信完了の自動検知」が記録した結果を、集計しています。</p>
-          </div>
-          <CheckCircle2 size={20} color="var(--accent)" />
-        </div>
-        {!outcomeSummary || outcomeSummary.total === 0 ? (
-          <p className="panel-caption">まだ記録がありません。フォームを自動入力して、送信すると、ここに集計されます。</p>
-        ) : (
-          <>
-            <div className="legend">
-              {Object.entries(outcomeSummary.counts).map(([kind, count]) => (
-                <span className="legend-item" key={kind}>
-                  <span
-                    className="legend-dot"
-                    style={{ "--dot": kind === "success" ? "#10b981" : ["spam", "invalid", "failed"].includes(kind) ? "#ef4444" : "#f59e0b" } as CSSProperties}
-                  />
-                  {OUTCOME_LABELS[kind] ?? kind} {count}
-                </span>
-              ))}
-            </div>
-            {(() => {
-              const success = outcomeSummary.counts.success ?? 0;
-              const errors = (outcomeSummary.counts.spam ?? 0) + (outcomeSummary.counts.invalid ?? 0) + (outcomeSummary.counts.failed ?? 0);
-              return success + errors > 0 ? (
-                <p className="panel-caption mt-4">
-                  送信の成功率: {Math.round((success / (success + errors)) * 100)}%（成功{success}件 / エラー{errors}件）
-                </p>
-              ) : null;
-            })()}
-            {outcomeSummary.topProblemDomains.length > 0 && (
-              <p className="panel-caption mt-4">
-                問題が多いサイト: {outcomeSummary.topProblemDomains.map((item) => `${item.domain}（${item.count}件）`).join("、")}
-              </p>
-            )}
-            {outcomeSummary.recentProblems.length > 0 && (
-              <div className="data-table-wrap mt-4">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>日時</th>
-                      <th>リード</th>
-                      <th>結果</th>
-                      <th className="hide-mobile">内容</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {outcomeSummary.recentProblems.map((item, index) => (
-                      <tr key={`${item.leadId}-${item.at}-${index}`}>
-                        <td className="cell-nowrap">{formatDateTime(item.at)}</td>
-                        <td>
-                          <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.companyName}`} />
-                        </td>
-                        <td className="cell-nowrap">{OUTCOME_LABELS[item.kind] ?? item.kind}</td>
-                        <td className="hide-mobile">{item.detail ?? ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </section>
-
-      <section className="form-panel">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">Gmail返信同期</h3>
-            <p className="panel-caption">Gmailの返信と面談予約の通知を確認し、スプレッドシートへ反映します。</p>
-          </div>
-          <RefreshCw size={20} color="var(--success)" />
-        </div>
-        <div className="btn-row">
-          <button className="btn primary" disabled={running} onClick={() => handleGmailAction({ command: "gmail-sync" })}>
-            <RefreshCw size={16} />
-            返信を確認して反映
-          </button>
-        </div>
-        {gmailResult && (
-          <p className={gmailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
-            {gmailResult.text}
-          </p>
-        )}
-        {gmailResult?.items && gmailResult.items.length > 0 && (
-          <ul className="mt-4">
-            {gmailResult.items.map((item, index) => (
-              <li key={`${item.leadId}-${index}`}>
-                <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.company}`} /> ：
-                {item.type === "booking" ? "面談予約を反映（返信あり）" : item.type === "optout" ? "配信停止・営業お断り → 除外" : "返信あり"} - {item.detail}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {error && <p className="error-box">{error}</p>}
-
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">実行ログ</h3>
-            <p className="panel-caption">直近のボタン操作を保存しています。</p>
-          </div>
-          <button className="btn secondary" disabled={running} onClick={() => loadJobs()}>
-            <RefreshCw size={16} />
-            更新
-          </button>
-        </div>
-        {jobs.length === 0 ? (
-          <p className="panel-caption">ログはまだありません。</p>
-        ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>日時</th>
-                  <th>操作</th>
-                  <th>結果</th>
-                  <th className="hide-mobile">コマンド</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((job) => (
-                  <tr key={job.id}>
-                    <td>{formatDateTime(job.startedAt)}</td>
-                    <td>{job.label}</td>
-                    <td><span className={jobStatusClass(job.status)}>{statusLabel(job.status)}</span></td>
-                    <td className="hide-mobile font-mono text-xs">{["npm", ...job.args].join(" ")}</td>
-                  </tr>
+      {logOpen && (
+        <div className="modal-backdrop" onClick={() => setLogOpen(false)}>
+          <div className="modal-panel modal-wide" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div className="segmented">
+                {([
+                  ["watch", "送信完了の自動検知"],
+                  ["outcomes", "フォーム送信の結果"],
+                  ["gmail", "Gmail返信同期"],
+                  ["jobs", "実行ログ"]
+                ] as const).map(([key, label]) => (
+                  <button key={key} type="button" className={logTab === key ? "segment active" : "segment"} onClick={() => setLogTab(key)}>
+                    {label}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <button className="btn secondary icon-only" type="button" onClick={() => setLogOpen(false)} title="閉じる">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-log">
+              {logTab === "watch" && (
+                <>
+                  <section className="form-panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3 className="panel-title">送信完了の自動検知</h3>
+                        <p className="panel-caption">
+                          フォーム入力後に開いたタブを見張り、送信完了画面を検知すると「送信済み」に自動更新します（5秒ごとに更新）。
+                        </p>
+                      </div>
+                      <CheckCircle2 size={20} color="var(--success)" />
+                    </div>
+                    {watchEntries.length === 0 ? (
+                      <p className="panel-caption">見張り中のフォームはありません。</p>
+                    ) : (
+                      <div className="data-table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>リード</th>
+                              <th>状態</th>
+                              <th>更新</th>
+                              <th>内容</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {watchEntries.slice(0, 10).map((entry) => {
+                              const label = watchStateLabel(entry.state);
+
+                              return (
+                                <tr key={entry.leadId}>
+                                  <td>
+                                    <LeadLink leadId={entry.leadId} label={`${entry.leadId} ${entry.companyName}`} />
+                                  </td>
+                                  <td>
+                                    <span className={label.className}>{label.text}</span>
+                                  </td>
+                                  <td>{formatDateTime(entry.updatedAt)}</td>
+                                  <td>
+                                    {entry.message ?? (entry.state === "watching" ? "送信完了画面を待っています" : "")}
+                                    {entry.state === "manual-required" && (
+                                      <button
+                                        className="btn primary mt-4"
+                                        disabled={manualLoading}
+                                        onClick={() => {
+                                          setTab("form");
+                                          setLeadId(entry.leadId);
+                                          leadIdFromAutoFill.current = false;
+                                          openManualForm(entry.leadId);
+                                          window.scrollTo({ top: 0, behavior: "smooth" });
+                                        }}
+                                      >
+                                        自分で入力で開く
+                                      </button>
+                                    )}
+                                    {(entry.state === "needs-confirm" || entry.state === "manual-required") && (
+                                      <button
+                                        className="btn secondary mt-4"
+                                        disabled={running}
+                                        onClick={() => handleWatchMarkSent(entry)}
+                                      >
+                                        送信済みにする
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+              {logTab === "outcomes" && (
+                <>
+                  <section className="form-panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3 className="panel-title">フォーム送信の結果（直近{outcomeSummary?.periodDays ?? 30}日）</h3>
+                        <p className="panel-caption">送信の成功・エラーの傾向です。「送信完了の自動検知」が記録した結果を、集計しています。</p>
+                      </div>
+                      <CheckCircle2 size={20} color="var(--accent)" />
+                    </div>
+                    {!outcomeSummary || outcomeSummary.total === 0 ? (
+                      <p className="panel-caption">まだ記録がありません。フォームを自動入力して、送信すると、ここに集計されます。</p>
+                    ) : (
+                      <>
+                        <div className="legend">
+                          {Object.entries(outcomeSummary.counts).map(([kind, count]) => (
+                            <span className="legend-item" key={kind}>
+                              <span
+                                className="legend-dot"
+                                style={{ "--dot": kind === "success" ? "#10b981" : ["spam", "invalid", "failed"].includes(kind) ? "#ef4444" : "#f59e0b" } as CSSProperties}
+                              />
+                              {OUTCOME_LABELS[kind] ?? kind} {count}
+                            </span>
+                          ))}
+                        </div>
+                        {(() => {
+                          const success = outcomeSummary.counts.success ?? 0;
+                          const errors = (outcomeSummary.counts.spam ?? 0) + (outcomeSummary.counts.invalid ?? 0) + (outcomeSummary.counts.failed ?? 0);
+                          return success + errors > 0 ? (
+                            <p className="panel-caption mt-4">
+                              送信の成功率: {Math.round((success / (success + errors)) * 100)}%（成功{success}件 / エラー{errors}件）
+                            </p>
+                          ) : null;
+                        })()}
+                        {outcomeSummary.topProblemDomains.length > 0 && (
+                          <p className="panel-caption mt-4">
+                            問題が多いサイト: {outcomeSummary.topProblemDomains.map((item) => `${item.domain}（${item.count}件）`).join("、")}
+                          </p>
+                        )}
+                        {outcomeSummary.recentProblems.length > 0 && (
+                          <div className="data-table-wrap mt-4">
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  <th>日時</th>
+                                  <th>リード</th>
+                                  <th>結果</th>
+                                  <th className="hide-mobile">内容</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {outcomeSummary.recentProblems.map((item, index) => (
+                                  <tr key={`${item.leadId}-${item.at}-${index}`}>
+                                    <td className="cell-nowrap">{formatDateTime(item.at)}</td>
+                                    <td>
+                                      <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.companyName}`} />
+                                    </td>
+                                    <td className="cell-nowrap">{OUTCOME_LABELS[item.kind] ?? item.kind}</td>
+                                    <td className="hide-mobile">{item.detail ?? ""}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </section>
+                </>
+              )}
+              {logTab === "gmail" && (
+                <>
+                  <section className="form-panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3 className="panel-title">Gmail返信同期</h3>
+                        <p className="panel-caption">Gmailの返信と面談予約の通知を確認し、スプレッドシートへ反映します。</p>
+                      </div>
+                      <RefreshCw size={20} color="var(--success)" />
+                    </div>
+                    <div className="btn-row">
+                      <button className="btn primary" disabled={running} onClick={() => handleGmailAction({ command: "gmail-sync" })}>
+                        <RefreshCw size={16} />
+                        返信を確認して反映
+                      </button>
+                    </div>
+                    {gmailResult && (
+                      <p className={gmailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
+                        {gmailResult.text}
+                      </p>
+                    )}
+                    {gmailResult?.items && gmailResult.items.length > 0 && (
+                      <ul className="mt-4">
+                        {gmailResult.items.map((item, index) => (
+                          <li key={`${item.leadId}-${index}`}>
+                            <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.company}`} /> ：
+                            {item.type === "booking" ? "面談予約を反映（返信あり）" : item.type === "optout" ? "配信停止・営業お断り → 除外" : "返信あり"} - {item.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </>
+              )}
+              {logTab === "jobs" && (
+                <>
+                  <section className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3 className="panel-title">実行ログ</h3>
+                        <p className="panel-caption">直近のボタン操作を保存しています。</p>
+                      </div>
+                      <button className="btn secondary" disabled={running} onClick={() => loadJobs()}>
+                        <RefreshCw size={16} />
+                        更新
+                      </button>
+                    </div>
+                    {jobs.length === 0 ? (
+                      <p className="panel-caption">ログはまだありません。</p>
+                    ) : (
+                      <div className="data-table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>日時</th>
+                              <th>操作</th>
+                              <th>結果</th>
+                              <th className="hide-mobile">コマンド</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {jobs.map((job) => (
+                              <tr key={job.id}>
+                                <td>{formatDateTime(job.startedAt)}</td>
+                                <td>{job.label}</td>
+                                <td><span className={jobStatusClass(job.status)}>{statusLabel(job.status)}</span></td>
+                                <td className="hide-mobile font-mono text-xs">{["npm", ...job.args].join(" ")}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+            </div>
           </div>
-        )}
-      </section>
-      <ResultDock job={currentJob} watchEntries={watchEntries} watchLoaded={watchLoaded} />
+        </div>
+      )}
+
+      <ResultDock job={currentJob} watchEntries={watchEntries} watchLoaded={watchLoaded} onOpenLog={() => { setLogTab("watch"); setLogOpen(true); }} />
 
       {messageModal && (
         <div className="modal-backdrop" onClick={() => setMessageModal(null)}>
