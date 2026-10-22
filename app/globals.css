@@ -1506,9 +1506,9 @@ a.method-badge:hover {
   overflow-y: hidden;
 }
 
-/* カードのメモ: 普段は最大3行まで。クリックして編集するときは、全文を表示する */
+/* カードのメモ: 普段は3行分の高さで固定（短いメモも同じ高さ）。クリックして編集するときは、全文を表示する */
 .lead-card .card-memo {
-  min-height: calc(2 * 1.5em + 14px);
+  min-height: calc(3 * 1.5em + 14px);
   max-height: calc(3 * 1.5em + 14px);
   overflow-y: auto;
   scrollbar-width: thin;
