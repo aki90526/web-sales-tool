@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
 
@@ -89,8 +89,6 @@ export default function LeadsPage() {
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
   const [cardLimit, setCardLimit] = useState(CARD_PAGE_SIZE);
   const [runningLeadId, setRunningLeadId] = useState<string | null>(null);
-  // メールが空のリードで、メモ欄を開いているもの（メモがあるリードは、常に2行目に表示する）
-  const [openMemoIds, setOpenMemoIds] = useState<Set<string>>(new Set());
   const [cardNotices, setCardNotices] = useState<Record<string, CardNotice>>({});
 
   useEffect(() => {
@@ -600,7 +598,7 @@ export default function LeadsPage() {
           </>
         ) : (
           <div className="data-table-wrap">
-            <table className="data-table">
+            <table className="data-table lead-two-row-table">
               <thead>
                 <tr>
                   <th className="hide-mobile col-fixed-80">リードID</th>
@@ -609,170 +607,153 @@ export default function LeadsPage() {
                   <th className="hide-mobile col-fixed-120">地域</th>
                   <th className="hide-mobile">連絡方法</th>
                   <th>スコア</th>
-                  <th>ステータス</th>
-                  <th className="cell-nowrap">操作</th>
+                  <th className="col-memo">メモ</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((lead) => (
-                  <Fragment key={lead.leadId}>
-                  <tr
-                    ref={(el) => {
-                      rowRefs.current[lead.leadId] = el;
-                    }}
-                    className={`${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""}${lead.memo || openMemoIds.has(lead.leadId) ? " lead-main-row" : ""}`}
-                  >
-                    <td className="hide-mobile col-fixed-80">{lead.leadId}</td>
-                    <td className="col-fixed-180">
-                      {lead.officialSiteUrl ? (
-                        <a className="text-[var(--accent)] hover:underline" href={lead.officialSiteUrl} target="_blank" rel="noreferrer">
-                          {lead.companyName}
-                        </a>
-                      ) : (
-                        lead.companyName
-                      )}
-                    </td>
-                    <td className="hide-mobile">{lead.leadType}</td>
-                    <td className="hide-mobile col-fixed-120">{lead.region}</td>
-                    <td className="hide-mobile">
-                      <div className="btn-row-tight">
-                        {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
-                          <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
-                            {lead.contactMethod}
-                          </a>
-                        ) : (
-                          <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
-                        )}
-                        {lead.contactMethod === "フォーム" && (
-                          <button
-                            className="btn secondary icon-only"
-                            type="button"
-                            onClick={() => editFormUrl(lead)}
-                            title={lead.contactFormUrl ? `フォームURLを編集（${lead.contactFormUrl}）` : "フォームURLを設定"}
-                          >
-                            <Pencil size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td><span className="score-badge">{lead.salesScore}</span></td>
-                    <td>
-                      {autoRecordedLeadIds.has(lead.leadId) && lead.status === "送信済み" && (
-                        <span className="status-badge sent" title="送信完了画面を検知して自動で更新しました">自動記録</span>
-                      )}
-                      <select
-                        className={`${statusClass(lead.status)} status-select`}
-                        value={STATUSES.includes(lead.status as (typeof STATUSES)[number]) ? lead.status : ""}
-                        disabled={updatingLeadId === lead.leadId}
-                        onChange={(event) => updateStatus(lead, event.target.value)}
+                {filtered.map((lead) => {
+                  const rowTone = `${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""}`;
+
+                  return (
+                    <Fragment key={lead.leadId}>
+                      {/* 1行目: 基本情報とメモ */}
+                      <tr
+                        ref={(el) => {
+                          rowRefs.current[lead.leadId] = el;
+                        }}
+                        className={`${rowTone} lead-main-row`}
                       >
-                        {!STATUSES.includes(lead.status as (typeof STATUSES)[number]) && (
-                          <option value="">{lead.status || "未設定"}</option>
-                        )}
-                        {STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="cell-nowrap">
-                      <div className="btn-row-tight">
-                        {lead.contactMethod === "メール" && (
-                          <button
-                            className="btn primary icon-only"
-                            type="button"
-                            onClick={() => sendEmailToLead(lead)}
-                            disabled={!canSendEmail(lead) || runningLeadId !== null}
-                            title={canSendEmail(lead) ? "このリードへメールを送信" : "「送信待ち」で、メールアドレスが正しいリードだけ送信できます"}
-                          >
-                            <Mail size={15} />
-                          </button>
-                        )}
-                        {lead.contactMethod === "フォーム" && (
-                          <>
-                            <button
-                              className="btn primary icon-only"
-                              type="button"
-                              onClick={() => autoFillLead(lead)}
-                              disabled={!canAutoFill(lead) || runningLeadId !== null}
-                              title={canAutoFill(lead) ? "フォーム自動入力（送信は自分で行います）" : "「送信待ち」で、フォームURLがあるリードだけ使えます"}
+                        <td className="hide-mobile col-fixed-80">{lead.leadId}</td>
+                        <td className="col-fixed-180">
+                          {lead.officialSiteUrl ? (
+                            <a className="text-[var(--accent)] hover:underline" href={lead.officialSiteUrl} target="_blank" rel="noreferrer">
+                              {lead.companyName}
+                            </a>
+                          ) : (
+                            lead.companyName
+                          )}
+                        </td>
+                        <td className="hide-mobile">{lead.leadType}</td>
+                        <td className="hide-mobile col-fixed-120">{lead.region}</td>
+                        <td className="hide-mobile">
+                          <div className="btn-row-tight">
+                            {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
+                              <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
+                                {lead.contactMethod}
+                              </a>
+                            ) : (
+                              <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
+                            )}
+                            {lead.contactMethod === "フォーム" && (
+                              <button
+                                className="btn secondary icon-only"
+                                type="button"
+                                onClick={() => editFormUrl(lead)}
+                                title={lead.contactFormUrl ? `フォームURLを編集（${lead.contactFormUrl}）` : "フォームURLを設定"}
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td><span className="score-badge">{lead.salesScore}</span></td>
+                        <td className="col-memo">
+                          <textarea
+                            key={lead.memo}
+                            ref={autoResizeTextarea}
+                            className="memo-input"
+                            rows={1}
+                            defaultValue={lead.memo}
+                            placeholder="メモを入力"
+                            onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                            onBlur={(event) => updateMemo(lead, event.target.value)}
+                          />
+                        </td>
+                      </tr>
+                      {/* 2行目: ステータスと操作 */}
+                      <tr className={`${rowTone} lead-action-row`}>
+                        <td colSpan={7}>
+                          <div className="lead-action-bar">
+                            {autoRecordedLeadIds.has(lead.leadId) && lead.status === "送信済み" && (
+                              <span className="status-badge sent" title="送信完了画面を検知して自動で更新しました">自動記録</span>
+                            )}
+                            <select
+                              className={`${statusClass(lead.status)} status-select`}
+                              aria-label={`${lead.leadId} のステータス`}
+                              value={STATUSES.includes(lead.status as (typeof STATUSES)[number]) ? lead.status : ""}
+                              disabled={updatingLeadId === lead.leadId}
+                              onChange={(event) => updateStatus(lead, event.target.value)}
                             >
-                              <Sparkles size={15} />
-                            </button>
-                            <button
-                              className="btn secondary icon-only"
-                              type="button"
-                              onClick={() => manualFillLead(lead)}
-                              disabled={!/^https?:\/\//i.test(lead.contactFormUrl)}
-                              title="フォーム手動入力（フォームを開き、件名・本文をコピー）"
-                            >
-                              <MousePointerClick size={15} />
-                            </button>
-                          </>
-                        )}
-                        {!lead.memo && (
-                          <button
-                            className="btn secondary icon-only"
-                            type="button"
-                            onClick={() =>
-                              setOpenMemoIds((current) => {
-                                const next = new Set(current);
-                                if (next.has(lead.leadId)) next.delete(lead.leadId);
-                                else next.add(lead.leadId);
-                                return next;
-                              })
-                            }
-                            title="メモを書く"
-                          >
-                            <FileText size={15} />
-                          </button>
-                        )}
-                        <button className="btn secondary icon-only" type="button" onClick={() => openMessage(lead)} title="メッセージを見る">
-                          <MessageSquare size={15} />
-                        </button>
-                        {lead.contactMethod === "フォーム" && (
-                          <button
-                            className="btn secondary icon-only"
-                            type="button"
-                            onClick={() => markFormSent(lead)}
-                            disabled={markSentLeadId === lead.leadId}
-                            title="フォーム送信済みにする"
-                          >
-                            <CheckCircle2 size={15} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {(lead.memo || openMemoIds.has(lead.leadId)) && (
-                    <tr className={`${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""} lead-memo-row`}>
-                      <td colSpan={8}>
-                        <textarea
-                          key={lead.memo}
-                          ref={autoResizeTextarea}
-                          className="memo-input"
-                          rows={1}
-                          defaultValue={lead.memo}
-                          placeholder="メモを入力"
-                          autoFocus={!lead.memo}
-                          onInput={(event) => autoResizeTextarea(event.currentTarget)}
-                          onBlur={(event) => updateMemo(lead, event.target.value)}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                  {cardNotices[lead.leadId] && (
-                    <tr>
-                      <td colSpan={8}>
-                        <p className={cardNotices[lead.leadId].status === "success" ? "success-box" : "error-box"}>
-                          {lead.leadId} {lead.companyName}: {cardNotices[lead.leadId].text}
-                        </p>
-                      </td>
-                    </tr>
-                  )}
-                  </Fragment>
-                ))}
+                              {!STATUSES.includes(lead.status as (typeof STATUSES)[number]) && (
+                                <option value="">{lead.status || "未設定"}</option>
+                              )}
+                              {STATUSES.map((status) => (
+                                <option key={status} value={status}>
+                                  {status}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="btn-row-tight">
+                              {lead.contactMethod === "メール" && (
+                                <button
+                                  className="btn primary"
+                                  type="button"
+                                  onClick={() => sendEmailToLead(lead)}
+                                  disabled={!canSendEmail(lead) || runningLeadId !== null}
+                                  title={canSendEmail(lead) ? "このリードへメールを送信" : "「送信待ち」で、メールアドレスが正しいリードだけ送信できます"}
+                                >
+                                  <Mail size={15} />
+                                  メール送信
+                                </button>
+                              )}
+                              {lead.contactMethod === "フォーム" && (
+                                <>
+                                  <button
+                                    className="btn primary"
+                                    type="button"
+                                    onClick={() => autoFillLead(lead)}
+                                    disabled={!canAutoFill(lead) || runningLeadId !== null}
+                                    title={canAutoFill(lead) ? "フォーム自動入力（送信は自分で行います）" : "「送信待ち」で、フォームURLがあるリードだけ使えます"}
+                                  >
+                                    <Sparkles size={15} />
+                                    フォーム自動入力
+                                  </button>
+                                  <button
+                                    className="btn secondary"
+                                    type="button"
+                                    onClick={() => manualFillLead(lead)}
+                                    disabled={!/^https?:\/\//i.test(lead.contactFormUrl)}
+                                    title="フォームを開き、件名・本文をコピーして自分で入力します"
+                                  >
+                                    <MousePointerClick size={15} />
+                                    フォーム手動入力
+                                  </button>
+                                  <button
+                                    className="btn secondary icon-only"
+                                    type="button"
+                                    onClick={() => markFormSent(lead)}
+                                    disabled={markSentLeadId === lead.leadId}
+                                    title="フォーム送信済みにする"
+                                  >
+                                    <CheckCircle2 size={15} />
+                                  </button>
+                                </>
+                              )}
+                              <button className="btn secondary icon-only" type="button" onClick={() => openMessage(lead)} title="メッセージを見る">
+                                <MessageSquare size={15} />
+                              </button>
+                            </div>
+                          </div>
+                          {cardNotices[lead.leadId] && (
+                            <p className={`${cardNotices[lead.leadId].status === "success" ? "success-box" : "error-box"} mt-4`}>
+                              {cardNotices[lead.leadId].text}
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -1413,18 +1413,34 @@ a.method-badge:hover {
   color: var(--muted);
 }
 
-/* リスト表示は、1リードを2行（上: 基本情報と操作、下: メモ）で表示する */
+/* リスト表示は、1リードを2行（上: 基本情報とメモ、下: ステータスと操作）で表示する */
 .data-table tr.lead-main-row td {
   border-bottom: 0;
   padding-bottom: 4px;
+  vertical-align: top;
 }
 
-.data-table tr.lead-memo-row td {
+.data-table tr.lead-action-row td {
   padding: 0 14px 10px;
 }
 
-.data-table tr.lead-memo-row .memo-input {
-  border-color: var(--border);
-  background: rgba(255, 255, 255, 0.6);
-  color: var(--muted);
+.lead-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.data-table th.col-memo,
+.data-table td.col-memo {
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.data-table td.col-memo .memo-input {
+  max-height: 120px;
+  overflow-y: auto;
 }
