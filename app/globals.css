@@ -1996,3 +1996,8 @@ a.method-badge:hover {
 .viz-tooltip-row span:last-child {
   color: var(--viz-ink-2);
 }
+
+/* 3つのグラフの下端をそろえる（凡例が1つ目だけにあるため、見出し部分の高さを固定する） */
+.viz-card figcaption {
+  min-height: 72px;
+}
