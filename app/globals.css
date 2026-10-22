@@ -2001,3 +2001,90 @@ a.method-badge:hover {
 .viz-card figcaption {
   min-height: 72px;
 }
+
+/* 画面の下の帯: 直近の実行結果（1行。押すと上へ開く） */
+.actions-footer {
+  position: relative;
+}
+
+.result-bar {
+  position: static;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.result-bar-button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 0 12px;
+  color: var(--fg);
+  font-size: 13px;
+  text-align: left;
+}
+
+.result-bar-button:hover {
+  border-color: var(--border-strong);
+}
+
+.result-bar-button.failed {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.result-bar-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-bar-new {
+  border-radius: 999px;
+  background: var(--accent);
+  padding: 1px 8px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.result-bar-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 12px 14px;
+  box-shadow: 0 -10px 32px rgba(15, 23, 42, 0.18);
+}
+
+.result-bar-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.result-bar-panel-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-bar-log {
+  max-height: 32vh;
+  margin-top: 10px;
+  overflow: auto;
+}

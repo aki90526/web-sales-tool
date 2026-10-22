@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
 import CandidatePanel, { isManualOnly, type Candidate } from "./CandidatePanel";
+import ResultBar from "./ResultBar";
 import ResultDock from "./ResultDock";
 import {
   buildResultMessage,
@@ -825,7 +826,7 @@ export default function ActionsPage() {
             <span className="status-badge waiting">見張り中 {watchEntries.filter((entry) => entry.state === "watching").length}</span>
           )}
         </button>
-        <span className="panel-caption">送信完了の自動検知・フォーム送信の結果・実行ログを開きます。</span>
+        <ResultBar job={currentJob} />
       </footer>
 
       {logOpen && (
@@ -1040,7 +1041,7 @@ export default function ActionsPage() {
         </div>
       )}
 
-      <ResultDock job={currentJob} watchEntries={watchEntries} watchLoaded={watchLoaded} onOpenLog={() => { setLogTab("watch"); setLogOpen(true); }} />
+      <ResultDock watchEntries={watchEntries} watchLoaded={watchLoaded} onOpenLog={() => { setLogTab("watch"); setLogOpen(true); }} />
 
       {messageModal && (
         <div className="modal-backdrop" onClick={() => setMessageModal(null)}>
