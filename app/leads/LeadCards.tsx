@@ -102,7 +102,13 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                   </option>
                 ))}
               </select>
-              <span className={props.methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
+              {isForm && hasFormUrl ? (
+                <a className={props.methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer" title={`フォームを開く（${lead.contactFormUrl}）`}>
+                  {lead.contactMethod}
+                </a>
+              ) : (
+                <span className={props.methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
+              )}
               {isForm && (
                 <button
                   className="btn secondary icon-only"
