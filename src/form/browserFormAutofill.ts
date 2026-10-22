@@ -3247,6 +3247,17 @@ const selectDropdownsWithKeyboard = async (client: ChromeClient): Promise<FormAu
   return result;
 };
 
+// 403・404・サーバーエラーなどのエラーページかを、タイトルと本文の冒頭から判定する
+const ERROR_PAGE_PATTERN =
+  /(^|\s)(403|404|410|500|502|503)(\s|$)|forbidden|not found|access denied|service unavailable|bad gateway|アクセス(が)?(できません|禁止|拒否)|ページが(見つかりません|存在しません)|閲覧(できません|権限)/i;
+
+export const detectErrorPage = (title: string, bodyStart: string): string | null => {
+  const head = `${title}\n${bodyStart}`.slice(0, 300);
+  const match = ERROR_PAGE_PATTERN.exec(head);
+
+  return match ? head.replace(/\s+/g, " ").trim().slice(0, 25) : null;
+};
+
 export const fillCandidateFormsInBrowser = async (
   candidates: FormCandidate[],
   sender: SenderInfo,
@@ -3327,6 +3338,19 @@ export const fillCandidateFormsInBrowser = async (
         continue;
       }
 
+      const pageHeadResponse = await client.Runtime.evaluate({
+        expression: "JSON.stringify({ title: document.title || '', body: document.body ? document.body.innerText.slice(0, 300) : '' })",
+        returnByValue: true
+      }).catch(() => undefined);
+      let errorPage: string | null = null;
+
+      try {
+        const head = JSON.parse(String(pageHeadResponse?.result?.value ?? "{}")) as { title?: string; body?: string };
+        errorPage = detectErrorPage(head.title ?? "", head.body ?? "");
+      } catch {
+        errorPage = null;
+      }
+
       const tabSelection = await runTabSelection(client);
 
       if (tabSelection?.clicked) {
@@ -3364,7 +3388,12 @@ export const fillCandidateFormsInBrowser = async (
         );
       }
 
-      if (presence && presence.forms === 0) {
+      if (errorPage && presence && presence.forms === 0 && presence.externalIframes.length === 0) {
+        wrongPage = true;
+        result.warnings.push(
+          `フォームのページがエラーで表示できません（「${errorPage}」）。サイト側でフォームを閉鎖・停止中の可能性があります。確認ボタンの自動クリックと送信の自動記録は行いません。しばらく送れない場合は、ステータスを「見送り」などに変更してください。`
+        );
+      } else if (presence && presence.forms === 0) {
         if (presence.externalIframes.length > 0 && result.filled.length > 0) {
           // 外部サービスのiframeへ入力できた
         } else if (presence.externalIframes.length > 0) {
