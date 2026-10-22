@@ -8,6 +8,7 @@ import {
   SalesManagementLead,
   statusRangeForRow
 } from "../google/salesManagementRepository";
+import { isBounceSubject, parseBounce } from "../email/bounceDetection";
 import { detectOptOut } from "../email/optOutDetection";
 import { createGmailClient, GmailClient, GmailMessageMetadata } from "../google/gmailClient";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
@@ -282,6 +283,7 @@ const targetHistories = (
         history.replyStatus !== "返信あり" &&
         // 「別の窓口から再送してください」という案内だけの返信は、反応として数えず、再検知の対象にもしない
         history.replyStatus !== "再送案内" &&
+        history.replyStatus !== "不達" &&
         Boolean(history.recipient) &&
         Boolean(sentDate) &&
         (sentDate as Date) >= threshold
@@ -466,6 +468,114 @@ const syncBookingNotifications = async (
   return applied;
 };
 
+type BounceSync = {
+  lead: SalesManagementLead;
+  recipient: string;
+  detail: string;
+  next: string;
+};
+
+// 不達通知（宛先が存在しない・受信拒否など、永続的なエラーのみ）を読み取り、該当するメール送信を「不達」として記録する。
+// 迷惑メール扱い（[SPAM]）で届くことがあるため、迷惑メールのフォルダも含めて探す
+const syncBounces = async (
+  gmail: GmailClient,
+  sheets: SheetsClient,
+  histories: ApproachHistoryRow[],
+  lookbackDays: number,
+  dryRun: boolean
+): Promise<BounceSync[]> => {
+  const messages = await gmail.searchMessages(
+    `in:anywhere (from:mailer-daemon OR from:postmaster OR subject:"Undelivered Mail" OR subject:"Delivery Status Notification" OR subject:"Mail Delivery") newer_than:${Math.max(1, lookbackDays)}d`,
+    50
+  );
+  const table = await readSalesManagementTable(sheets);
+  const applied: BounceSync[] = [];
+  const handledRows = new Set<number>();
+
+  for (const message of messages) {
+    if (!isBounceSubject(message.subject) && !/(mailer-daemon|postmaster)/i.test(message.from)) {
+      continue;
+    }
+
+    const bounce = parseBounce(await gmail.getMessageText(message.id));
+
+    if (!bounce || !bounce.permanent) {
+      continue;
+    }
+
+    // この宛先へ、不達通知より前に送ったメールのうち、いちばん新しいものを対象にする
+    const history = histories
+      .filter((row) => {
+        const sentDate = parseTokyoDate(row.sentAt);
+
+        return (
+          row.method === "メール" &&
+          row.sendStatus === "送信済み" &&
+          row.recipient.trim().toLowerCase() === bounce.recipient &&
+          !["不達", "返信あり"].includes(row.replyStatus) &&
+          !handledRows.has(row.rowNumber) &&
+          (!sentDate || !message.internalDate || sentDate <= message.internalDate)
+        );
+      })
+      .sort((a, b) => b.rowNumber - a.rowNumber)[0];
+
+    if (!history) {
+      continue;
+    }
+
+    const lead = table.leads.find((entry) => entry.leadId === history.leadId);
+
+    if (!lead) {
+      continue;
+    }
+
+    handledRows.add(history.rowNumber);
+
+    const when = message.internalDate ? formatTokyoDateTime(message.internalDate) : message.date;
+    const reasonText = `メール不達: ${bounce.recipient} ${bounce.status} ${bounce.reason} (${when})`.replace(/\s+/g, " ");
+    const hasForm = /^https?:\/\//i.test(lead.contactFormUrl);
+    // 送信済みのままのリードだけ、次の手段へ進める（返信などで状況が進んでいるものは変えない）
+    const moveOn = lead.status === "送信済み";
+    const next = !moveOn ? lead.status : hasForm ? "送信待ち（フォームへ切り替え）" : "見送り";
+    const actionLine = !moveOn
+      ? ""
+      : hasForm
+      ? "→ フォームURLがあるため、連絡方法をフォームに切り替えて送信待ちに戻しました"
+      : "→ 他の連絡手段がないため、見送りにしました";
+
+    console.log("");
+    console.log(`Bounce: ${lead.leadId} ${lead.companyName} (${lead.status})`);
+    console.log(`  ${reasonText}`);
+    console.log(`  next: ${next}`);
+    console.log(
+      `[DASHBOARD_UPDATE] leadId=${lead.leadId} company=${lead.companyName} type=bounce detail=${bounce.recipient} ${bounce.status} ${bounce.reason} → ${next}`
+    );
+
+    if (!dryRun) {
+      await sheets.updateValues(`'${SHEETS.approachHistory}'!I${history.rowNumber}:J${history.rowNumber}`, [
+        ["不達", [history.memo, reasonText].filter(Boolean).join("\n")]
+      ]);
+
+      if (moveOn) {
+        if (hasForm) {
+          await sheets.updateValues(fieldRangeForRow(table.columns, "contactMethod", lead.rowNumber), [["フォーム"]]);
+          await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["送信待ち" as Status]]);
+        } else {
+          await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["見送り" as Status]]);
+        }
+      }
+
+      const memoLines = [lead.memo, reasonText, actionLine].filter(Boolean).join("\n");
+      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[memoLines]]);
+      lead.memo = memoLines;
+    }
+
+    applied.push({ lead, recipient: bounce.recipient, detail: reasonText, next });
+  }
+
+  return applied;
+};
+
 const printMatches = (matches: ReplyMatch[]): void => {
   if (matches.length === 0) {
     console.log("No replies detected.");
@@ -533,7 +643,8 @@ const main = async (): Promise<void> => {
   printMatches(matches);
 
   const bookings = await syncBookingNotifications(gmail, sheets, histories, options.dryRun);
-  const totalCount = matches.length + bookings.length;
+  const bounces = await syncBounces(gmail, sheets, histories, lookbackDays, options.dryRun);
+  const totalCount = matches.length + bookings.length + bounces.length;
 
   if (options.dryRun || matches.length === 0) {
     if (options.dryRun) {
