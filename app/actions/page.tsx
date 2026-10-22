@@ -33,7 +33,7 @@ export default function ActionsPage() {
   const [confirmForm, setConfirmForm] = useState(false);
   const [tab, setTab] = useState<"email" | "form">("email");
   const [logOpen, setLogOpen] = useState(false);
-  const [logTab, setLogTab] = useState<"watch" | "outcomes" | "gmail" | "jobs">("watch");
+  const [logTab, setLogTab] = useState<"watch" | "outcomes" | "jobs">("watch");
   const [allLeads, setAllLeads] = useState<Candidate[] | null>(null);
   // チェックの状態。触っていない間は、スコア上位から「件数」分を自動で選ぶ
   const [selection, setSelection] = useState<{ touched: boolean; ids: string[] }>({ touched: false, ids: [] });
@@ -769,6 +769,37 @@ export default function ActionsPage() {
               <p className={emailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>{emailResult.text}</p>
             )}
           </section>
+          <section className="form-panel">
+            <div className="panel-header">
+              <div>
+                <h3 className="panel-title">返信確認</h3>
+                <p className="panel-caption">Gmailの返信と面談予約の通知を確認し、スプレッドシートへ反映します（Gmail返信同期）。</p>
+              </div>
+              <RefreshCw size={20} color="var(--success)" />
+            </div>
+            <div className="btn-row">
+              <button className="btn primary" disabled={running} onClick={() => handleGmailAction({ command: "gmail-sync" })}>
+                <RefreshCw size={16} />
+                返信を確認して反映
+              </button>
+            </div>
+            {gmailResult && (
+              <p className={gmailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
+                {gmailResult.text}
+              </p>
+            )}
+            {gmailResult?.items && gmailResult.items.length > 0 && (
+              <ul className="mt-4">
+                {gmailResult.items.map((item, index) => (
+                  <li key={`${item.leadId}-${index}`}>
+                    <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.company}`} /> ：
+                    {item.type === "booking" ? "面談予約を反映（返信あり）" : item.type === "optout" ? "配信停止・営業お断り → 除外" : "返信あり"} - {item.detail}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
         {error && <p className="error-box">{error}</p>}
         </div>
 
@@ -794,7 +825,7 @@ export default function ActionsPage() {
             <span className="status-badge waiting">見張り中 {watchEntries.filter((entry) => entry.state === "watching").length}</span>
           )}
         </button>
-        <span className="panel-caption">送信完了の自動検知・フォーム送信の結果・Gmail返信同期・実行ログを開きます。</span>
+        <span className="panel-caption">送信完了の自動検知・フォーム送信の結果・実行ログを開きます。</span>
       </footer>
 
       {logOpen && (
@@ -805,7 +836,6 @@ export default function ActionsPage() {
                 {([
                   ["watch", "送信完了の自動検知"],
                   ["outcomes", "フォーム送信の結果"],
-                  ["gmail", "Gmail返信同期"],
                   ["jobs", "実行ログ"]
                 ] as const).map(([key, label]) => (
                   <button key={key} type="button" className={logTab === key ? "segment active" : "segment"} onClick={() => setLogTab(key)}>
@@ -959,40 +989,6 @@ export default function ActionsPage() {
                           </div>
                         )}
                       </>
-                    )}
-                  </section>
-                </>
-              )}
-              {logTab === "gmail" && (
-                <>
-                  <section className="form-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h3 className="panel-title">Gmail返信同期</h3>
-                        <p className="panel-caption">Gmailの返信と面談予約の通知を確認し、スプレッドシートへ反映します。</p>
-                      </div>
-                      <RefreshCw size={20} color="var(--success)" />
-                    </div>
-                    <div className="btn-row">
-                      <button className="btn primary" disabled={running} onClick={() => handleGmailAction({ command: "gmail-sync" })}>
-                        <RefreshCw size={16} />
-                        返信を確認して反映
-                      </button>
-                    </div>
-                    {gmailResult && (
-                      <p className={gmailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
-                        {gmailResult.text}
-                      </p>
-                    )}
-                    {gmailResult?.items && gmailResult.items.length > 0 && (
-                      <ul className="mt-4">
-                        {gmailResult.items.map((item, index) => (
-                          <li key={`${item.leadId}-${index}`}>
-                            <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.company}`} /> ：
-                            {item.type === "booking" ? "面談予約を反映（返信あり）" : item.type === "optout" ? "配信停止・営業お断り → 除外" : "返信あり"} - {item.detail}
-                          </li>
-                        ))}
-                      </ul>
                     )}
                   </section>
                 </>
