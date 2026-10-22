@@ -1493,3 +1493,15 @@ a.method-badge:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* リスト表示のメモ: 普段は最大5行まで。クリックして編集するときは、全文を表示する */
+.data-table td.col-memo .memo-input {
+  max-height: calc(5 * 1.5em + 14px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.data-table td.col-memo .memo-input:focus {
+  max-height: none;
+  overflow-y: hidden;
+}
