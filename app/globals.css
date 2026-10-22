@@ -2113,3 +2113,28 @@ a.method-badge:hover {
   color: var(--danger);
   font-size: 12px;
 }
+
+/* ステータス変更の「元に戻す」通知 */
+.undo-toast {
+  position: fixed;
+  bottom: 72px;
+  left: 50%;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: #0f172a;
+  padding: 10px 12px 10px 16px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.35);
+}
+
+.undo-toast .btn {
+  min-height: 32px;
+}

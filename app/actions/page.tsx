@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
+import UndoToast, { type UndoToastData } from "../components/UndoToast";
 import CandidatePanel, { isManualOnly, type Candidate } from "./CandidatePanel";
 import ResultBar from "./ResultBar";
 import ResultDock from "./ResultDock";
@@ -40,6 +41,8 @@ export default function ActionsPage() {
   const [selection, setSelection] = useState<{ touched: boolean; ids: string[] }>({ touched: false, ids: [] });
   const [candidateNotice, setCandidateNotice] = useState<string | null>(null);
   const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
+  const undoInfo = useRef<{ leadId: string; previousStatus: string; historyLine: string } | null>(null);
   const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string } | null>(null);
   const [messageContent, setMessageContent] = useState<{ subject: string; body: string } | null>(null);
   const [messageLoading, setMessageLoading] = useState(false);
@@ -192,13 +195,46 @@ export default function ActionsPage() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
-      setAllLeads((current) => current?.map((entry) => (entry.leadId === lead.leadId ? { ...entry, status } : entry)) ?? current);
+      setAllLeads((current) =>
+        current?.map((entry) => (entry.leadId === lead.leadId ? { ...entry, status, memo: body.memo ?? entry.memo } : entry)) ?? current
+      );
       setCandidateNotice(`${lead.leadId} ${lead.companyName} を「${status}」にしました`);
       setCandidateError(null);
       loadTargets();
+
+      if (body.historyLine && body.previousStatus) {
+        undoInfo.current = { leadId: lead.leadId, previousStatus: body.previousStatus, historyLine: body.historyLine };
+        setUndoToast({ key: Date.now(), message: `${lead.leadId} ${lead.companyName} を「${status}」にしました` });
+      }
     } catch (err) {
       setCandidateError(`ステータスの変更に失敗しました: ${err instanceof Error ? err.message : ""}`);
     }
+  };
+
+  const undoCandidateStatus = async () => {
+    const info = undoInfo.current;
+    setUndoToast(null);
+    if (!info) return;
+
+    try {
+      const res = await fetch("/api/leads/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: info.leadId, status: info.previousStatus, removeLine: info.historyLine })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
+      setAllLeads((current) =>
+        current?.map((entry) => (entry.leadId === info.leadId ? { ...entry, status: info.previousStatus, memo: body.memo ?? entry.memo } : entry)) ?? current
+      );
+      setCandidateNotice(`${info.leadId} を「${info.previousStatus}」に戻しました`);
+      setCandidateError(null);
+      loadTargets();
+    } catch (err) {
+      setCandidateError(`元に戻せませんでした: ${err instanceof Error ? err.message : ""}`);
+    }
+
+    undoInfo.current = null;
   };
 
   const changeCandidateFormUrl = async (lead: Candidate, url: string) => {
@@ -1055,6 +1091,8 @@ export default function ActionsPage() {
           </div>
         </div>
       )}
+
+      <UndoToast toast={undoToast} onUndo={undoCandidateStatus} onClose={() => setUndoToast(null)} />
 
       <ResultDock watchEntries={watchEntries} watchLoaded={watchLoaded} onOpenLog={() => { setLogTab("watch"); setLogOpen(true); }} />
 

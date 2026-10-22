@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
+import UndoToast, { type UndoToastData } from "../components/UndoToast";
 import ActionMenu, { type ActionMenuItem } from "./ActionMenu";
 import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
@@ -91,6 +92,9 @@ export default function LeadsPage() {
   const [cardLimit, setCardLimit] = useState(CARD_PAGE_SIZE);
   const [runningLeadId, setRunningLeadId] = useState<string | null>(null);
   const [cardNotices, setCardNotices] = useState<Record<string, CardNotice>>({});
+  // ステータスを変えた直後の「元に戻す」通知
+  const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
+  const undoInfo = useRef<{ leadId: string; previousStatus: string; historyLine: string } | null>(null);
 
   useEffect(() => {
     try {
@@ -257,6 +261,16 @@ export default function LeadsPage() {
       if (!res.ok) {
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
+
+      // 変更の履歴がメモに追記されるので、画面のメモも更新し、「元に戻す」を出す
+      setLeads((current) =>
+        current ? current.map((entry) => (entry.leadId === lead.leadId ? { ...entry, memo: body.memo ?? entry.memo } : entry)) : current
+      );
+
+      if (body.historyLine && (STATUSES as readonly string[]).includes(previousStatus)) {
+        undoInfo.current = { leadId: lead.leadId, previousStatus, historyLine: body.historyLine };
+        setUndoToast({ key: Date.now(), message: `${lead.leadId} ${lead.companyName} を「${nextStatus}」にしました` });
+      }
     } catch (err) {
       setLeads((current) =>
         current
@@ -267,6 +281,33 @@ export default function LeadsPage() {
     } finally {
       setUpdatingLeadId(null);
     }
+  };
+
+  const undoStatusChange = async () => {
+    const info = undoInfo.current;
+    setUndoToast(null);
+    if (!info) return;
+
+    try {
+      const res = await fetch("/api/leads/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: info.leadId, status: info.previousStatus, removeLine: info.historyLine })
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      setLeads((current) =>
+        current
+          ? current.map((entry) => (entry.leadId === info.leadId ? { ...entry, status: info.previousStatus, memo: body.memo ?? entry.memo } : entry))
+          : current
+      );
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : "元に戻せませんでした");
+    }
+
+    undoInfo.current = null;
   };
 
   const markFormSent = async (lead: Lead) => {
@@ -766,6 +807,8 @@ export default function LeadsPage() {
           </div>
         )}
       </section>
+
+      <UndoToast toast={undoToast} onUndo={undoStatusChange} onClose={() => setUndoToast(null)} />
 
       {messageModal && (
         <div className="modal-backdrop" onClick={closeMessage}>
