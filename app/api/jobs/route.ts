@@ -46,6 +46,7 @@ export async function POST(request: Request) {
       testTo: body.testTo,
       bcc: body.bcc,
       note: body.note,
+      force: body.force,
       status: body.status,
       confirm: body.confirm
     });

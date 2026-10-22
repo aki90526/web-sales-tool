@@ -52,6 +52,7 @@ export type DashboardJobInput = {
   testTo?: unknown;
   bcc?: unknown;
   note?: unknown;
+  force?: unknown;
   status?: unknown;
   confirm?: unknown;
 };
@@ -218,7 +219,9 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
           "forms:mark-sent",
           "--",
           ...(leadId ? ["--lead-id", leadId] : []),
-          ...(note ? ["--note", note] : [])
+          ...(note ? ["--note", note] : []),
+          // 「送信待ち」以外のステータス（見送りにしたあとで、送っていたと分かった場合など）でも記録できるようにする
+          ...(input.force === true ? ["--force"] : [])
         ]
       };
 

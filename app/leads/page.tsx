@@ -242,6 +242,19 @@ export default function LeadsPage() {
   const updateStatus = async (lead: Lead, nextStatus: string) => {
     if (nextStatus === lead.status) return;
 
+    // フォームのリードを「送信済み」にするときは、送信の記録（アプローチ履歴）も残すかを確認する。
+    // 履歴がないと、月別のグラフや返信の検知の対象にならない
+    if (nextStatus === "送信済み" && lead.contactMethod === "フォーム" && /^https?:\/\//i.test(lead.contactFormUrl)) {
+      const withHistory = window.confirm(
+        `${lead.companyName}（${lead.leadId}）を「送信済み」にします。\n\nOK: 送信の記録（アプローチ履歴）も残す（おすすめ）\nキャンセル: ステータスだけ変更する（グラフや返信の検知の対象になりません）`
+      );
+
+      if (withHistory) {
+        await markFormSent(lead, "リード一覧のステータス変更から記録", true);
+        return;
+      }
+    }
+
     const previousStatus = lead.status;
     setStatusError(null);
     setUpdatingLeadId(lead.leadId);
@@ -310,9 +323,14 @@ export default function LeadsPage() {
     undoInfo.current = null;
   };
 
-  const markFormSent = async (lead: Lead) => {
-    const confirmed = window.confirm(`${lead.companyName}（${lead.leadId}）をフォーム送信済みにしますか？`);
-    if (!confirmed) return;
+  // フォーム送信を記録する（アプローチ履歴に1行追加し、ステータスを「送信済み」にする）。
+  // 「送信待ち」以外のリードでも、確認のうえ、記録できる
+  const markFormSent = async (lead: Lead, note = "リード一覧から手動フォーム送信済み", skipConfirm = false) => {
+    if (!skipConfirm) {
+      const statusNote = lead.status === "送信待ち" ? "" : `\n（今のステータスは「${lead.status || "未設定"}」です）`;
+      const confirmed = window.confirm(`${lead.companyName}（${lead.leadId}）をフォーム送信済みにして、アプローチ履歴に記録しますか？${statusNote}`);
+      if (!confirmed) return;
+    }
 
     setStatusError(null);
     setMarkSentLeadId(lead.leadId);
@@ -324,8 +342,9 @@ export default function LeadsPage() {
         body: JSON.stringify({
           command: "forms-mark-sent",
           leadId: lead.leadId,
-          note: "リード一覧から手動フォーム送信済み",
-          confirm: true
+          note,
+          confirm: true,
+          force: true
         })
       });
       const body = await res.json();
@@ -333,7 +352,7 @@ export default function LeadsPage() {
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
       if (body.job?.status === "failed") {
-        throw new Error(body.job.stderr || body.job.stdout || "処理に失敗しました");
+        throw new Error((body.job.stderr || body.job.stdout || "処理に失敗しました").trim().split("\n").filter(Boolean).slice(-1)[0]);
       }
       await refreshLeadsQuietly();
     } catch (err) {

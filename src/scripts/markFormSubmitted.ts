@@ -228,6 +228,23 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  // 同じリードのフォーム送信を、直近10分以内に記録済みなら、二重に記録しない（ボタンの連打などの対策）
+  const recent = (await sheets.getValues(`'${SHEETS.approachHistory}'!A:J`)).slice(1).some((row) => {
+    if (String(row[0] ?? "").trim() !== lead.leadId || String(row[2] ?? "").trim() !== "フォーム" || String(row[7] ?? "").trim() !== "送信済み") {
+      return false;
+    }
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(String(row[1] ?? ""));
+    if (!match) return false;
+
+    const recordedAt = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]) - 9, Number(match[5]), Number(match[6]));
+    return Date.now() - recordedAt < 10 * 60 * 1000;
+  });
+
+  if (recent) {
+    throw new Error(`${lead.leadId} は、直近10分以内に送信済みとして記録されています（二重に記録しないため中止しました）`);
+  }
+
   await appendApproachHistory(sheets, lead, subject, body, options.note, sentAt);
   await updateLeadStatus(sheets, lead, "送信済み");
 
