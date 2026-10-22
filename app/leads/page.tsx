@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
 
@@ -89,6 +89,8 @@ export default function LeadsPage() {
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
   const [cardLimit, setCardLimit] = useState(CARD_PAGE_SIZE);
   const [runningLeadId, setRunningLeadId] = useState<string | null>(null);
+  // メールが空のリードで、メモ欄を開いているもの（メモがあるリードは、常に2行目に表示する）
+  const [openMemoIds, setOpenMemoIds] = useState<Set<string>>(new Set());
   const [cardNotices, setCardNotices] = useState<Record<string, CardNotice>>({});
 
   useEffect(() => {
@@ -608,7 +610,6 @@ export default function LeadsPage() {
                   <th className="hide-mobile">連絡方法</th>
                   <th>スコア</th>
                   <th>ステータス</th>
-                  <th className="hide-mobile col-flex-wide">メモ</th>
                   <th className="cell-nowrap">操作</th>
                 </tr>
               </thead>
@@ -619,7 +620,7 @@ export default function LeadsPage() {
                     ref={(el) => {
                       rowRefs.current[lead.leadId] = el;
                     }}
-                    className={`${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""}`}
+                    className={`${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""}${lead.memo || openMemoIds.has(lead.leadId) ? " lead-main-row" : ""}`}
                   >
                     <td className="hide-mobile col-fixed-80">{lead.leadId}</td>
                     <td className="col-fixed-180">
@@ -675,18 +676,6 @@ export default function LeadsPage() {
                         ))}
                       </select>
                     </td>
-                    <td className="hide-mobile col-flex-wide">
-                      <textarea
-                        key={lead.memo}
-                        ref={autoResizeTextarea}
-                        className="memo-input"
-                        rows={1}
-                        defaultValue={lead.memo}
-                        placeholder="メモを入力"
-                        onInput={(event) => autoResizeTextarea(event.currentTarget)}
-                        onBlur={(event) => updateMemo(lead, event.target.value)}
-                      />
-                    </td>
                     <td className="cell-nowrap">
                       <div className="btn-row-tight">
                         {lead.contactMethod === "メール" && (
@@ -722,6 +711,23 @@ export default function LeadsPage() {
                             </button>
                           </>
                         )}
+                        {!lead.memo && (
+                          <button
+                            className="btn secondary icon-only"
+                            type="button"
+                            onClick={() =>
+                              setOpenMemoIds((current) => {
+                                const next = new Set(current);
+                                if (next.has(lead.leadId)) next.delete(lead.leadId);
+                                else next.add(lead.leadId);
+                                return next;
+                              })
+                            }
+                            title="メモを書く"
+                          >
+                            <FileText size={15} />
+                          </button>
+                        )}
                         <button className="btn secondary icon-only" type="button" onClick={() => openMessage(lead)} title="メッセージを見る">
                           <MessageSquare size={15} />
                         </button>
@@ -739,9 +745,26 @@ export default function LeadsPage() {
                       </div>
                     </td>
                   </tr>
+                  {(lead.memo || openMemoIds.has(lead.leadId)) && (
+                    <tr className={`${rowClass(lead.status)}${highlightedLeadId === lead.leadId ? " row-highlight" : ""} lead-memo-row`}>
+                      <td colSpan={8}>
+                        <textarea
+                          key={lead.memo}
+                          ref={autoResizeTextarea}
+                          className="memo-input"
+                          rows={1}
+                          defaultValue={lead.memo}
+                          placeholder="メモを入力"
+                          autoFocus={!lead.memo}
+                          onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                          onBlur={(event) => updateMemo(lead, event.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  )}
                   {cardNotices[lead.leadId] && (
                     <tr>
-                      <td colSpan={9}>
+                      <td colSpan={8}>
                         <p className={cardNotices[lead.leadId].status === "success" ? "success-box" : "error-box"}>
                           {lead.leadId} {lead.companyName}: {cardNotices[lead.leadId].text}
                         </p>

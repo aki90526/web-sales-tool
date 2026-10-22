@@ -1412,3 +1412,19 @@ a.method-badge:hover {
   gap: 4px;
   color: var(--muted);
 }
+
+/* リスト表示は、1リードを2行（上: 基本情報と操作、下: メモ）で表示する */
+.data-table tr.lead-main-row td {
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+
+.data-table tr.lead-memo-row td {
+  padding: 0 14px 10px;
+}
+
+.data-table tr.lead-memo-row .memo-input {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
+}
