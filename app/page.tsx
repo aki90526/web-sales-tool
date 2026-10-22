@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { CheckCircle2, Clock3, MessageCircleReply, Send, Users } from "lucide-react";
+import MonthlyCharts from "./components/MonthlyCharts";
 
 type Lead = {
   leadId: string;
@@ -193,6 +194,8 @@ export default function DashboardPage() {
           </span>
         </article>
       </section>
+
+      <MonthlyCharts />
 
       <section className="dashboard-grid">
         <div className="panel">

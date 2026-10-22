@@ -1838,3 +1838,161 @@ a.method-badge:hover {
 .app-shell.fill .floating-action {
   display: none;
 }
+
+/* 月別グラフ。色は、検証済みのパレット（青・オレンジ・アクア）を使う */
+.viz-root {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-surface: #ffffff;
+  --viz-ink: #0b0b0b;
+  --viz-ink-2: #52514e;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+}
+
+.viz-grid-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.viz-card {
+  margin: 0;
+  min-width: 0;
+}
+
+.viz-card h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.viz-card figcaption p {
+  margin: 3px 0 0;
+  color: var(--viz-ink-2);
+  font-size: 12px;
+}
+
+.viz-legend {
+  display: flex;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--viz-ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.viz-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.viz-key {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.viz-key-box {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.viz-plot {
+  position: relative;
+  margin-top: 6px;
+}
+
+.viz-plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.viz-grid {
+  stroke: var(--viz-grid);
+  stroke-width: 1;
+}
+
+.viz-axis {
+  stroke: var(--viz-axis);
+  stroke-width: 1;
+}
+
+.viz-crosshair {
+  stroke: var(--viz-axis);
+}
+
+.viz-tick {
+  fill: var(--viz-muted);
+  font-size: 10px;
+}
+
+.viz-value {
+  fill: var(--viz-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.viz-ring {
+  fill: var(--viz-surface);
+}
+
+.viz-hover-band {
+  fill: rgba(11, 11, 11, 0.04);
+}
+
+.viz-hit {
+  outline: none;
+  cursor: default;
+}
+
+.viz-hit:focus-visible {
+  stroke: var(--viz-ink-2);
+  stroke-width: 1;
+}
+
+.viz-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 120px;
+  transform: translate(-50%, calc(-100% - 24px));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.viz-tooltip-title {
+  margin-bottom: 4px;
+  color: var(--viz-ink-2);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.viz-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.viz-tooltip-row strong {
+  color: var(--viz-ink);
+  font-size: 14px;
+}
+
+.viz-tooltip-row span:last-child {
+  color: var(--viz-ink-2);
+}
