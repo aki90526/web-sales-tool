@@ -134,7 +134,8 @@ export default function ActionsPage() {
           ? lead.contactMethod === "メール" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.emailAddress.trim())
           : lead.contactMethod === "フォーム" && /^https?:\/\//i.test(lead.contactFormUrl)
       )
-      .sort((a, b) => b.salesScore - a.salesScore);
+      // 自動入力できるものを上、手動のみ（CAPTCHAあり）を下に並べる。それぞれ、スコアの高い順
+      .sort((a, b) => Number(isManualOnly(a)) - Number(isManualOnly(b)) || b.salesScore - a.salesScore);
   }, [allLeads, tab, todayTokyo]);
 
   const maxSelect = tab === "email" ? 10 : 5;

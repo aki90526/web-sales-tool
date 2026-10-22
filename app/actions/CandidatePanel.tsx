@@ -81,7 +81,10 @@ export default function CandidatePanel(props: CandidatePanelProps) {
         <div>
           <h3 className="panel-title">候補リード</h3>
           <p className="panel-caption">
-            {props.tab === "email" ? "メール" : "フォーム"}の送信待ちを、スコアの高い順に表示しています。チェックしたリードが、実行の対象になります（選択 {selectedIds.length}件 / 最大{maxSelect}件）。
+            {props.tab === "email"
+              ? "メールの送信待ちを、スコアの高い順に表示しています。"
+              : "フォームの送信待ちを、自動入力できるものを上、手動のみ（CAPTCHAあり）を下に、それぞれスコアの高い順に表示しています。"}
+            チェックしたリードが、実行の対象になります（選択 {selectedIds.length}件 / 最大{maxSelect}件）。
           </p>
         </div>
       </div>
