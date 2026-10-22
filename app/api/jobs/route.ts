@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       command: body.command,
       limit: body.limit,
       leadId: body.leadId,
+      leadIds: body.leadIds,
       testTo: body.testTo,
       bcc: body.bcc,
       note: body.note,

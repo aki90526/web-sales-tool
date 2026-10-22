@@ -48,6 +48,7 @@ export type DashboardJobInput = {
   command: DashboardCommand;
   limit?: unknown;
   leadId?: unknown;
+  leadIds?: unknown;
   testTo?: unknown;
   bcc?: unknown;
   note?: unknown;
@@ -72,6 +73,29 @@ const asLimit = (value: unknown, fallback: number, max: number): number => {
   }
 
   return parsed;
+};
+
+// 複数のリードIDを指定する場合の検証（形式と件数）
+const asLeadIds = (value: unknown, max: number): string[] => {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error("leadIds は配列で指定してください");
+  }
+
+  const ids = Array.from(new Set(value.map((entry) => (typeof entry === "string" ? entry.trim() : ""))));
+
+  if (ids.some((id) => !/^[A-Za-z0-9-]{1,20}$/.test(id))) {
+    throw new Error("leadIds の形式が正しくありません");
+  }
+
+  if (ids.length > max) {
+    throw new Error(`一度に指定できるリードは${max}件までです`);
+  }
+
+  return ids;
 };
 
 const requireConfirmed = (input: DashboardJobInput, action: string): void => {
@@ -113,6 +137,7 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
   const limit = asLimit(input.limit, 1, 10);
   const gmailLimit = asLimit(input.limit, 200, 200);
   const leadId = asText(input.leadId);
+  const leadIds = asLeadIds(input.leadIds, 10);
   const note = asText(input.note);
   const testToList = parseEmailList(asText(input.testTo));
   const bcc = typeof input.bcc === "string" ? parseEmailList(input.bcc) : undefined;
@@ -120,8 +145,16 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
   switch (input.command) {
     case "email-dry-run":
       return {
-        label: `メール dry-run ${limit}件`,
-        args: ["run", "send:emails", "--", "--dry-run", "--limit", String(limit)]
+        label: leadIds.length > 0 ? `メール dry-run ${leadIds.length}件（選択）` : `メール dry-run ${limit}件`,
+        args: [
+          "run",
+          "send:emails",
+          "--",
+          "--dry-run",
+          ...(leadIds.length > 0 ? ["--lead-ids", leadIds.join(",")] : []),
+          "--limit",
+          String(leadIds.length > 0 ? leadIds.length : limit)
+        ]
       };
 
     case "email-test":
@@ -129,21 +162,30 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
         throw new Error("テスト送信先メールアドレスを入力してください");
       }
       return {
-        label: `メールテスト送信 ${limit}件`,
-        args: ["run", "send:emails", "--", "--test-to", testToList.join(","), "--limit", String(limit)]
+        label: leadIds.length > 0 ? `メールテスト送信 ${leadIds.length}件（選択）` : `メールテスト送信 ${limit}件`,
+        args: [
+          "run",
+          "send:emails",
+          "--",
+          "--test-to",
+          testToList.join(","),
+          ...(leadIds.length > 0 ? ["--lead-ids", leadIds.join(",")] : []),
+          "--limit",
+          String(leadIds.length > 0 ? leadIds.length : limit)
+        ]
       };
 
     case "email-send":
       requireConfirmed(input, "メール本送信");
       return {
-        label: leadId ? `メール本送信 ${leadId}` : `メール本送信 ${limit}件`,
+        label: leadId ? `メール本送信 ${leadId}` : leadIds.length > 0 ? `メール本送信 ${leadIds.length}件（選択）` : `メール本送信 ${limit}件`,
         args: [
           "run",
           "send:emails",
           "--",
-          ...(leadId ? ["--lead-id", leadId] : []),
+          ...(leadId ? ["--lead-id", leadId] : leadIds.length > 0 ? ["--lead-ids", leadIds.join(",")] : []),
           "--limit",
-          String(leadId ? 1 : limit),
+          String(leadId ? 1 : leadIds.length > 0 ? leadIds.length : limit),
           ...(bcc === undefined ? [] : bcc.length > 0 ? ["--bcc", bcc.join(",")] : ["--no-bcc"])
         ]
       };
@@ -155,10 +197,15 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
       };
 
     case "forms-fill":
+      if (leadIds.length > 5) {
+        throw new Error("フォーム自動入力は一度に5件までです");
+      }
       return {
-        label: leadId ? `フォーム自動入力 ${leadId}` : `フォーム自動入力 ${limit}件`,
+        label: leadId ? `フォーム自動入力 ${leadId}` : leadIds.length > 0 ? `フォーム自動入力 ${leadIds.length}件（選択）` : `フォーム自動入力 ${limit}件`,
         args: leadId
           ? ["run", "forms:fill", "--", "--lead-id", leadId]
+          : leadIds.length > 0
+          ? ["run", "forms:fill", "--", "--lead-ids", leadIds.join(",")]
           : ["run", "forms:fill", "--", "--limit", String(Math.min(limit, 5))]
       };
 

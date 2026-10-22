@@ -17,6 +17,7 @@ type CliOptions = {
   dryRun: boolean;
   help: boolean;
   leadId: string;
+  leadIds: string[];
   limit: number;
   port: number;
   timeoutMs: number;
@@ -32,10 +33,12 @@ const printHelp = (): void => {
   console.log(`Usage:
   npm run forms:fill -- --limit 1
   npm run forms:fill -- --lead-id L-0004
+  npm run forms:fill -- --lead-ids L-0004,L-0005
   npm run forms:fill -- --dry-run --limit 3
 
 Options:
   --lead-id      指定したリードIDのフォームだけ開いて自動入力します
+  --lead-ids     複数のリードID（カンマ区切り、最大 ${MAX_LIMIT} 件）のフォームを開いて自動入力します
   --limit        自動入力する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
   --dry-run      ブラウザを開かず、対象候補だけ表示します
   --no-auto-confirm  入力後に「確認」ボタンを自動で押さず、入力だけで止めます
@@ -69,6 +72,7 @@ const parseArgs = (argv: string[]): CliOptions => {
     dryRun: false,
     help: false,
     leadId: "",
+    leadIds: [],
     limit: DEFAULT_LIMIT,
     port: DEFAULT_PORT,
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -84,6 +88,9 @@ const parseArgs = (argv: string[]): CliOptions => {
       options.dryRun = true;
     } else if (arg === "--lead-id") {
       options.leadId = nextValue(argv, index, "--lead-id");
+      index += 1;
+    } else if (arg === "--lead-ids") {
+      options.leadIds = Array.from(new Set(nextValue(argv, index, "--lead-ids").split(",").map((id) => id.trim()).filter(Boolean)));
       index += 1;
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
@@ -105,6 +112,10 @@ const parseArgs = (argv: string[]): CliOptions => {
     throw new Error(`--limit must be ${MAX_LIMIT} or less`);
   }
 
+  if (options.leadIds.length > MAX_LIMIT) {
+    throw new Error(`--lead-ids must be ${MAX_LIMIT} or less`);
+  }
+
   return options;
 };
 
@@ -112,6 +123,13 @@ const filterCandidates = (
   candidates: FormCandidate[],
   options: CliOptions
 ): FormCandidate[] => {
+  if (options.leadIds.length > 0) {
+    // 指定された順に、対象になるものだけを返す
+    return options.leadIds
+      .map((leadId) => candidates.find((candidate) => candidate.leadId === leadId))
+      .filter((candidate): candidate is FormCandidate => candidate !== undefined);
+  }
+
   if (!options.leadId) {
     return candidates.slice(0, options.limit);
   }
@@ -187,12 +205,24 @@ const main = async (): Promise<void> => {
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
-  const candidateLimit = options.leadId ? 1000 : options.limit;
+  const candidateLimit = options.leadId || options.leadIds.length > 0 ? 1000 : options.limit;
   const { candidates, skipped } = await findFormCandidates(sheets, candidateLimit, contentConfig);
   const targets = filterCandidates(candidates, options);
 
   if (options.leadId && targets.length === 0) {
     throw new Error(`No eligible form lead found for ${options.leadId}`);
+  }
+
+  if (options.leadIds.length > 0) {
+    const missing = options.leadIds.filter((leadId) => !targets.some((target) => target.leadId === leadId));
+
+    if (targets.length === 0) {
+      throw new Error(`No eligible form lead found for ${options.leadIds.join(", ")}`);
+    }
+
+    if (missing.length > 0) {
+      console.log(`対象外のためスキップ: ${missing.join(", ")}（送信待ち・フォームURLあり・次回対応日を確認してください）`);
+    }
   }
 
   console.log("Form autofill: this command opens Chrome, fills the forms and advances to the confirm step. It never clicks the final submit button.");
