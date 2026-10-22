@@ -2828,12 +2828,27 @@ export const isProbableSubmitRedirectToTop = (baseline: CompletionSnapshot | nul
   );
 };
 
+// 入力済みのテキスト欄（テキスト・メール・電話・テキストエリア）の数。確認ボタンの前後で比べて、入力が消えたかを判定する
+const readFilledFieldCount = async (client: ChromeClient, contextId?: number): Promise<number> => {
+  try {
+    const response = await client.Runtime.evaluate({
+      expression: `Array.from(document.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type]),textarea")).filter((element) => element.value && element.value.trim() !== "" && element.getBoundingClientRect().width > 2).length`,
+      returnByValue: true,
+      contextId
+    });
+    return typeof response.result?.value === "number" ? response.result.value : 0;
+  } catch {
+    return 0;
+  }
+};
+
 const runConfirmStep = async (client: ChromeClient, contextIds: Set<number>): Promise<ConfirmStepResult> => {
   const targets: Array<number | undefined> = [undefined, ...Array.from(contextIds)];
   let lastCandidates: string[] = [];
 
   for (const contextId of targets) {
     try {
+      const filledBefore = await readFilledFieldCount(client, contextId);
       const response = await client.Runtime.evaluate({
         expression: `(${pageClickConfirmButton.toString()})()`,
         awaitPromise: true,
@@ -2866,6 +2881,18 @@ const runConfirmStep = async (client: ChromeClient, contextIds: Set<number>): Pr
 
       if (state?.looksLikeConfirmPage) {
         return { status: "advanced", label: clicked.label };
+      }
+
+      // 確認ボタンを押した後、入力した内容がすべて消えて同じフォームに戻った場合は、サイト側の検証で弾かれている
+      const filledAfter = await readFilledFieldCount(client);
+
+      if (filledBefore >= 2 && filledAfter === 0) {
+        return {
+          status: "validation-error",
+          label: clicked.label,
+          detail:
+            "確認ボタンを押すと入力内容が消えて、同じフォームに戻りました。サイト側の検証（reCAPTCHAなどのボット対策が動いていない等）で弾かれた可能性があります。ご自身のブラウザで手入力して同じ状態になる場合は、フォーム側の不具合のため、他の連絡先（メール・電話）を探してください。"
+        };
       }
 
       return {
