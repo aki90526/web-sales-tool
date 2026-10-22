@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import FormLeadCards from "./FormLeadCards";
 import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, Send, ShieldCheck } from "lucide-react";
 
 type DashboardCommand =
@@ -167,8 +166,6 @@ export default function ActionsPage() {
   // リードID欄が、自動入力の結果で自動的に入ったもの（手入力ではない）か
   const leadIdFromAutoFill = useRef(false);
   const [note, setNote] = useState("");
-  // フォーム送信待ちのリード一覧を読み直すための値（ジョブの完了ごとに増やす）
-  const [leadsRefreshKey, setLeadsRefreshKey] = useState(0);
   const [confirmEmail, setConfirmEmail] = useState(false);
   const [confirmForm, setConfirmForm] = useState(false);
   const [formMode, setFormMode] = useState<"auto" | "manual">("auto");
@@ -299,7 +296,6 @@ export default function ActionsPage() {
       return null;
     } finally {
       setRunning(false);
-      setLeadsRefreshKey((current) => current + 1);
     }
   };
 
@@ -756,15 +752,6 @@ export default function ActionsPage() {
           )}
         </div>
       </section>
-
-      <FormLeadCards
-        refreshKey={leadsRefreshKey}
-        selectedLeadId={leadId.trim()}
-        onSelect={(selectedId) => {
-          setLeadId(selectedId);
-          leadIdFromAutoFill.current = false;
-        }}
-      />
 
       <section className="form-panel">
         <div className="panel-header">
