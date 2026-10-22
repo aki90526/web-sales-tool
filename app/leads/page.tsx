@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, Filter, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Users, X } from "lucide-react";
+import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
 
 type Lead = {
@@ -24,6 +25,7 @@ type Lead = {
 };
 
 const ALL = "すべて";
+const CARD_PAGE_SIZE = 60;
 
 const autoResizeTextarea = (el: HTMLTextAreaElement | null): void => {
   if (!el) return;
@@ -75,6 +77,30 @@ export default function LeadsPage() {
   const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
   const [highlightedLeadId, setHighlightedLeadId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  // 一覧の表示形式（リスト／カード）。次回も同じ形式で開く
+  const [viewMode, setViewMode] = useState<"list" | "card">("list");
+  const [cardLimit, setCardLimit] = useState(CARD_PAGE_SIZE);
+  const [runningLeadId, setRunningLeadId] = useState<string | null>(null);
+  const [cardNotices, setCardNotices] = useState<Record<string, CardNotice>>({});
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("leads-view-mode") === "card") {
+        setViewMode("card");
+      }
+    } catch {
+      // 保存できない環境では、リスト表示のまま使う
+    }
+  }, []);
+
+  const changeViewMode = (mode: "list" | "card") => {
+    setViewMode(mode);
+    try {
+      window.localStorage.setItem("leads-view-mode", mode);
+    } catch {
+      // 保存できなくても表示は切り替わる
+    }
+  };
 
   useEffect(() => {
     setFocusLeadId(new URLSearchParams(window.location.search).get("leadId"));
@@ -93,7 +119,8 @@ export default function LeadsPage() {
   useEffect(() => {
     if (!leads || !focusLeadId) return;
 
-    const row = rowRefs.current[focusLeadId];
+    // リスト表示は行、カード表示はカードへスクロールする
+    const row = viewMode === "card" ? document.getElementById(`lead-card-${focusLeadId}`) : rowRefs.current[focusLeadId];
     if (!row) return;
 
     row.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -101,7 +128,7 @@ export default function LeadsPage() {
     const timer = setTimeout(() => setHighlightedLeadId(null), 5000);
 
     return () => clearTimeout(timer);
-  }, [leads, focusLeadId]);
+  }, [leads, focusLeadId, viewMode]);
 
   const fetchLeads = async (): Promise<Lead[]> => {
     const res = await fetch("/api/leads");
@@ -266,6 +293,110 @@ export default function LeadsPage() {
     }
   };
 
+  const setNotice = (leadId: string, notice: CardNotice | null) => {
+    setCardNotices((current) => {
+      const next = { ...current };
+      if (notice) {
+        next[leadId] = notice;
+      } else {
+        delete next[leadId];
+      }
+      return next;
+    });
+  };
+
+  type JobResult = {
+    status: "success" | "failed";
+    stdout?: string;
+    stderr?: string;
+    resultCount?: number;
+    fillWarnings?: Array<{ leadId: string; message: string }>;
+    captchaDetections?: Array<{ leadId: string; label: string }>;
+    confirmedLeadIds?: string[];
+  };
+
+  // メール送信・フォーム自動入力などの実行を、サーバーに依頼する（実行中は他の実行ボタンを止める）
+  const runLeadJob = async (lead: Lead, payload: Record<string, unknown>): Promise<JobResult | null> => {
+    setNotice(lead.leadId, null);
+    setRunningLeadId(lead.leadId);
+
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.leadId, ...payload })
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      return body.job as JobResult;
+    } catch (err) {
+      setNotice(lead.leadId, { status: "failed", text: err instanceof Error ? err.message : "実行に失敗しました" });
+      return null;
+    } finally {
+      setRunningLeadId(null);
+    }
+  };
+
+  const lastLine = (job: JobResult): string =>
+    (job.stderr || job.stdout || "").trim().split("\n").filter(Boolean).slice(-1)[0] ?? "原因不明です";
+
+  const sendEmailToLead = async (lead: Lead) => {
+    const confirmed = window.confirm(
+      `${lead.companyName}（${lead.leadId}）へメールを送信します。\n宛先: ${lead.emailAddress}\n\n送信すると取り消せません。よろしいですか？`
+    );
+    if (!confirmed) return;
+
+    const job = await runLeadJob(lead, { command: "email-send", confirm: true });
+    if (!job) return;
+
+    if (job.status === "failed") {
+      setNotice(lead.leadId, { status: "failed", text: `送信に失敗しました: ${lastLine(job)}` });
+    } else if ((job.resultCount ?? 0) >= 1) {
+      setNotice(lead.leadId, { status: "success", text: "メールを送信しました。ステータスを「送信済み」に更新しました。" });
+    } else {
+      setNotice(lead.leadId, {
+        status: "failed",
+        text: "送信されませんでした。送信直前の確認で対象外になった可能性があります（ステータス・宛先・次回対応日を確認してください）。"
+      });
+    }
+
+    await refreshLeadsQuietly();
+  };
+
+  const autoFillLead = async (lead: Lead) => {
+    const job = await runLeadJob(lead, { command: "forms-fill" });
+    if (!job) return;
+
+    if (job.status === "failed") {
+      setNotice(lead.leadId, { status: "failed", text: `自動入力に失敗しました: ${lastLine(job)}` });
+      return;
+    }
+
+    const warnings = (job.fillWarnings ?? []).filter((warning) => warning.leadId === lead.leadId).map((warning) => warning.message);
+    const captcha = (job.captchaDetections ?? []).find((detection) => detection.leadId === lead.leadId);
+    const advanced = (job.confirmedLeadIds ?? []).includes(lead.leadId);
+    const parts = [
+      advanced
+        ? "Chromeで確認画面まで進みました。内容を確認して、送信してください。送信完了を検知すると、自動で「送信済み」になります。"
+        : "Chromeで入力しました。内容を確認して、送信してください。送信完了を検知すると、自動で「送信済み」になります。",
+      ...(captcha ? [`${captcha.label} があるため、自動送信できない可能性があります。手動入力もご検討ください。`] : []),
+      ...warnings
+    ];
+
+    setNotice(lead.leadId, { status: warnings.length > 0 || captcha ? "failed" : "success", text: parts.join(" / ") });
+    await refreshLeadsQuietly();
+  };
+
+  // 件名・本文を表示し、フォームを新しいタブで開く
+  const manualFillLead = (lead: Lead) => {
+    if (/^https?:\/\//i.test(lead.contactFormUrl)) {
+      window.open(lead.contactFormUrl, "_blank", "noopener,noreferrer");
+    }
+    void openMessage(lead);
+  };
+
   const openMessage = async (lead: Lead) => {
     setMessageModal({ leadId: lead.leadId, companyName: lead.companyName });
     setMessageContent(null);
@@ -394,6 +525,16 @@ export default function LeadsPage() {
             <p className="panel-caption">{filtered.length}件を表示しています。</p>
           </div>
           <div className="btn-row">
+            <div className="view-toggle" role="group" aria-label="表示形式">
+              <button type="button" className={`btn secondary${viewMode === "list" ? " active" : ""}`} aria-pressed={viewMode === "list"} onClick={() => changeViewMode("list")}>
+                <List size={15} />
+                リスト
+              </button>
+              <button type="button" className={`btn secondary${viewMode === "card" ? " active" : ""}`} aria-pressed={viewMode === "card"} onClick={() => changeViewMode("card")}>
+                <LayoutGrid size={15} />
+                カード
+              </button>
+            </div>
             <label className="field">
               ステータス
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
@@ -419,6 +560,34 @@ export default function LeadsPage() {
 
         {!leads ? (
           <p className="panel-caption">読み込み中...</p>
+        ) : viewMode === "card" ? (
+          <>
+            <LeadCards
+              leads={filtered.slice(0, cardLimit)}
+              highlightedLeadId={highlightedLeadId}
+              busy={runningLeadId !== null}
+              runningLeadId={runningLeadId}
+              updatingLeadId={updatingLeadId}
+              notices={cardNotices}
+              statusClass={statusClass}
+              methodClass={methodClass}
+              onStatusChange={updateStatus}
+              onMemoSave={updateMemo}
+              onEditFormUrl={editFormUrl}
+              onShowMessage={openMessage}
+              onSendEmail={sendEmailToLead}
+              onAutoFill={autoFillLead}
+              onManualFill={manualFillLead}
+              onMarkFormSent={markFormSent}
+            />
+            {filtered.length > cardLimit && (
+              <div className="btn-row mt-4">
+                <button className="btn secondary" type="button" onClick={() => setCardLimit((current) => current + CARD_PAGE_SIZE)}>
+                  さらに表示（残り{filtered.length - cardLimit}件）
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="data-table-wrap">
             <table className="data-table">

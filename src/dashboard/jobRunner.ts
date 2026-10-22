@@ -136,13 +136,14 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
     case "email-send":
       requireConfirmed(input, "メール本送信");
       return {
-        label: `メール本送信 ${limit}件`,
+        label: leadId ? `メール本送信 ${leadId}` : `メール本送信 ${limit}件`,
         args: [
           "run",
           "send:emails",
           "--",
+          ...(leadId ? ["--lead-id", leadId] : []),
           "--limit",
-          String(limit),
+          String(leadId ? 1 : limit),
           ...(bcc === undefined ? [] : bcc.length > 0 ? ["--bcc", bcc.join(",")] : ["--no-bcc"])
         ]
       };

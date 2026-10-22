@@ -1381,3 +1381,34 @@ a.method-badge:hover {
   width: auto;
   min-width: 150px;
 }
+
+.view-toggle {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.view-toggle .btn.active {
+  border-color: var(--accent);
+  background: #eef5ff;
+  color: var(--accent);
+}
+
+.lead-card-name {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.lead-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lead-card-links span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}

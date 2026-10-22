@@ -16,6 +16,7 @@ type CliOptions = {
   dryRun: boolean;
   help: boolean;
   limit: number;
+  leadId?: string;
   testTo?: string[];
   bcc?: string[];
 };
@@ -52,6 +53,7 @@ const printHelp = (): void => {
   console.log(`Usage:
   npm run send:emails -- --dry-run --limit 3
   npm run send:emails -- --limit 1
+  npm run send:emails -- --lead-id L-0004
   npm run send:emails -- --test-to "aki90526@gmail.com" --limit 1
   npm run send:emails -- --test-to "a@example.com,b@example.com" --limit 1
   npm run send:emails -- --limit 1 --bcc "a@example.com,b@example.com"
@@ -60,6 +62,7 @@ const printHelp = (): void => {
 Options:
   --dry-run       送信せず、対象候補だけ表示します
   --limit         送信または表示する最大件数。省略時は ${DEFAULT_LIMIT}、最大 ${MAX_LIMIT}
+  --lead-id       指定したリード1件だけを対象にします（送信待ち・メール・形式が正しいアドレスの場合のみ）
   --test-to       実際の営業メール本文を指定アドレスへテスト送信します（カンマ区切りで複数可）。Sheets は更新せず、BCCも付けません
   --bcc           本送信のBCCを指定アドレスに変更します（カンマ区切りで複数可）。省略時は SMTP_BCC
   --no-bcc        本送信でBCCを付けません
@@ -102,6 +105,9 @@ const parseArgs = (argv: string[]): CliOptions => {
       options.dryRun = true;
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(nextValue(argv, index, "--limit"), "--limit");
+      index += 1;
+    } else if (arg === "--lead-id") {
+      options.leadId = nextValue(argv, index, "--lead-id");
       index += 1;
     } else if (arg === "--test-to") {
       options.testTo = parseEmailList(nextValue(argv, index, "--test-to"));
@@ -225,7 +231,8 @@ const toCandidate = (
 const findCandidates = async (
   sheets: SheetsClient,
   limit: number,
-  contentConfig: SalesContentConfig
+  contentConfig: SalesContentConfig,
+  leadId?: string
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
   const salesContexts = await readAnalysisSalesContexts(sheets);
@@ -235,6 +242,10 @@ const findCandidates = async (
 
   table.leads.forEach((lead) => {
     if (candidates.length >= limit) {
+      return;
+    }
+
+    if (leadId && lead.leadId !== leadId) {
       return;
     }
 
@@ -346,7 +357,7 @@ const main = async (): Promise<void> => {
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
-  const { candidates, skipped } = await findCandidates(sheets, options.limit, contentConfig);
+  const { candidates, skipped } = await findCandidates(sheets, options.limit, contentConfig, options.leadId);
 
   if (options.dryRun) {
     console.log("Dry run: no emails will be sent and sheets will not be updated.");
