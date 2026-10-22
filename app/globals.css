@@ -1413,27 +1413,13 @@ a.method-badge:hover {
   color: var(--muted);
 }
 
-/* リスト表示: メモは幅300px・高さ固定（2行分）。長いメモは中でスクロールし、入力中は少し広がる */
+/* リスト表示: メモは幅260px。高さは、内容に合わせて自動で変わる */
 .data-table th.col-memo,
 .data-table td.col-memo {
-  width: 300px;
-  min-width: 300px;
-  max-width: 300px;
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
   white-space: normal;
-}
-
-.data-table td.col-memo .memo-fixed {
-  height: 48px;
-  resize: none;
-  overflow-y: auto;
-  line-height: 1.45;
-  transition: height 0.15s ease-out;
-}
-
-.data-table td.col-memo .memo-fixed:focus {
-  height: 140px;
-  border-color: var(--accent);
-  background: #fff;
 }
 
 /* 「操作」ボタンから浮かんで表示するメニュー */

@@ -738,9 +738,12 @@ export default function LeadsPage() {
                       <td className="col-memo">
                         <textarea
                           key={lead.memo}
-                          className="memo-input memo-fixed"
+                          ref={autoResizeTextarea}
+                          className="memo-input"
+                          rows={1}
                           defaultValue={lead.memo}
                           placeholder="メモを入力"
+                          onInput={(event) => autoResizeTextarea(event.currentTarget)}
                           onBlur={(event) => updateMemo(lead, event.target.value)}
                         />
                       </td>
