@@ -2279,6 +2279,20 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     result.checked.push({ label: text.slice(0, 120) });
   };
 
+  // ページに本文用のテキストエリアがあるとき、1行の入力欄（<input>）が「内容」という言葉だけで本文欄と判定されたものは、
+  // 本文を入れない（例:「検討しているイベント内容」のような、別の質問の短い入力欄に、メッセージが入るのを防ぐ）。
+  // 「お問い合わせ内容」「メッセージ」「本文」など、本文を示す言葉があるものは、これまでどおり本文欄として扱う。
+  const hasBodyTextarea = Array.from(document.querySelectorAll<HTMLTextAreaElement>("textarea")).some(
+    (element) => visible(element) && !element.disabled && !element.readOnly && inferKey(element) === "body"
+  );
+  const isShortQuestionInput = (element: HTMLInputElement | HTMLTextAreaElement): boolean => {
+    if (!hasBodyTextarea || element instanceof HTMLTextAreaElement || inferKey(element) !== "body") {
+      return false;
+    }
+
+    return !/(お問い合わせ|お問合せ|問い合わせ|ご相談|相談|メッセージ|本文|ご用件|用件|message|inquiry|comment)/i.test(labelFor(element));
+  };
+
   // 本文欄が複数ある場合（お困りごと・依頼内容・補足など）は、必須の欄か「内容」に当たる欄1つだけに本文を入れる
   const skippedBodyTextareas = new Set<HTMLTextAreaElement>();
   const bodyTextareas = Array.from(document.querySelectorAll<HTMLTextAreaElement>("textarea")).filter(
@@ -2312,6 +2326,10 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea")
     .forEach((element) => {
       if (element instanceof HTMLTextAreaElement && skippedBodyTextareas.has(element)) {
+        return;
+      }
+
+      if (isShortQuestionInput(element)) {
         return;
       }
 

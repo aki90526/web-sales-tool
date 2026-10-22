@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- source: 手作りの再現用フォーム（faucet.co.jp/contact/ の「検討しているイベント内容」の入力欄が、本文欄と誤判定された不具合の回帰テスト） -->
+<html lang="ja"><head><meta charset="utf-8"><title>short-question-input</title></head><body>
+<form>
+  <label for="name">担当者名<span>必須</span></label>
+  <input id="name" name="name" type="text" placeholder="例 山田 太郎">
+
+  <label for="email">メールアドレス<span>必須</span></label>
+  <input id="email" name="email" type="email" placeholder="例 info@example.com">
+
+  <label for="plan">検討しているイベント内容<span>任意</span></label>
+  <input id="plan" name="plan" type="text" placeholder="例 演奏会、季節の行事など">
+
+  <label for="message">相談内容<span>必須</span></label>
+  <textarea id="message" name="message" rows="8" required placeholder="現在の状況、検討している内容、ご希望の時期などをご記入ください。"></textarea>
+
+  <button type="submit">送信する</button>
+</form>
+</body></html>
