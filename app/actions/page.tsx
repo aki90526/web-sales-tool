@@ -1,161 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, Send, ShieldCheck } from "lucide-react";
-
-type DashboardCommand =
-  | "email-dry-run"
-  | "email-test"
-  | "email-send"
-  | "forms-todo"
-  | "forms-fill"
-  | "forms-mark-sent"
-  | "lead-set-status"
-  | "gmail-sync";
-
-type CaptchaDetection = {
-  leadId: string;
-  label: string;
-};
-
-type FilledLead = {
-  leadId: string;
-  companyName: string;
-};
-
-type DashboardJob = {
-  id: string;
-  command: DashboardCommand;
-  label: string;
-  status: "running" | "success" | "failed";
-  startedAt: string;
-  finishedAt?: string;
-  exitCode?: number | string;
-  args: string[];
-  stdout: string;
-  stderr: string;
-  captchaDetections?: CaptchaDetection[];
-  filledLeads?: FilledLead[];
-  confirmedLeadIds?: string[];
-  fillWarnings?: Array<{ leadId: string; message: string }>;
-  updates?: Array<{ leadId: string; company: string; type: string; detail: string }>;
-  resultCount?: number;
-  resultMode?: string;
-};
-
-type FormWatchEntry = {
-  leadId: string;
-  companyName: string;
-  state: "watching" | "needs-confirm" | "manual-required" | "submit-error" | "recorded" | "already-recorded" | "failed" | "closed" | "timeout";
-  startedAt: string;
-  updatedAt: string;
-  message?: string;
-};
-
-type FormOutcomeSummary = {
-  periodDays: number;
-  total: number;
-  counts: Partial<Record<string, number>>;
-  topProblemDomains: Array<{ domain: string; count: number }>;
-  recentProblems: Array<{ at: string; leadId: string; companyName: string; domain: string; kind: string; detail?: string }>;
-};
-
-const OUTCOME_LABELS: Record<string, string> = {
-  success: "送信成功",
-  spam: "スパム判定",
-  invalid: "入力エラー",
-  failed: "送信失敗",
-  captcha: "CAPTCHA",
-  "wrong-page": "本物のフォームでない",
-  "needs-confirm": "送信後に要確認",
-  closed: "タブが閉じられた",
-  timeout: "結果を検知できず"
-};
-
-const watchStateLabel = (state: FormWatchEntry["state"]): { text: string; className: string } => {
-  switch (state) {
-    case "watching":
-      return { text: "見張り中", className: "status-badge waiting" };
-    case "manual-required":
-      return { text: "手動送信が必要（スパム判定）", className: "status-badge reply" };
-    case "submit-error":
-      return { text: "フォームが送信エラー", className: "status-badge" };
-    case "needs-confirm":
-      return { text: "要確認（送信後にトップへ転送）", className: "status-badge reply" };
-    case "recorded":
-      return { text: "自動で送信済みに更新", className: "status-badge sent" };
-    case "already-recorded":
-      return { text: "記録済み", className: "status-badge sent" };
-    case "failed":
-      return { text: "記録に失敗", className: "status-badge" };
-    case "timeout":
-      return { text: "検知できず終了", className: "status-badge reply" };
-    default:
-      return { text: "見張り終了", className: "status-badge reply" };
-  }
-};
-
-type JobRequest = {
-  command: DashboardCommand;
-  limit?: number;
-  leadId?: string;
-  testTo?: string;
-  bcc?: string;
-  note?: string;
-  status?: string;
-  confirm?: boolean;
-};
-
-const statusLabel = (status: DashboardJob["status"]): string => {
-  if (status === "success") return "成功";
-  if (status === "failed") return "失敗";
-  return "実行中";
-};
-
-const jobStatusClass = (status: DashboardJob["status"]): string => {
-  if (status === "success") return "status-badge sent";
-  if (status === "failed") return "status-badge";
-  return "status-badge waiting";
-};
-
-const formatDateTime = (value: string): string => new Date(value).toLocaleString("ja-JP");
-
-function LeadLink({ leadId, label }: { leadId: string; label?: string }) {
-  return (
-    <a
-      className="text-[var(--accent)] hover:underline"
-      href={`/leads?leadId=${encodeURIComponent(leadId)}`}
-      target="_blank"
-      rel="noreferrer"
-      title="リード一覧で開く（別タブ）"
-    >
-      {label ?? leadId}
-    </a>
-  );
-}
-
-const buildResultMessage = (job: DashboardJob): string => {
-  const count = job.resultCount ?? 0;
-
-  switch (job.command) {
-    case "email-dry-run":
-      return `送信対象を${count}件確認しました（dry-run、実際には送信していません）。`;
-    case "email-test":
-      return `テストメールを${count}件送信しました。`;
-    case "email-send":
-      return `本メールを${count}件送信しました。`;
-    case "forms-todo":
-      return `フォーム送信対象を${count}件確認しました。`;
-    case "gmail-sync":
-      return count === 0 ? "新しい返信・面談予約は見つかりませんでした。" : `返信・面談予約を${count}件、シートに反映しました。`;
-    default:
-      return "処理が完了しました。";
-  }
-};
-
-const outputText = (job: DashboardJob): string => {
-  return [job.stdout, job.stderr && `STDERR:\n${job.stderr}`].filter(Boolean).join("\n\n").trim();
-};
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, Send, X } from "lucide-react";
+import CandidatePanel, { isManualOnly, type Candidate } from "./CandidatePanel";
+import ResultDock from "./ResultDock";
+import {
+  buildResultMessage,
+  formatDateTime,
+  jobStatusClass,
+  LeadLink,
+  OUTCOME_LABELS,
+  statusLabel,
+  watchStateLabel,
+  type CaptchaDetection,
+  type DashboardJob,
+  type FilledLead,
+  type FormOutcomeSummary,
+  type FormWatchEntry,
+  type JobRequest
+} from "./shared";
 
 export default function ActionsPage() {
   const [limit, setLimit] = useState(1);
@@ -168,7 +31,17 @@ export default function ActionsPage() {
   const [note, setNote] = useState("");
   const [confirmEmail, setConfirmEmail] = useState(false);
   const [confirmForm, setConfirmForm] = useState(false);
-  const [formMode, setFormMode] = useState<"auto" | "manual">("auto");
+  const [tab, setTab] = useState<"email" | "form">("email");
+  const [allLeads, setAllLeads] = useState<Candidate[] | null>(null);
+  // チェックの状態。触っていない間は、スコア上位から「件数」分を自動で選ぶ
+  const [selection, setSelection] = useState<{ touched: boolean; ids: string[] }>({ touched: false, ids: [] });
+  const [candidateNotice, setCandidateNotice] = useState<string | null>(null);
+  const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string } | null>(null);
+  const [messageContent, setMessageContent] = useState<{ subject: string; body: string } | null>(null);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [messageCopied, setMessageCopied] = useState(false);
   const [manualMessage, setManualMessage] = useState<{
     companyName: string;
     contactFormUrl: string;
@@ -197,6 +70,7 @@ export default function ActionsPage() {
   const [targetCounts, setTargetCounts] = useState<{ email: number; form: number; formAuto: number; formManualOnly: number } | null>(null);
   const [outcomeSummary, setOutcomeSummary] = useState<FormOutcomeSummary | null>(null);
   const [watchEntries, setWatchEntries] = useState<FormWatchEntry[]>([]);
+  const [watchLoaded, setWatchLoaded] = useState(false);
   const [jobs, setJobs] = useState<DashboardJob[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<DashboardJob | null>(null);
@@ -227,6 +101,132 @@ export default function ActionsPage() {
       .catch(() => undefined);
   };
 
+  const loadLeads = () => {
+    fetch("/api/leads", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((body) => {
+        if (Array.isArray(body.leads)) setAllLeads(body.leads as Candidate[]);
+      })
+      .catch(() => setCandidateError("リードの読み込みに失敗しました"));
+  };
+
+  useEffect(() => {
+    loadLeads();
+  }, []);
+
+  const todayTokyo = useMemo(
+    () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()),
+    []
+  );
+
+  // 実行の対象になるリード（メール／フォームの送信待ち）。スコアの高い順
+  const candidates = useMemo(() => {
+    if (!allLeads) return null;
+    const futureDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && value > todayTokyo;
+
+    return allLeads
+      .filter((lead) => lead.status === "送信待ち" && !futureDate(lead.nextActionDate))
+      .filter((lead) =>
+        tab === "email"
+          ? lead.contactMethod === "メール" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.emailAddress.trim())
+          : lead.contactMethod === "フォーム" && /^https?:\/\//i.test(lead.contactFormUrl)
+      )
+      .sort((a, b) => b.salesScore - a.salesScore);
+  }, [allLeads, tab, todayTokyo]);
+
+  const maxSelect = tab === "email" ? 10 : 5;
+
+  const selectedIds = useMemo(() => {
+    if (!candidates) return [];
+    if (selection.touched) {
+      return selection.ids.filter((id) => candidates.some((lead) => lead.leadId === id));
+    }
+    // 初期は、スコア上位から「件数」分。フォームは、自動入力できない（CAPTCHAあり）ものを除く
+    return candidates
+      .filter((lead) => tab === "email" || !isManualOnly(lead))
+      .slice(0, Math.min(limit, maxSelect))
+      .map((lead) => lead.leadId);
+  }, [candidates, selection, limit, maxSelect, tab]);
+
+  const changeTab = (next: "email" | "form") => {
+    setTab(next);
+    setSelection({ touched: false, ids: [] });
+    setLimit((current) => Math.min(current, next === "email" ? 10 : 5));
+  };
+
+  const toggleCandidate = (leadId: string) => {
+    const current = selectedIds;
+    const next = current.includes(leadId) ? current.filter((id) => id !== leadId) : [...current, leadId];
+    if (next.length > maxSelect) return;
+    setSelection({ touched: true, ids: next });
+  };
+
+  const saveCandidateMemo = async (lead: Candidate, memo: string) => {
+    if (memo === lead.memo) return;
+    try {
+      const res = await fetch("/api/leads/memo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.leadId, memo })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
+      setAllLeads((current) => current?.map((entry) => (entry.leadId === lead.leadId ? { ...entry, memo } : entry)) ?? current);
+      setCandidateNotice(`${lead.leadId} のメモを保存しました`);
+      setCandidateError(null);
+    } catch (err) {
+      setCandidateError(`メモの保存に失敗しました: ${err instanceof Error ? err.message : ""}`);
+    }
+  };
+
+  const changeCandidateStatus = async (lead: Candidate, status: string) => {
+    try {
+      const res = await fetch("/api/leads/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.leadId, status })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
+      setAllLeads((current) => current?.map((entry) => (entry.leadId === lead.leadId ? { ...entry, status } : entry)) ?? current);
+      setCandidateNotice(`${lead.leadId} ${lead.companyName} を「${status}」にしました`);
+      setCandidateError(null);
+      loadTargets();
+    } catch (err) {
+      setCandidateError(`ステータスの変更に失敗しました: ${err instanceof Error ? err.message : ""}`);
+    }
+  };
+
+  const showCandidateMessage = async (lead: Candidate) => {
+    setMessageModal({ leadId: lead.leadId, companyName: lead.companyName });
+    setMessageContent(null);
+    setMessageError(null);
+    setMessageLoading(true);
+    setMessageCopied(false);
+
+    try {
+      const res = await fetch(`/api/leads/message?leadId=${encodeURIComponent(lead.leadId)}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
+      setMessageContent({ subject: body.subject, body: body.body });
+    } catch (err) {
+      setMessageError(err instanceof Error ? err.message : "メッセージの取得に失敗しました");
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const copyModalMessage = async () => {
+    if (!messageContent) return;
+    try {
+      await navigator.clipboard.writeText(`${messageContent.subject}\n\n${messageContent.body}`);
+      setMessageCopied(true);
+      setTimeout(() => setMessageCopied(false), 2000);
+    } catch {
+      setMessageError("コピーに失敗しました。手動で選択してコピーしてください。");
+    }
+  };
+
   useEffect(() => {
     fetch("/api/form-outcomes", { cache: "no-store" })
       .then((res) => res.json())
@@ -246,6 +246,7 @@ export default function ActionsPage() {
         .then((body) => {
           const entries: FormWatchEntry[] = Array.isArray(body.entries) ? body.entries : [];
           setWatchEntries(entries);
+          setWatchLoaded(true);
 
           // 自動で「送信済み」になったリードが、リードID欄に自動入力されたままなら空にする
           const recordedIds = new Set(
@@ -296,6 +297,7 @@ export default function ActionsPage() {
       return null;
     } finally {
       setRunning(false);
+      loadLeads();
     }
   };
 
@@ -304,15 +306,28 @@ export default function ActionsPage() {
     setAutoFillResult(null);
     setConfirmedLeadIds([]);
     setFillWarnings([]);
-    // 前回の自動入力で自動的に入ったリードIDは、送信済みで対象外になっているため使わず、次の対象を自動選択する
-    const targetLeadId = leadIdFromAutoFill.current ? "" : leadId;
-    const job = await runJob({ command: "forms-fill", limit, leadId: targetLeadId });
+    // CAPTCHAで自動入力できないものは、対象から外す
+    const autoIds = selectedIds.filter((id) => {
+      const lead = candidates?.find((entry) => entry.leadId === id);
+      return lead ? !isManualOnly(lead) : false;
+    });
+    const skipped = selectedIds.filter((id) => !autoIds.includes(id));
+
+    if (autoIds.length === 0) {
+      setError("自動入力できるリードが選ばれていません（CAPTCHAがあるリードは「手動入力」を使ってください）。");
+      return;
+    }
+
+    const job = await runJob({ command: "forms-fill", leadIds: autoIds });
     setConfirmedLeadIds(job?.confirmedLeadIds ?? []);
-    setFillWarnings(job?.fillWarnings ?? []);
+    setFillWarnings([
+      ...(job?.fillWarnings ?? []),
+      ...skipped.map((id) => ({ leadId: id, message: "CAPTCHAがあるため自動入力の対象外にしました（手動入力を使ってください）" }))
+    ]);
 
     if (job?.status === "failed") {
       const reason = (job.stderr || job.stdout || "").trim().split("\n").filter(Boolean).slice(-1)[0];
-      setError(`自動入力に失敗しました: ${reason || "原因不明（下のログを確認してください）"}`);
+      setError(`自動入力に失敗しました: ${reason || "原因不明（右下の実行結果を確認してください）"}`);
     }
 
     if (job?.filledLeads && job.filledLeads.length > 0) {
@@ -341,8 +356,9 @@ export default function ActionsPage() {
       if (!res.ok) {
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
-      if (!trimmedLeadId) {
+      if (body.leadId) {
         setLeadId(body.leadId);
+        leadIdFromAutoFill.current = false;
       }
       if (body.contactFormUrl) {
         window.open(body.contactFormUrl, "_blank", "noopener,noreferrer");
@@ -363,7 +379,7 @@ export default function ActionsPage() {
   const switchToManual = (detection: CaptchaDetection) => {
     setCaptchaWarning(null);
     setLeadId(detection.leadId);
-    setFormMode("manual");
+    setTab("form");
     openManualForm(detection.leadId);
   };
 
@@ -435,7 +451,7 @@ export default function ActionsPage() {
 
   const handleEmailAction = async (request: JobRequest) => {
     setEmailResult(null);
-    const job = await runJob(request);
+    const job = await runJob({ ...request, leadIds: selectedIds });
 
     if (!job) return;
 
@@ -461,7 +477,7 @@ export default function ActionsPage() {
 
   const handleFormsTodo = async () => {
     setFormsTodoResult(null);
-    const job = await runJob({ command: "forms-todo", limit });
+    const job = await runJob({ command: "forms-todo", limit: Math.min(selectedIds.length || limit, 5) });
 
     if (!job) return;
 
@@ -470,6 +486,13 @@ export default function ActionsPage() {
     } else {
       setFormsTodoResult({ status: "failed", text: job.stderr || job.stdout || "処理に失敗しました。" });
     }
+  };
+
+  const handleCheckTargets = () => {
+    loadLeads();
+    loadTargets();
+    setCandidateError(null);
+    setCandidateNotice("候補リードを最新の状態に更新しました");
   };
 
   const overlayMessage = running ? "処理を実行しています..." : manualLoading ? "読み込み中です..." : null;
@@ -494,264 +517,272 @@ export default function ActionsPage() {
         </span>
       </div>
 
-      <section className="kpi-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-        <article className="kpi-card" style={{ "--card-color": "#2f6df6", "--card-bg": "#dbeafe" } as CSSProperties}>
-          <div className="kpi-card-head">
-            <span>送信待ち（メール）</span>
-            <span className="kpi-icon"><Mail size={19} /></span>
-          </div>
-          <div className="kpi-value">{targetCounts ? targetCounts.email : "-"}</div>
-          <span className="kpi-note">今すぐ送信できる件数</span>
-        </article>
-        <article className="kpi-card" style={{ "--card-color": "#f59e0b", "--card-bg": "#fef3c7" } as CSSProperties}>
-          <div className="kpi-card-head">
-            <span>送信待ち（フォーム）</span>
-            <span className="kpi-icon"><MousePointerClick size={19} /></span>
-          </div>
-          <div className="kpi-value">{targetCounts ? targetCounts.form : "-"}</div>
-          <span className="kpi-note">
-            {targetCounts ? `自動入力できる${targetCounts.formAuto}件 / 手動のみ${targetCounts.formManualOnly}件` : "読み込み中"}
-          </span>
-        </article>
-      </section>
-
-      <section className="form-panel">
-        <div className="panel-header">
-          <div>
-            <h3 className="panel-title">共通設定</h3>
-            <p className="panel-caption">実行件数は本送信前に必ず小さく確認してください。</p>
-          </div>
-          <ShieldCheck size={20} color="var(--accent)" />
-        </div>
-        <div className="field-grid">
-          <label className="field">
-            件数
-            <input type="number" min={1} max={10} value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
-          </label>
-        </div>
-      </section>
-
-      <section className="split-grid">
-        <div className="form-panel">
-          <div className="panel-header">
-            <div>
-              <h3 className="panel-title">メール</h3>
-              <p className="panel-caption">dry-run、テスト送信、本送信を実行します。</p>
-            </div>
-            <Mail size={20} color="var(--accent)" />
-          </div>
-          <div className="btn-row">
-            <button className="btn secondary" disabled={running} onClick={() => handleEmailAction({ command: "email-dry-run", limit })}>
-              <ClipboardCheck size={16} />
-              dry-run
-            </button>
-          </div>
-          <label className="field mt-4">
-            テスト送信先（複数はカンマ区切り）
-            <input
-              value={emailTestTo}
-              onChange={(event) => setEmailTestTo(event.target.value)}
-              placeholder="a@example.com, b@example.com"
-            />
-          </label>
-          <div className="btn-row mt-4">
-            <button
-              className="btn secondary"
-              disabled={running}
-              onClick={() => handleEmailAction({ command: "email-test", limit, testTo: emailTestTo })}
-            >
-              <Mail size={16} />
-              テスト送信
-            </button>
-          </div>
-          <label className="field mt-4">
-            本送信のBCC（複数はカンマ区切り、空欄でBCCなし）
-            <input
-              value={emailBcc}
-              onChange={(event) => setEmailBcc(event.target.value)}
-              placeholder="BCCなし"
-            />
-          </label>
-          <label className="check-pill mt-4">
-            <input type="checkbox" checked={confirmEmail} onChange={(event) => setConfirmEmail(event.target.checked)} />
-            本送信する内容を確認しました
-          </label>
-          <div className="btn-row mt-4">
-            <button
-              className="btn danger"
-              disabled={running || !confirmEmail}
-              onClick={() => handleEmailAction({ command: "email-send", limit, bcc: emailBcc, confirm: confirmEmail })}
-            >
-              <Send size={16} />
-              メール本送信
-            </button>
-          </div>
-          {emailResult && (
-            <p className={emailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
-              {emailResult.text}
-            </p>
-          )}
-        </div>
-
-        <div className="form-panel">
-          <div className="panel-header">
-            <div>
-              <h3 className="panel-title">フォーム</h3>
-              <p className="panel-caption">Mac側Chromeで自動入力するか、フォームを開いて自分で入力します。</p>
-            </div>
-            <MousePointerClick size={20} color="var(--warning)" />
-          </div>
-          <div className="btn-row">
-            <button className="btn secondary" disabled={running} onClick={handleFormsTodo}>
-              <ClipboardCheck size={16} />
-              対象確認
-            </button>
-          </div>
-          {formsTodoResult && (
-            <p className={formsTodoResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
-              {formsTodoResult.text}
-            </p>
-          )}
-          <label className="field mt-4">
-            リードID
-            <input
-              value={leadId}
-              onChange={(event) => {
-                setLeadId(event.target.value);
-                leadIdFromAutoFill.current = false;
-              }}
-              placeholder="空欄なら次の対象を自動選択"
-            />
-          </label>
-          {leadId.trim() && (
-            <a
-              className="text-[var(--accent)] hover:underline mt-4"
-              href={`/leads?leadId=${encodeURIComponent(leadId.trim())}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              このリードをリード一覧で確認・編集する →
-            </a>
-          )}
-          <div className="segmented mt-4">
+      <div className="actions-layout">
+        <div className="actions-main">
+          <section className="kpi-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             <button
               type="button"
-              className={formMode === "auto" ? "segment active" : "segment"}
-              onClick={() => setFormMode("auto")}
+              className={`kpi-card kpi-button${tab === "email" ? " active" : ""}`}
+              style={{ "--card-color": "#2f6df6", "--card-bg": "#dbeafe" } as CSSProperties}
+              onClick={() => changeTab("email")}
             >
-              自動入力
+              <div className="kpi-card-head">
+                <span>メール</span>
+                <span className="kpi-icon"><Mail size={19} /></span>
+              </div>
+              <div className="kpi-value">{targetCounts ? targetCounts.email : "-"}</div>
+              <span className="kpi-note">今すぐ送信できる件数</span>
             </button>
             <button
               type="button"
-              className={formMode === "manual" ? "segment active" : "segment"}
-              onClick={() => setFormMode("manual")}
+              className={`kpi-card kpi-button${tab === "form" ? " active" : ""}`}
+              style={{ "--card-color": "#f59e0b", "--card-bg": "#fef3c7" } as CSSProperties}
+              onClick={() => changeTab("form")}
             >
-              自分で入力
+              <div className="kpi-card-head">
+                <span>フォーム</span>
+                <span className="kpi-icon"><MousePointerClick size={19} /></span>
+              </div>
+              <div className="kpi-value">{targetCounts ? targetCounts.form : "-"}</div>
+              <span className="kpi-note">
+                {targetCounts ? `自動入力できる${targetCounts.formAuto}件 / 手動のみ${targetCounts.formManualOnly}件` : "読み込み中"}
+              </span>
             </button>
-          </div>
+          </section>
 
-          {formMode === "auto" ? (
-            <>
-              <div className="btn-row mt-4">
-                <button className="btn primary" disabled={running} onClick={handleAutoFill}>
-                  <MousePointerClick size={16} />
-                  自動入力を開く
-                </button>
+          <section className="form-panel">
+            <div className="panel-header">
+              <div>
+                <h3 className="panel-title">実行</h3>
+                <p className="panel-caption">右の候補リードでチェックしたリードに対して実行します。本送信の前は、件数を小さく確認してください。</p>
               </div>
-              {autoFillResult && (
-                <div className="success-box mt-4">
-                  <p>
-                    {autoFillResult.length}件のフォームを開いてタブに入力しました
-                    {confirmedLeadIds.length > 0 ? `（うち${confirmedLeadIds.length}件は確認画面まで進めています）` : ""}
-                    。内容を確認して送信してください。送信完了画面を検知すると、自動で「送信済み」に更新します。
-                  </p>
-                  <ul className="mt-4">
-                    {autoFillResult.map((lead) => (
-                      <li key={lead.leadId}>
-                        <LeadLink leadId={lead.leadId} label={`${lead.leadId} ${lead.companyName}`} />
-                        {confirmedLeadIds.includes(lead.leadId) ? "（確認画面まで進行済み）" : "（入力のみ・確認ボタンは手動）"}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            </div>
+
+            <div className="segmented">
+              <button type="button" className={tab === "email" ? "segment active" : "segment"} onClick={() => changeTab("email")}>
+                メール
+              </button>
+              <button type="button" className={tab === "form" ? "segment active" : "segment"} onClick={() => changeTab("form")}>
+                フォーム
+              </button>
+            </div>
+
+            <div className="exec-toolbar mt-4">
+              <label className="inline-field">
+                件数
+                <input
+                  type="number"
+                  min={1}
+                  max={maxSelect}
+                  value={limit}
+                  onChange={(event) => {
+                    setLimit(Math.max(1, Math.min(maxSelect, Number(event.target.value) || 1)));
+                    setSelection({ touched: false, ids: [] });
+                  }}
+                />
+              </label>
+              <button className="btn secondary" disabled={running} onClick={handleCheckTargets}>
+                <ClipboardCheck size={16} />
+                対象確認
+              </button>
+              <span className="exec-spacer" />
+              {tab === "email" ? (
+                <button
+                  className="btn secondary"
+                  disabled={running || selectedIds.length === 0}
+                  onClick={() => handleEmailAction({ command: "email-dry-run" })}
+                  title="送信せずに、選んだリードが送信対象になるかを確認します"
+                >
+                  Dry Run
+                </button>
+              ) : (
+                <button
+                  className="btn secondary"
+                  disabled={running}
+                  onClick={handleFormsTodo}
+                  title="入力せずに、フォームの対象を確認します"
+                >
+                  Dry Run
+                </button>
               )}
-              {fillWarnings.length > 0 && (
-                <div className="error-box mt-4">
-                  <p>入力時の警告があります。</p>
-                  <ul className="mt-4">
-                    {fillWarnings.map((warning, index) => (
-                      <li key={`${warning.leadId}-${index}`}>
-                        <LeadLink leadId={warning.leadId} />: {warning.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {captchaWarning && (
-                <div className="error-box mt-4">
-                  <p>
-                    {captchaWarning.leadId} は {captchaWarning.label} が検出されました。自動送信できない可能性が高いため、手動入力をおすすめします。
-                  </p>
+            </div>
+
+            {tab === "email" ? (
+              <div className="split-grid mt-4">
+                <div className="exec-box">
+                  <h4 className="exec-box-title">テスト送信</h4>
+                  <label className="field">
+                    テスト送信先（複数はカンマ区切り）
+                    <input
+                      value={emailTestTo}
+                      onChange={(event) => setEmailTestTo(event.target.value)}
+                      placeholder="a@example.com, b@example.com"
+                    />
+                  </label>
                   <div className="btn-row mt-4">
-                    <button className="btn secondary" type="button" onClick={() => switchToManual(captchaWarning)}>
-                      <MousePointerClick size={16} />
-                      自分で入力に切り替える
+                    <button
+                      className="btn secondary"
+                      disabled={running || selectedIds.length === 0}
+                      onClick={() => handleEmailAction({ command: "email-test", testTo: emailTestTo })}
+                    >
+                      <Mail size={16} />
+                      テスト送信
                     </button>
                   </div>
                 </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="btn-row mt-4">
-                <button className="btn primary" disabled={manualLoading} onClick={() => openManualForm()}>
-                  <MousePointerClick size={16} />
-                  フォームを開く
-                </button>
-              </div>
-              {manualLoading && <p className="panel-caption mt-4">読み込み中...</p>}
-              {manualError && <p className="error-box mt-4">{manualError}</p>}
-              {manualMessage && (
-                <>
-                  <label className="field full mt-4">
-                    件名
-                    <input value={manualMessage.subject} readOnly />
+                <div className="exec-box">
+                  <h4 className="exec-box-title">本送信</h4>
+                  <label className="field">
+                    BCC（複数はカンマ区切り、空欄でBCCなし）
+                    <input value={emailBcc} onChange={(event) => setEmailBcc(event.target.value)} placeholder="BCCなし" />
                   </label>
-                  <label className="field full mt-4">
-                    本文
-                    <textarea className="memo-input modal-body-text" value={manualMessage.body} readOnly rows={10} />
+                  <label className="check-pill mt-4">
+                    <input type="checkbox" checked={confirmEmail} onChange={(event) => setConfirmEmail(event.target.checked)} />
+                    本送信する内容を確認しました
                   </label>
                   <div className="btn-row mt-4">
-                    <button className="btn secondary" type="button" onClick={copyManualMessage}>
-                      {manualCopied ? <Check size={16} /> : <Copy size={16} />}
-                      {manualCopied ? "コピーしました" : "件名・本文をコピー"}
+                    <button
+                      className="btn danger"
+                      disabled={running || !confirmEmail || selectedIds.length === 0}
+                      onClick={() => handleEmailAction({ command: "email-send", bcc: emailBcc, confirm: confirmEmail })}
+                    >
+                      <Send size={16} />
+                      本送信（{selectedIds.length}件）
                     </button>
                   </div>
-                </>
-              )}
-            </>
-          )}
-          <label className="field mt-4">
-            送信済みメモ
-            <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="例: ダッシュボードから手動フォーム送信済み" />
-          </label>
-          <label className="check-pill mt-4">
-            <input type="checkbox" checked={confirmForm} onChange={(event) => setConfirmForm(event.target.checked)} />
-            フォーム送信完了を確認しました
-          </label>
-          <div className="btn-row mt-4">
-            <button className="btn danger" disabled={running || !confirmForm} onClick={handleMarkFormSent}>
-              <CheckCircle2 size={16} />
-              送信済みにする
-            </button>
-          </div>
-          {markSentFeedback && (
-            <p className={markSentFeedback.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
-              {markSentFeedback.text}
-            </p>
-          )}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4">
+                <div className="btn-row">
+                  <button className="btn primary" disabled={running || selectedIds.length === 0} onClick={handleAutoFill}>
+                    <MousePointerClick size={16} />
+                    自動入力（{selectedIds.length}件）
+                  </button>
+                  <button
+                    className="btn secondary"
+                    disabled={manualLoading || selectedIds.length === 0}
+                    onClick={() => openManualForm(selectedIds[0])}
+                    title="選んだ先頭のリードのフォームを開き、件名・本文をコピーして自分で入力します"
+                  >
+                    <MousePointerClick size={16} />
+                    手動入力
+                  </button>
+                </div>
+
+                {autoFillResult && (
+                  <div className="success-box mt-4">
+                    <p>
+                      {autoFillResult.length}件のフォームを開いてタブに入力しました
+                      {confirmedLeadIds.length > 0 ? `（うち${confirmedLeadIds.length}件は確認画面まで進めています）` : ""}
+                      。内容を確認して送信してください。送信完了画面を検知すると、自動で「送信済み」に更新します。
+                    </p>
+                    <ul className="mt-4">
+                      {autoFillResult.map((lead) => (
+                        <li key={lead.leadId}>
+                          <LeadLink leadId={lead.leadId} label={`${lead.leadId} ${lead.companyName}`} />
+                          {confirmedLeadIds.includes(lead.leadId) ? "（確認画面まで進行済み）" : "（入力のみ・確認ボタンは手動）"}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {fillWarnings.length > 0 && (
+                  <div className="error-box mt-4">
+                    <p>入力時の警告があります。</p>
+                    <ul className="mt-4">
+                      {fillWarnings.map((warning, index) => (
+                        <li key={`${warning.leadId}-${index}`}>
+                          <LeadLink leadId={warning.leadId} />: {warning.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {captchaWarning && (
+                  <div className="error-box mt-4">
+                    <p>
+                      {captchaWarning.leadId} は {captchaWarning.label} が検出されました。自動送信できない可能性が高いため、手動入力をおすすめします。
+                    </p>
+                    <div className="btn-row mt-4">
+                      <button className="btn secondary" type="button" onClick={() => switchToManual(captchaWarning)}>
+                        <MousePointerClick size={16} />
+                        手動入力に切り替える
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {formsTodoResult && (
+                  <p className={formsTodoResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>{formsTodoResult.text}</p>
+                )}
+                {manualLoading && <p className="panel-caption mt-4">読み込み中...</p>}
+                {manualError && <p className="error-box mt-4">{manualError}</p>}
+                {manualMessage && (
+                  <div className="exec-box mt-4">
+                    <h4 className="exec-box-title">{manualMessage.companyName} へのメッセージ</h4>
+                    <label className="field full">
+                      件名
+                      <input value={manualMessage.subject} readOnly />
+                    </label>
+                    <label className="field full mt-4">
+                      本文
+                      <textarea className="memo-input modal-body-text" value={manualMessage.body} readOnly rows={10} />
+                    </label>
+                    <div className="btn-row mt-4">
+                      <button className="btn secondary" type="button" onClick={copyManualMessage}>
+                        {manualCopied ? <Check size={16} /> : <Copy size={16} />}
+                        {manualCopied ? "コピーしました" : "件名・本文をコピー"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {leadId.trim() && (
+                  <div className="exec-box mt-4">
+                    <h4 className="exec-box-title">
+                      送信後の記録（対象: <LeadLink leadId={leadId.trim()} />）
+                    </h4>
+                    <label className="field">
+                      送信済みメモ
+                      <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="例: ダッシュボードから手動フォーム送信済み" />
+                    </label>
+                    <label className="check-pill mt-4">
+                      <input type="checkbox" checked={confirmForm} onChange={(event) => setConfirmForm(event.target.checked)} />
+                      フォーム送信完了を確認しました
+                    </label>
+                    <div className="btn-row mt-4">
+                      <button className="btn danger" disabled={running || !confirmForm} onClick={handleMarkFormSent}>
+                        <CheckCircle2 size={16} />
+                        送信済みにする
+                      </button>
+                    </div>
+                    {markSentFeedback && (
+                      <p className={markSentFeedback.status === "success" ? "success-box mt-4" : "error-box mt-4"}>{markSentFeedback.text}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "email" && emailResult && (
+              <p className={emailResult.status === "success" ? "success-box mt-4" : "error-box mt-4"}>{emailResult.text}</p>
+            )}
+          </section>
         </div>
-      </section>
+
+        <CandidatePanel
+          tab={tab}
+          candidates={candidates}
+          selectedIds={selectedIds}
+          maxSelect={maxSelect}
+          notice={candidateNotice}
+          error={candidateError}
+          onToggle={toggleCandidate}
+          onMemoSave={saveCandidateMemo}
+          onStatusChange={changeCandidateStatus}
+          onShowMessage={showCandidateMessage}
+        />
+      </div>
 
       <section className="form-panel">
         <div className="panel-header">
@@ -796,7 +827,7 @@ export default function ActionsPage() {
                             className="btn primary mt-4"
                             disabled={manualLoading}
                             onClick={() => {
-                              setFormMode("manual");
+                              setTab("form");
                               setLeadId(entry.leadId);
                               leadIdFromAutoFill.current = false;
                               openManualForm(entry.leadId);
@@ -925,20 +956,6 @@ export default function ActionsPage() {
 
       {error && <p className="error-box">{error}</p>}
 
-      {currentJob && (
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h3 className="panel-title">直近の実行結果</h3>
-              <p className="panel-caption">
-                {currentJob.label} / {statusLabel(currentJob.status)} / {formatDateTime(currentJob.startedAt)}
-              </p>
-            </div>
-          </div>
-          <pre className="log-output">{outputText(currentJob) || "出力はありません。"}</pre>
-        </section>
-      )}
-
       <section className="panel">
         <div className="panel-header">
           <div>
@@ -977,6 +994,45 @@ export default function ActionsPage() {
           </div>
         )}
       </section>
+      <ResultDock job={currentJob} watchEntries={watchEntries} watchLoaded={watchLoaded} />
+
+      {messageModal && (
+        <div className="modal-backdrop" onClick={() => setMessageModal(null)}>
+          <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 className="panel-title">{messageModal.companyName}</h3>
+                <p className="panel-caption">{messageModal.leadId} 宛のメッセージ</p>
+              </div>
+              <button className="btn secondary icon-only" type="button" onClick={() => setMessageModal(null)} title="閉じる">
+                <X size={16} />
+              </button>
+            </div>
+
+            {messageLoading && <p className="panel-caption">読み込み中...</p>}
+            {messageError && <p className="error-box">{messageError}</p>}
+
+            {messageContent && (
+              <>
+                <label className="field full">
+                  件名
+                  <input value={messageContent.subject} readOnly />
+                </label>
+                <label className="field full mt-4">
+                  本文
+                  <textarea className="memo-input modal-body-text" value={messageContent.body} readOnly rows={16} />
+                </label>
+                <div className="btn-row mt-4">
+                  <button className="btn primary" type="button" onClick={copyModalMessage}>
+                    {messageCopied ? <Check size={16} /> : <Copy size={16} />}
+                    {messageCopied ? "コピーしました" : "件名・本文をコピー"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

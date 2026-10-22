@@ -1524,3 +1524,188 @@ a.method-badge:hover {
 .view-field {
   text-align: center;
 }
+
+/* 実行操作: 左（実行）と右（候補リード）の2列 */
+.actions-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 18px;
+  align-items: start;
+}
+
+.actions-main {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .actions-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.kpi-button {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.kpi-button.active {
+  box-shadow: 0 0 0 2px var(--card-color, var(--accent));
+}
+
+.exec-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.exec-spacer {
+  flex: 1;
+}
+
+.inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.inline-field input {
+  width: 72px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.exec-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 14px;
+}
+
+.exec-box-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+/* 候補リード（右の列） */
+.candidate-panel {
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  position: sticky;
+  top: 16px;
+}
+
+.candidate-list {
+  display: grid;
+  gap: 12px;
+}
+
+.candidate-card .lead-card-head {
+  align-items: center;
+}
+
+.candidate-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.candidate-check {
+  display: inline-flex;
+  align-items: center;
+}
+
+.candidate-check input {
+  width: 18px;
+  height: 18px;
+}
+
+/* 右下に浮かべる実行結果・自動検知のパネル */
+.result-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: grid;
+  gap: 10px;
+  width: min(440px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.result-dock > * {
+  pointer-events: auto;
+}
+
+.dock-popup {
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 12px 14px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
+}
+
+.dock-popup-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dock-popup-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.dock-popup-sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.dock-popup-text {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.dock-popup-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.dock-log {
+  max-height: 220px;
+  margin-top: 10px;
+  overflow: auto;
+}
+
+.dock-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  padding: 8px 14px;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+}
