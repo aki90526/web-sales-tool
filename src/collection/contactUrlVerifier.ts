@@ -118,22 +118,33 @@ const scoreContactLink = (link: LinkCandidate, sourceUrl: string, leadType: stri
   return score;
 };
 
-const findBestContactLink = (
+const findBestContactLinks = (
   html: string,
   sourceUrl: string,
   leadType: string,
-  currentUrl: string
-): { link: LinkCandidate; score: number } | null => {
+  currentUrl: string,
+  limit = 3
+): Array<{ link: LinkCandidate; score: number }> => {
   const currentKey = normalizeUrlKey(currentUrl);
-  const links = extractLinks(html, sourceUrl)
+
+  return extractLinks(html, sourceUrl)
     .filter((link) => normalizeUrlKey(link.url) !== currentKey)
     .map((link) => ({
       link,
       score: scoreContactLink(link, sourceUrl, leadType)
     }))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+};
 
-  return links[0] ?? null;
+// 補助金の解説記事など、リンク文言だけが近いページに、フォーム付きの問い合わせページを差し替えないための確認
+const hasUsableForm = async (url: string): Promise<boolean> => {
+  try {
+    const html = await fetchText(url);
+    return pageAppearsToContainForm(html) && !isRequestOnlyForm(html);
+  } catch {
+    return false;
+  }
 };
 
 const candidateSourceUrls = (candidate: LeadCandidate): string[] => {
@@ -415,22 +426,27 @@ export const verifyContactUrl = async (
     return { candidate };
   }
 
+  // 今のフォームURLのページに入力フォームがあるか。公式サイトのトップなど、他のページを調べているときも、この結果を使う
+  const contactPageHasForm = candidate.contactUrl
+    ? await fetchText(candidate.contactUrl).then(pageAppearsToContainForm, () => false)
+    : false;
+
   for (const sourceUrl of candidateSourceUrls(candidate)) {
     try {
       const html = await fetchText(sourceUrl);
       const currentUrl = candidate.contactUrl || sourceUrl;
-      const best = findBestContactLink(html, sourceUrl, candidate.leadType, currentUrl);
-      const currentHasForm = candidate.contactUrl ? pageAppearsToContainForm(html) : false;
-
-      if (!best) {
-        continue;
-      }
-
+      const currentHasForm = contactPageHasForm;
       const currentIsArticle = ARTICLE_PATH_PATTERN.test(safeUrl(currentUrl)?.pathname ?? "");
-      const shouldReplace =
-        best.score >= 70 || (!currentHasForm && best.score >= 50) || (currentIsArticle && !currentHasForm && best.score >= 35);
 
-      if (shouldReplace) {
+      for (const best of findBestContactLinks(html, sourceUrl, candidate.leadType, currentUrl)) {
+        const shouldReplace =
+          best.score >= 70 || (!currentHasForm && best.score >= 50) || (currentIsArticle && !currentHasForm && best.score >= 35);
+
+        // 今のURLが入力フォームのあるページなら、差し替え先もフォームのあるページである場合だけ差し替える
+        if (!shouldReplace || (currentHasForm && !(await hasUsableForm(best.link.url)))) {
+          continue;
+        }
+
         return {
           candidate: {
             ...candidate,
