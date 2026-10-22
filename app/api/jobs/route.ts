@@ -16,6 +16,7 @@ const isDashboardCommand = (value: unknown): value is DashboardCommand => {
     value === "forms-todo" ||
     value === "forms-fill" ||
     value === "forms-mark-sent" ||
+    value === "lead-set-status" ||
     value === "gmail-sync"
   );
 };
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
       testTo: body.testTo,
       bcc: body.bcc,
       note: body.note,
+      status: body.status,
       confirm: body.confirm
     });
 

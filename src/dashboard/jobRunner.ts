@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
+import { STATUSES } from "../domain/lead";
 import { parseEmailList } from "../email/emailList";
 
 export type DashboardCommand =
@@ -10,6 +11,7 @@ export type DashboardCommand =
   | "forms-todo"
   | "forms-fill"
   | "forms-mark-sent"
+  | "lead-set-status"
   | "gmail-sync";
 
 export type CaptchaDetection = {
@@ -49,6 +51,7 @@ export type DashboardJobInput = {
   testTo?: unknown;
   bcc?: unknown;
   note?: unknown;
+  status?: unknown;
   confirm?: unknown;
 };
 
@@ -170,6 +173,23 @@ const buildCommand = (input: DashboardJobInput): { label: string; args: string[]
           ...(note ? ["--note", note] : [])
         ]
       };
+
+    case "lead-set-status": {
+      const status = asText(input.status);
+
+      if (!leadId) {
+        throw new Error("リードIDを入力してください");
+      }
+
+      if (!(STATUSES as readonly string[]).includes(status)) {
+        throw new Error("ステータスが正しくありません");
+      }
+
+      return {
+        label: `ステータス変更 ${leadId} → ${status}`,
+        args: ["run", "leads:set-status", "--", "--lead-id", leadId, "--status", status, ...(note ? ["--note", note] : [])]
+      };
+    }
 
     case "gmail-sync":
       return {

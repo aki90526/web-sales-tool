@@ -1,5 +1,7 @@
 @import "tailwindcss";
-
+@source not "../test";
+@source not "../data";
+@source not "../.tmp";
 :root {
   --bg: #eef4fb;
   --fg: #111827;

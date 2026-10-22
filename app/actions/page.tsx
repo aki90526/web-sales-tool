@@ -10,6 +10,7 @@ type DashboardCommand =
   | "forms-todo"
   | "forms-fill"
   | "forms-mark-sent"
+  | "lead-set-status"
   | "gmail-sync";
 
 type CaptchaDetection = {
@@ -101,6 +102,7 @@ type JobRequest = {
   testTo?: string;
   bcc?: string;
   note?: string;
+  status?: string;
   confirm?: boolean;
 };
 
@@ -164,6 +166,7 @@ export default function ActionsPage() {
   // リードID欄が、自動入力の結果で自動的に入ったもの（手入力ではない）か
   const leadIdFromAutoFill = useRef(false);
   const [note, setNote] = useState("");
+  const [otherStatus, setOtherStatus] = useState("見送り");
   const [confirmEmail, setConfirmEmail] = useState(false);
   const [confirmForm, setConfirmForm] = useState(false);
   const [formMode, setFormMode] = useState<"auto" | "manual">("auto");
@@ -428,6 +431,25 @@ export default function ActionsPage() {
         status: "failed",
         text: job.stderr || job.stdout || "登録に失敗しました。"
       });
+    }
+  };
+
+  // 送信せずに、リードのステータスだけを変更する（見送り・保留など）。理由は「送信済みメモ」欄の内容をメモに残す
+  const handleSetStatus = async () => {
+    setMarkSentFeedback(null);
+    const job = await runJob({ command: "lead-set-status", leadId: leadId.trim(), status: otherStatus, note });
+
+    if (!job) return;
+
+    if (job.status === "success") {
+      setMarkSentFeedback({ status: "success", text: `ステータスを「${otherStatus}」に変更しました(${leadId.trim()})。` });
+      setLeadId("");
+      leadIdFromAutoFill.current = false;
+      setNote("");
+      setAutoFillResult(null);
+      setManualMessage(null);
+    } else {
+      setMarkSentFeedback({ status: "failed", text: job.stderr || job.stdout || "ステータスの変更に失敗しました。" });
     }
   };
 
@@ -743,6 +765,22 @@ export default function ActionsPage() {
               送信済みにする
             </button>
           </div>
+          <div className="btn-row mt-4">
+            <label className="field">
+              送信せずにステータスを変更
+              <select value={otherStatus} onChange={(event) => setOtherStatus(event.target.value)}>
+                {["見送り", "保留", "除外", "商談中", "面談済み", "返信あり", "送信待ち"].map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn secondary" disabled={running || !leadId.trim()} onClick={handleSetStatus}>
+              ステータスを変更
+            </button>
+          </div>
+          <p className="panel-caption mt-4">リードIDを入れて使います。「送信済みメモ」欄に書いた理由は、リードのメモに残ります。</p>
           {markSentFeedback && (
             <p className={markSentFeedback.status === "success" ? "success-box mt-4" : "error-box mt-4"}>
               {markSentFeedback.text}
