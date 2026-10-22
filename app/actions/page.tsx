@@ -200,6 +200,19 @@ export default function ActionsPage() {
     }
   };
 
+  const changeCandidateFormUrl = async (lead: Candidate, url: string) => {
+    const res = await fetch("/api/leads/form-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadId: lead.leadId, contactFormUrl: url })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
+    setAllLeads((current) => current?.map((entry) => (entry.leadId === lead.leadId ? { ...entry, contactFormUrl: url } : entry)) ?? current);
+    setCandidateNotice(`${lead.leadId} のフォームURLを変更しました`);
+    setCandidateError(null);
+  };
+
   const showCandidateMessage = async (lead: Candidate) => {
     setMessageModal({ leadId: lead.leadId, companyName: lead.companyName });
     setMessageContent(null);
@@ -815,6 +828,7 @@ export default function ActionsPage() {
           onMemoSave={saveCandidateMemo}
           onStatusChange={changeCandidateStatus}
           onShowMessage={showCandidateMessage}
+          onFormUrlChange={changeCandidateFormUrl}
         />
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink, Mail, MessageSquare } from "lucide-react";
+import { useState } from "react";
+import { Check, ExternalLink, Mail, MessageSquare, Pencil, X } from "lucide-react";
 import ActionMenu, { type ActionMenuItem } from "../leads/ActionMenu";
 
 export type Candidate = {
@@ -29,6 +30,8 @@ type CandidatePanelProps = {
   onMemoSave: (lead: Candidate, memo: string) => void;
   onStatusChange: (lead: Candidate, status: string) => void;
   onShowMessage: (lead: Candidate) => void;
+  // フォームURLを保存する（失敗したら、エラーを投げる）
+  onFormUrlChange: (lead: Candidate, url: string) => Promise<void>;
 };
 
 const CHANGE_STATUSES = ["見送り", "保留", "除外", "商談中", "面談済み", "返信あり"] as const;
@@ -46,6 +49,31 @@ export const isManualOnly = (lead: Candidate): boolean => lead.contactMethod ===
 export default function CandidatePanel(props: CandidatePanelProps) {
   const { candidates, selectedIds, maxSelect } = props;
   const selected = new Set(selectedIds);
+  // フォームURLを編集中のリード
+  const [editing, setEditing] = useState<{ leadId: string; draft: string; error: string; saving: boolean } | null>(null);
+
+  const saveUrl = async (lead: Candidate) => {
+    if (!editing) return;
+    const url = editing.draft.trim();
+
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      setEditing({ ...editing, error: "http:// または https:// で始まるURLを入力してください" });
+      return;
+    }
+
+    if (url === lead.contactFormUrl) {
+      setEditing(null);
+      return;
+    }
+
+    setEditing({ ...editing, saving: true, error: "" });
+    try {
+      await props.onFormUrlChange(lead, url);
+      setEditing(null);
+    } catch (err) {
+      setEditing({ ...editing, saving: false, error: err instanceof Error ? err.message : "保存に失敗しました" });
+    }
+  };
 
   return (
     <aside className="candidate-panel form-panel">
@@ -103,12 +131,46 @@ export default function CandidatePanel(props: CandidatePanelProps) {
                     <Mail size={13} /> {lead.emailAddress}
                   </span>
                 ) : (
-                  <a href={lead.contactFormUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink size={13} /> フォームを開く
-                  </a>
+                  <>
+                    <a href={lead.contactFormUrl} target="_blank" rel="noreferrer">
+                      <ExternalLink size={13} /> フォームを開く
+                    </a>
+                    <button
+                      type="button"
+                      className="btn secondary icon-only"
+                      onClick={() => setEditing({ leadId: lead.leadId, draft: lead.contactFormUrl, error: "", saving: false })}
+                      title={`フォームURLを変更（${lead.contactFormUrl}）`}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </>
                 )}
                 {manualOnly && <span className="status-badge reply">手動のみ（CAPTCHA）</span>}
               </div>
+
+              {editing?.leadId === lead.leadId && (
+                <div className="url-edit">
+                  <input
+                    value={editing.draft}
+                    autoFocus
+                    disabled={editing.saving}
+                    onChange={(event) => setEditing({ ...editing, draft: event.target.value, error: "" })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void saveUrl(lead);
+                      if (event.key === "Escape") setEditing(null);
+                    }}
+                    placeholder="https://example.com/contact/"
+                    aria-label={`${lead.leadId} のフォームURL`}
+                  />
+                  <button type="button" className="btn primary icon-only" disabled={editing.saving} onClick={() => void saveUrl(lead)} title="保存">
+                    <Check size={14} />
+                  </button>
+                  <button type="button" className="btn secondary icon-only" disabled={editing.saving} onClick={() => setEditing(null)} title="キャンセル">
+                    <X size={14} />
+                  </button>
+                  {editing.error && <p className="url-edit-error">{editing.error}</p>}
+                </div>
+              )}
 
               <textarea
                 key={`${lead.leadId}:${lead.memo}`}
