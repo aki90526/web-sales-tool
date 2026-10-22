@@ -39,6 +39,13 @@ type LeadCardsProps<T extends CardLead> = {
   onMarkFormSent: (lead: T) => void;
 };
 
+// メモ欄の高さを、内容に合わせる（普段は最大3行まで。編集中は全文を表示する。上限はCSS側）
+const autoResize = (element: HTMLTextAreaElement | null): void => {
+  if (!element) return;
+  element.style.height = "auto";
+  element.style.height = `${element.scrollHeight}px`;
+};
+
 const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
 // リードを、カードで表示する。メール送信・フォーム自動入力・フォーム手動入力のボタンをここに置く
@@ -123,10 +130,12 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
 
             <textarea
               key={`${lead.leadId}:${lead.memo}`}
-              className="memo-input"
-              rows={3}
+              ref={autoResize}
+              className="memo-input card-memo"
+              rows={2}
               defaultValue={lead.memo}
               placeholder="メモを入力（離れると保存）"
+              onInput={(event) => autoResize(event.currentTarget)}
               onBlur={(event) => props.onMemoSave(lead, event.target.value)}
             />
 

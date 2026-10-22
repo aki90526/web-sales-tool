@@ -1505,3 +1505,22 @@ a.method-badge:hover {
   max-height: none;
   overflow-y: hidden;
 }
+
+/* カードのメモ: 普段は最大3行まで。クリックして編集するときは、全文を表示する */
+.lead-card .card-memo {
+  min-height: calc(2 * 1.5em + 14px);
+  max-height: calc(3 * 1.5em + 14px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-color: var(--border);
+}
+
+.lead-card .card-memo:focus {
+  max-height: none;
+  overflow-y: hidden;
+}
+
+/* 「表示形式」のラベルは、ボタンの中央に置く */
+.view-field {
+  text-align: center;
+}

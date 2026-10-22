@@ -592,7 +592,7 @@ export default function LeadsPage() {
             <p className="panel-caption">{filtered.length}件を表示しています。</p>
           </div>
           <div className="btn-row">
-            <div className="field">
+            <div className="field view-field">
               表示形式
               <div className="view-toggle" role="group" aria-label="表示形式">
                 <button type="button" className={`btn secondary${viewMode === "list" ? " active" : ""}`} aria-pressed={viewMode === "list"} onClick={() => changeViewMode("list")}>
