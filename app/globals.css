@@ -1388,6 +1388,11 @@ a.method-badge:hover {
   align-items: center;
 }
 
+/* 隣のselect（高さ42px）と、高さ・位置をそろえる */
+.view-toggle .btn {
+  min-height: 42px;
+}
+
 .view-toggle .btn.active {
   border-color: var(--accent);
   background: #eef5ff;
