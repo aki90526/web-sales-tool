@@ -10,6 +10,7 @@ import {
 } from "../google/salesManagementRepository";
 import { isBounceSubject, parseBounce } from "../email/bounceDetection";
 import { detectOptOut } from "../email/optOutDetection";
+import { recheckRejectedLeads } from "../collection/rejectedRecheck";
 import { revertDueResends } from "../domain/resendRevert";
 import { createGmailClient, GmailClient, GmailMessageMetadata } from "../google/gmailClient";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
@@ -691,6 +692,23 @@ const main = async (): Promise<void> => {
 
   await syncReplies(options);
   await revertDueLeads(options.dryRun);
+
+  // 見送りの再確認は、サイトへのアクセスが多いため1回15件まで。失敗しても返信同期の結果には影響させない
+  try {
+    const sheets = await createSheetsClient(loadConfig());
+    const results = await recheckRejectedLeads(sheets, { dryRun: options.dryRun, limit: 15 });
+    const revived = results.filter((result) => result.outcome === "revived");
+
+    console.log(`Rejected lead recheck${options.dryRun ? " (dry-run)" : ""}: ${results.length} checked, ${revived.length} revived`);
+
+    for (const result of revived) {
+      console.log(
+        `[DASHBOARD_UPDATE] leadId=${result.leadId} company=${result.companyName} type=recheck-revived detail=${result.detail}`
+      );
+    }
+  } catch (error: unknown) {
+    console.error(`Rejected lead recheck failed: ${error instanceof Error ? error.message : error}`);
+  }
 };
 
 main().catch((error: unknown) => {
