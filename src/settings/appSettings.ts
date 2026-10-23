@@ -1,6 +1,9 @@
 import { DEFAULT_RESEND_SETTINGS, RESEND_SETTING_KEYS, SHEETS } from "../domain/lead";
 import { readResendSettings, ResendSettings } from "../domain/resend";
 import { CONTACT_SENDER } from "../contact/salesMessage";
+import { DEFAULT_COLLECTION_GUIDANCE } from "../openai/leadCandidateCollector";
+import { COLLECTION_SETTING_KEYS } from "./collectionSettings";
+import { MAIL_SETTING_KEYS } from "./mailSettings";
 import { SheetsClient } from "../google/sheetsClient";
 
 // アプリの「設定」画面が読み書きする内容。値はスプレッドシート（設定シート・メッセージテンプレートシート）にあり、画面とシートのどちらで変えても同じ。
@@ -20,8 +23,10 @@ export type TemplateView = {
 export type TextSettingDef = {
   key: string;
   label: string;
-  group: "送信者" | "署名・案内";
+  group: "送信者" | "署名・案内" | "メール送信" | "営業先の収集";
   multiline?: boolean;
+  // 空欄にできる項目（空欄のときの動作は hint に書く）
+  allowEmpty?: boolean;
   hint?: string;
   fallback: string;
 };
@@ -48,10 +53,15 @@ export const TEXT_SETTINGS: TextSettingDef[] = [
   { key: "送信者_住所", label: "住所（短い表記）", group: "送信者", fallback: CONTACT_SENDER.address, hint: "文面の差し込み {送信者_住所} に使います" },
   { key: "送信者_フォーム住所", label: "住所（署名・フォーム用）", group: "送信者", fallback: CONTACT_SENDER.formAddress, hint: "署名と、フォームの住所欄に使います" },
   { key: "署名_紹介文", label: "署名の紹介文", group: "署名・案内", fallback: CONTACT_SENDER.signatureTagline, hint: "署名の1行目「会社名 | ○○」の○○の部分。空欄にすると会社名だけになります" },
-  { key: "配信停止の案内文", label: "配信停止の案内文", group: "署名・案内", multiline: true, fallback: CONTACT_SENDER.optOutNotice, hint: "文面に配信停止の案内が無いときに、自動で付きます（特定電子メール法のため、残すことをおすすめします）" }
+  { key: "配信停止の案内文", label: "配信停止の案内文", group: "署名・案内", multiline: true, fallback: CONTACT_SENDER.optOutNotice, hint: "文面に配信停止の案内が無いときに、自動で付きます（特定電子メール法のため、残すことをおすすめします）" },
+  { key: MAIL_SETTING_KEYS.from, label: "送信元（From）", group: "メール送信", allowEmpty: true, fallback: "", hint: "例: 阿部 祥士 <abe@example.com>。空欄のときは .env の SMTP_FROM を使います。送信に使うメールサーバー・アカウント・パスワードは、秘密情報のため .env で設定します（この画面では変更できません）。アドレスは、そのアカウントで送信を許可されたものにしてください" },
+  { key: MAIL_SETTING_KEYS.bcc, label: "BCC（控えの送信先）", group: "メール送信", allowEmpty: true, fallback: "", hint: "送信したメールの控えを受け取るアドレス（複数はカンマ区切り）。空欄のときは .env の SMTP_BCC を使います" },
+  { key: COLLECTION_SETTING_KEYS.purpose, label: "探す目的（誰が、誰に、何を提案するか）", group: "営業先の収集", multiline: true, fallback: DEFAULT_COLLECTION_GUIDANCE.purpose, hint: "営業先を探すAIへの指示の冒頭になります。ご自身の事業に合わせて書き換えてください" },
+  { key: COLLECTION_SETTING_KEYS.partnerFocus, label: "制作会社・広告代理店で重視すること", group: "営業先の収集", multiline: true, fallback: DEFAULT_COLLECTION_GUIDANCE.partnerFocus },
+  { key: COLLECTION_SETTING_KEYS.directFocus, label: "直クライアントで重視すること", group: "営業先の収集", multiline: true, fallback: DEFAULT_COLLECTION_GUIDANCE.directFocus }
 ];
 
-export type TextSettingView = TextSettingDef & { value: string };
+export type TextSettingView = TextSettingDef & { value: string; placeholder?: string };
 
 export type AppSettingsView = {
   intervals: ResendSettings;
@@ -185,8 +195,8 @@ export const saveAppSettings = async (sheets: SheetsClient, update: AppSettingsU
       throw new Error(`${def.label}は${MAX_TEXT_LENGTH}文字までです`);
     }
 
-    // 署名の紹介文だけは空欄にできる。ほかは、空欄にすると送信内容が欠けるため不可
-    if (!value && def.key !== "署名_紹介文") {
+    // 空欄にできるのは、署名の紹介文と、メール送信の2項目（空欄は既定の動作）。ほかは、空欄にすると送信内容や検索が欠けるため不可
+    if (!value && def.key !== "署名_紹介文" && !def.allowEmpty) {
       throw new Error(`${def.label}は空にできません`);
     }
 

@@ -65,7 +65,27 @@ export type LeadCandidate = {
   companySizeMemo: string;
 };
 
+// 営業先を探すAIへの指示のうち、利用者ごとに変えられる部分（設定画面・設定シートで編集する）
+export type CollectionGuidance = {
+  // 何のための営業候補か（誰が、誰に、何を提案するか）
+  purpose: string;
+  // 制作会社・広告代理店で、どこを重視して探すか
+  partnerFocus: string;
+  // 直クライアントで、どこを重視して探すか
+  directFocus: string;
+};
+
+export const DEFAULT_COLLECTION_GUIDANCE: CollectionGuidance = {
+  purpose:
+    "aaWebCreate（春日部市のフリーランスWeb制作者）が、制作会社・広告代理店には外部パートナー提案、直クライアントにはWebサイト改善提案を行うための営業候補を作る。",
+  partnerFocus:
+    "外部パートナー募集、業務委託募集、コーダー・エンジニア募集、WordPress、Shopify、保守更新、協業余地を重視してください。企業規模が大きいだけで低評価にしないでください。",
+  directFocus:
+    "サイト改善余地、問い合わせ導線、CTA、SEO、更新停止感、古いデザイン、採用改善、LP化余地を重視してください。上場企業・大規模企業・直近リニューアル済みは優先度を下げる判定材料を入れてください。"
+};
+
 export type CollectLeadCandidateOptions = {
+  guidance?: CollectionGuidance;
   area: string;
   autoRejectLowScore?: boolean;
   excludeArea?: string;
@@ -478,6 +498,7 @@ export const isInExcludedArea = (region: string, excludeArea: string | undefined
 const EXCLUDE_LIST_LIMIT = 200;
 
 const buildPrompt = (options: CollectLeadCandidateOptions): string => {
+  const guidance = options.guidance ?? DEFAULT_COLLECTION_GUIDANCE;
   const excludedCompanies = options.existingCompanies.slice(-EXCLUDE_LIST_LIMIT).join(" / ") || "なし";
   const excludedUrls = options.existingSiteUrls.slice(-EXCLUDE_LIST_LIMIT).join(" / ") || "なし";
 
@@ -492,15 +513,15 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
       : []),
     `対象種別: ${options.targetTypes.join(", ")}`,
     `候補件数: 最大${options.limit}件`,
-    "目的: aaWebCreate（春日部市のフリーランスWeb制作者）が、制作会社・広告代理店には外部パートナー提案、直クライアントにはWebサイト改善提案を行うための営業候補を作る。",
+    `目的: ${guidance.purpose}`,
     "重要: 営業スコアの最終計算はシステム側で行います。あなたは固定スコア用の判定材料、推奨アプローチ、AI補正だけを返してください。",
     "優先条件: 公式サイトURLが確認できる、問い合わせフォームまたはメールがある、Web制作/WordPress/フロントエンド/Shopify/保守運用の提案余地がある。",
     "会社名ルール: companyName は公式サイトの会社概要、運営会社、フッター、プライバシーポリシー等で確認できる正式表記をそのまま入れてください。株式会社、有限会社、合同会社などの法人格を推測で付け替えたり補完したりしないでください。",
     "会社名ルール: 正式な法人格が確認できない場合は、屋号・サービス名など公式サイトに表示されている名称をそのまま入れ、法人格は追加しないでください。",
     "会社名ルール: 「株式会社monomode（モノモード）」のような読み仮名・英字表記の括弧書きは付けず、「株式会社monomode」のように会社名だけを入れてください。",
     "会社名ルール: 法人格は1つだけにしてください。「株式会社ライズエージェンシー 株式会社」のようにページタイトル等の表記をそのまま写して法人格が二重にならないよう注意してください。",
-    "制作会社・広告代理店: 外部パートナー募集、業務委託募集、コーダー・エンジニア募集、WordPress、Shopify、保守更新、協業余地を重視してください。企業規模が大きいだけで低評価にしないでください。",
-    "直クライアント: サイト改善余地、問い合わせ導線、CTA、SEO、更新停止感、古いデザイン、採用改善、LP化余地を重視してください。上場企業・大規模企業・直近リニューアル済みは優先度を下げる判定材料を入れてください。",
+    `制作会社・広告代理店: ${guidance.partnerFocus}`,
+    `直クライアント: ${guidance.directFocus}`,
     "除外条件: 営業目的の問い合わせ禁止、広告宣伝メール禁止、公式サイトではない、既存候補と重複、同業フリーランス個人のみのサイト、明確な対象外業種。",
     `既存候補の企業名: ${excludedCompanies}`,
     `既存候補のURL: ${excludedUrls}`,

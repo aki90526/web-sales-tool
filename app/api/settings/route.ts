@@ -2,16 +2,26 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "../../../src/config/env";
 import { FIRST_PLACEHOLDERS, FOLLOW_UP_PLACEHOLDERS } from "../../../src/contact/salesMessage";
 import { createSheetsClient } from "../../../src/google/sheetsClient";
-import { AppSettingsUpdate, readAppSettings, saveAppSettings } from "../../../src/settings/appSettings";
+import { AppSettingsUpdate, AppSettingsView, readAppSettings, saveAppSettings } from "../../../src/settings/appSettings";
 
 export const dynamic = "force-dynamic";
+
+// 空欄のときに使われる .env の値（アドレスのみ。パスワードなどの秘密情報は返さない）を、入力欄の薄い表示にする
+const withEnvPlaceholders = (settings: AppSettingsView): AppSettingsView => ({
+  ...settings,
+  textSettings: settings.textSettings.map((entry) => {
+    if (entry.key === "メール_送信元(From)") return { ...entry, placeholder: process.env.SMTP_FROM || "" };
+    if (entry.key === "メール_BCC") return { ...entry, placeholder: process.env.SMTP_BCC || "" };
+    return entry;
+  })
+});
 
 export async function GET() {
   try {
     const sheets = await createSheetsClient(loadConfig());
     const settings = await readAppSettings(sheets);
 
-    return NextResponse.json({ ...settings, placeholders: { 初回: FIRST_PLACEHOLDERS, 再送: FOLLOW_UP_PLACEHOLDERS } });
+    return NextResponse.json({ ...withEnvPlaceholders(settings), placeholders: { 初回: FIRST_PLACEHOLDERS, 再送: FOLLOW_UP_PLACEHOLDERS } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });
@@ -35,7 +45,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error instanceof Error ? error.message : "invalid input" }, { status: 400 });
     }
 
-    return NextResponse.json({ ...(await readAppSettings(sheets)), placeholders: { 初回: FIRST_PLACEHOLDERS, 再送: FOLLOW_UP_PLACEHOLDERS } });
+    return NextResponse.json({ ...withEnvPlaceholders(await readAppSettings(sheets)), placeholders: { 初回: FIRST_PLACEHOLDERS, 再送: FOLLOW_UP_PLACEHOLDERS } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });

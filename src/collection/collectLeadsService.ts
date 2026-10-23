@@ -3,6 +3,7 @@ import { LeadType } from "../domain/lead";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 import { collectLeadCandidateCollection, isInSearchArea, LeadCandidate } from "../openai/leadCandidateCollector";
 import { createOpenAIClient, WebSearchTrace } from "../openai/openAIClient";
+import { readCollectionGuidance } from "../settings/collectionSettings";
 import { discoverContact, filterUniqueCandidates, formatTargetTypes, readExistingLeadState } from "./leadImport";
 
 export const MAX_INITIAL_LIMIT = 10;
@@ -47,6 +48,7 @@ export const runLeadCollection = async (
   const scoped = Array.from(new Map([...inArea, ...exclusionList].map((entry) => [`${entry.company}|${entry.url}`, entry])).values());
 
   const collection = await collectLeadCandidateCollection(openAI, {
+    guidance: await readCollectionGuidance(sheetsClient),
     area: options.area,
     autoRejectLowScore: options.autoRejectLowScore,
     excludeArea: options.excludeArea,

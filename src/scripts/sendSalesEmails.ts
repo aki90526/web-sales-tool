@@ -2,6 +2,7 @@ import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
 import { readSendRecords } from "../domain/resend";
+import { readMailOverrides } from "../settings/mailSettings";
 import { isValidEmail, parseEmailList } from "../email/emailList";
 import { acquireSendLock } from "../email/sendLock";
 import { createSmtpMailer } from "../email/smtpMailer";
@@ -387,7 +388,12 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const smtpConfig = requireSmtpConfig(config);
+  const mailOverrides = await readMailOverrides(sheets);
+  const smtpConfig = {
+    ...requireSmtpConfig(config),
+    ...(mailOverrides.from ? { from: mailOverrides.from } : {}),
+    ...(mailOverrides.bcc ? { bcc: mailOverrides.bcc } : {})
+  };
   const mailer = createSmtpMailer(smtpConfig);
 
   console.log(`Verifying SMTP connection for ${smtpConfig.user}...`);

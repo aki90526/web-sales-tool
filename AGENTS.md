@@ -81,7 +81,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 毎朝9:00（LaunchAgent `com.websalestool.gmailsync` → `scripts/gmail-sync-scheduled.sh` → `npm run gmail:sync-replies`）に、(1) 返信・配信停止・不達・面談予約の反映、(2) 期日を過ぎて反応のない「送信済み」を「送信待ち」に戻す（`resendRevert.ts`。送信は手動のまま）、(3) 「見送り」の再確認（`rejectedRecheck.ts`。1回15件まで）、を順に行う。
 - 見送りの再確認: 公式サイトが開く・営業お断りの記載がない・連絡先がある・フォームが依頼専用でない、を満たせば「送信待ち」に戻す。間隔は、リードごとの「再確認までの日数」（見送りにするとき選ぶ。「なし」は再確認しない）、なければ設定シートの「見送り再確認間隔日数」（30日）。返信のあったリードと「除外」は対象外。
 - 2回目以降の送信は、メッセージテンプレートの「用途=再送」の文面を自動で使う（`{前回送信月}` などを差し込む）。文面は、シートまたは `/settings` で編集できる。
-- `/settings` で編集できるもの（すべてシートの同じセルを読み書きする。`src/settings/appSettings.ts`）: 初回・再送の文面（件名・本文）、送信者の情報（`送信者_*`）、署名の紹介文（`署名_紹介文`）、配信停止の案内文（`配信停止の案内文`）、再送・再確認の間隔。項目を足すときは `TEXT_SETTINGS`（文字の設定）に足し、`salesMessage.ts` の `readSenderInfo` で読む。
+- `/settings` で編集できるもの（すべてシートの同じセルを読み書きする。`src/settings/appSettings.ts`）: 初回・再送の文面（件名・本文）、送信者の情報（`送信者_*`）、署名の紹介文（`署名_紹介文`）、配信停止の案内文（`配信停止の案内文`）、メールの送信元（From）とBCC（`src/settings/mailSettings.ts`。空欄は `.env` の `SMTP_FROM`/`SMTP_BCC`。SMTPのサーバー・アカウント・パスワードは秘密情報のため `.env` のままで、画面では扱わない）、営業先を探すAIへの指示のうち目的と重視点（`src/settings/collectionSettings.ts`。既定は `leadCandidateCollector.ts` の `DEFAULT_COLLECTION_GUIDANCE`）、再送・再確認の間隔。項目を足すときは `TEXT_SETTINGS`（文字の設定）に足し、`salesMessage.ts` の `readSenderInfo` で読む。
 - 送信の安全装置: 送信直前の再確認、二重送信を防ぐロック（`src/email/sendLock.ts`）、送信記録を先に残してから SMTP、フォームは10分以内の二重記録を拒否。
 
 ## よく使うコマンド
@@ -113,7 +113,7 @@ npm run settings:migrate-resend  # 再送・見送りまわりのシート整備
 
 阿部は、将来このツールをクライアントに提供することを考えている（未着手）。いま**阿部個人の前提でコードに固定されている**もの（提供するときは設定化・分離が要る）:
 
-- 収集の AI プロンプト（`src/openai/leadCandidateCollector.ts`。「aaWebCreate（春日部市のフリーランスWeb制作者）が…」）、営業先の種別（制作会社・広告代理店・直クライアント）とスコアリング（`src/domain/scoring.ts`）。
+- 営業先の種別（制作会社・広告代理店・直クライアントの3つ）とスコアリング（`src/domain/scoring.ts`、`LEAD_TYPES`）。収集AIへの指示の「目的・重視点」は設定画面で変えられるが、指示の残りの部分（出力形式、除外条件、連絡先の探し方）は `leadCandidateCollector.ts` に固定。
 - 文面の既定値（`src/contact/salesMessage.ts` の `CONTACT_SENDER`、標準テンプレート、再送の既定文）と、文面中の案内URL（経歴・予約ページ）。
 - 1つのスプレッドシート・1つの Gmail/SMTP・1人の利用者を前提にしている（`.env`、`proxy.ts` の許可ユーザー1名）。複数テナント・ログイン・課金（OpenAI 費用の負担）は未対応。
 - 営業メールの法令対応（特定電子メール法）は、送信者の責任になる。提供するときは、規約・オプトアウトの扱いを別途決める。

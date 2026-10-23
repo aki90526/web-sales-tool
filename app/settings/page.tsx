@@ -19,10 +19,11 @@ type Template = {
 type TextSetting = {
   key: string;
   label: string;
-  group: "送信者" | "署名・案内";
+  group: "送信者" | "署名・案内" | "メール送信" | "営業先の収集";
   multiline?: boolean;
   hint?: string;
   value: string;
+  placeholder?: string;
 };
 
 type SettingsResponse = {
@@ -31,6 +32,13 @@ type SettingsResponse = {
   templates: Template[];
   placeholders: { 初回: string[]; 再送: string[] };
 };
+
+const GROUP_INFO = {
+  送信者: { title: "送信者の情報", caption: "文面の差し込み、署名、フォームの自動入力に使います。" },
+  "署名・案内": { title: "署名・配信停止の案内", caption: "すべての文面の末尾に付きます。" },
+  メール送信: { title: "メール送信", caption: "送信元とBCCを設定します。メールサーバーのアカウント・パスワードは、秘密情報のため .env で設定します。" },
+  営業先の収集: { title: "営業先の収集（AIへの指示）", caption: "「候補収集」で、営業先を探すAIに渡す指示のうち、ご自身の事業に合わせて変えられる部分です。" }
+} as const;
 
 const leadTypeForPreview = (targetLeadTypes: string): string => (targetLeadTypes.includes("直クライアント") ? "直クライアント" : "Web制作会社");
 
@@ -282,16 +290,12 @@ export default function SettingsPage() {
             </section>
           ))}
 
-          {(["送信者", "署名・案内"] as const).map((group) => (
+          {(["送信者", "署名・案内", "メール送信", "営業先の収集"] as const).map((group) => (
             <section className="form-panel" key={group}>
               <div className="panel-header">
                 <div>
-                  <h3 className="panel-title">{group === "送信者" ? "送信者の情報" : "署名・配信停止の案内"}</h3>
-                  <p className="panel-caption">
-                    {group === "送信者"
-                      ? "文面の差し込み、署名、フォームの自動入力に使います。"
-                      : "すべての文面の末尾に付きます。"}
-                  </p>
+                  <h3 className="panel-title">{GROUP_INFO[group].title}</h3>
+                  <p className="panel-caption">{GROUP_INFO[group].caption}</p>
                 </div>
               </div>
               <div className="field-grid">
@@ -305,12 +309,14 @@ export default function SettingsPage() {
                           rows={3}
                           maxLength={500}
                           value={textValues[entry.key] ?? ""}
+                          placeholder={entry.placeholder}
                           onChange={(event) => setTextValues({ ...textValues, [entry.key]: event.target.value })}
                         />
                       ) : (
                         <input
                           maxLength={500}
                           value={textValues[entry.key] ?? ""}
+                          placeholder={entry.placeholder}
                           onChange={(event) => setTextValues({ ...textValues, [entry.key]: event.target.value })}
                         />
                       )}
