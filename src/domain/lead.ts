@@ -3,7 +3,8 @@ export const SHEETS = {
   analysisData: "分析データ",
   approachHistory: "アプローチ履歴",
   messageTemplates: "メッセージテンプレート",
-  settings: "設定"
+  settings: "設定",
+  exclusionList: "除外リスト"
 } as const;
 
 export const SETTINGS_CELLS = {

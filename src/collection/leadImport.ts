@@ -1,4 +1,4 @@
-import { LeadType } from "../domain/lead";
+import { LeadType, SHEETS } from "../domain/lead";
 import { appendAnalysisData } from "../google/analysisDataRepository";
 import { appendSalesLead } from "../google/salesLeadRepository";
 import { readSalesManagementTable } from "../google/salesManagementRepository";
@@ -37,6 +37,26 @@ export type LeadImportContext = {
   acquiredAt?: string;
 };
 
+// 「除外リスト」シート（リードID・企業名・公式サイトURL・ステータス・次回対応日・メモ）の行から、除外する会社とURLを取り出す。
+// 営業管理に登録していない会社を、検索結果に出さないために使う（企業名かURLのどちらかがあればよい）
+export const parseExclusionListRows = (rows: unknown[][]): Array<{ company: string; url: string }> => {
+  const cell = (row: unknown[], index: number): string => String(row[index] ?? "").trim();
+
+  return rows
+    .slice(1)
+    .map((row) => ({ company: cell(row, 1), url: cell(row, 2) }))
+    .filter((entry) => entry.company || entry.url);
+};
+
+const readExclusionList = async (sheets: SheetsClient): Promise<Array<{ company: string; url: string }>> => {
+  try {
+    return parseExclusionListRows(await sheets.getValues(`'${SHEETS.exclusionList}'!A:F`));
+  } catch {
+    // シートが無い場合は、除外リストなしとして扱う
+    return [];
+  }
+};
+
 export const readExistingLeadState = async (sheets: SheetsClient): Promise<ExistingLeadState> => {
   const table = await readSalesManagementTable(sheets);
   const companies: string[] = [];
@@ -61,6 +81,19 @@ export const readExistingLeadState = async (sheets: SheetsClient): Promise<Exist
     }
 
     entries.push({ company: lead.companyName, url: lead.officialSiteUrl, region: lead.region, status: lead.status });
+  }
+
+  // 「除外リスト」シートの会社は、重複の判定にも、AIへの除外リストにも使う（エリアは問わない）
+  for (const excluded of await readExclusionList(sheets)) {
+    if (excluded.company) {
+      companies.push(excluded.company);
+    }
+
+    if (excluded.url) {
+      siteUrls.push(excluded.url);
+    }
+
+    entries.push({ company: excluded.company, url: excluded.url, region: "", status: "除外" });
   }
 
   return {
