@@ -5,8 +5,6 @@ import { isValidEmail } from "../../../../src/email/emailList";
 import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../../../../src/google/salesManagementRepository";
 import { createSheetsClient } from "../../../../src/google/sheetsClient";
 
-// 送信後のステータス。これらのリードは、メールアドレスを追加しても、連絡方法は変えない
-const SENT_STATUSES = ["送信済み", "返信あり", "面談済み", "商談中", "保留"];
 const HISTORY_PREFIX = "メールアドレス";
 
 type Restore = { email: string; contactMethod: string; status: string };
@@ -83,9 +81,8 @@ export async function POST(request: Request) {
         }
       }
     } else {
-      // メールを優先する。連絡方法が未定のリードは、ステータスを問わず、メールにする。
-      // フォームのリードは、送信前（送信後のステータスでない）ときだけ、メールにする。送信後のリードは、連絡方法を変えない
-      if (!lead.contactMethod || lead.contactMethod === "未定" || (lead.contactMethod !== "メール" && !SENT_STATUSES.includes(lead.status))) {
+      // メールを優先する。フォーム・未定のリードは、ステータスを問わず（フォームで送信済みのリードも）、連絡方法をメールにする
+      if (lead.contactMethod !== "メール") {
         nextMethod = "メール";
       }
 
