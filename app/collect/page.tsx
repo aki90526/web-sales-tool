@@ -357,7 +357,7 @@ export default function CollectPage() {
 
       {modalOpen && (
         <div className="modal-backdrop" onClick={closeModal}>
-          <div className="modal-panel modal-wide" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-panel modal-wide modal-preview" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <h3 className="panel-title">
@@ -417,13 +417,13 @@ export default function CollectPage() {
                       />
                     </th>
                     <th className="cell-number cell-nowrap hide-mobile">No.</th>
-                    <th>企業名</th>
+                    <th className="col-preview-company">企業名</th>
                     <th className="cell-nowrap hide-mobile">種別</th>
                     <th className="cell-nowrap hide-mobile">地域</th>
                     <th className="cell-nowrap">連絡方法</th>
                     <th className="cell-nowrap">スコア</th>
                     <th className="cell-nowrap">ステータス</th>
-                    <th className="hide-mobile">切り口</th>
+                    <th className="hide-mobile col-preview-angle">切り口</th>
                     <th className="hide-mobile col-preview-memo">メモ・除外理由</th>
                   </tr>
                 </thead>
@@ -442,7 +442,7 @@ export default function CollectPage() {
                         />
                       </td>
                       <td className="cell-number cell-nowrap hide-mobile">{index + 1}</td>
-                      <td>
+                      <td className="col-preview-company">
                         {candidate.officialSiteUrl ? (
                           <a className="link-accent" href={candidate.officialSiteUrl} target="_blank" rel="noreferrer" title={candidate.officialSiteUrl}>
                             {candidate.companyName}
@@ -476,7 +476,7 @@ export default function CollectPage() {
                       </td>
                       <td className="cell-nowrap"><span className="score-badge">{candidate.salesScore}</span></td>
                       <td className="cell-nowrap"><span className="status-badge">{candidate.status}</span></td>
-                      <td className="hide-mobile">{candidate.salesAngle}</td>
+                      <td className="hide-mobile col-preview-angle">{candidate.salesAngle}</td>
                       <td className="hide-mobile col-preview-memo">
                         {candidate.exclusionReason && <p className="preview-exclusion">除外理由: {candidate.exclusionReason}</p>}
                         {candidate.memo ? (

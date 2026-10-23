@@ -2170,3 +2170,23 @@ a.method-badge:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* 検索結果プレビュー: 企業名が縦に1文字ずつ並ばないよう、列の幅を確保して、モーダルも広げる */
+.modal-panel.modal-preview {
+  width: min(1400px, 96vw);
+  max-width: none;
+}
+
+.col-preview-company {
+  min-width: 170px;
+  max-width: 240px;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.col-preview-angle {
+  min-width: 220px;
+  max-width: 300px;
+  white-space: normal;
+}
