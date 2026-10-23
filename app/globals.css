@@ -2151,8 +2151,8 @@ a.method-badge:hover {
 
 /* 検索結果プレビュー: メモ・除外理由の列 */
 .col-preview-memo {
-  min-width: 260px;
-  max-width: 340px;
+  min-width: 220px;
+  max-width: 280px;
   white-space: normal;
   overflow-wrap: anywhere;
   font-size: 12px;
@@ -2178,16 +2178,16 @@ a.method-badge:hover {
 }
 
 .col-preview-company {
-  min-width: 170px;
-  max-width: 240px;
+  min-width: 140px;
+  max-width: 180px;
   white-space: normal;
   word-break: normal;
   overflow-wrap: break-word;
 }
 
 .col-preview-angle {
-  min-width: 220px;
-  max-width: 300px;
+  min-width: 200px;
+  max-width: 280px;
   white-space: normal;
 }
 
@@ -2197,4 +2197,10 @@ a.method-badge:hover {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
+}
+
+/* 検索結果プレビュー: 列の左右の余白を詰めて、幅を節約する */
+.modal-preview .data-table th,
+.modal-preview .data-table td {
+  padding: 10px 8px;
 }
