@@ -2204,3 +2204,21 @@ a.method-badge:hover {
 .modal-preview .data-table td {
   padding: 10px 8px;
 }
+
+/* 連絡方法: バッジ（縦に並べる）の右隣に、小さな鉛筆のボタンを置く */
+.method-row {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.btn.icon-tiny {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  min-height: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+}

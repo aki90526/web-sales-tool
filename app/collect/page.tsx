@@ -509,7 +509,8 @@ export default function CollectPage() {
                       <td className="cell-nowrap hide-mobile">{candidate.leadType}</td>
                       <td className="cell-nowrap hide-mobile">{candidate.region}</td>
                       <td className="cell-nowrap">
-                        <div className="method-stack">
+                        <div className="method-row">
+                          <div className="method-stack">
                           {candidate.email ? (
                             <span className={contactMethodClass(candidate)} title={candidate.email}>
                               {contactMethodLabel(candidate)}
@@ -527,13 +528,14 @@ export default function CollectPage() {
                               フォーム
                             </a>
                           )}
+                          </div>
                           <button
                             type="button"
-                            className="btn secondary icon-only"
+                            className="btn secondary icon-tiny"
                             title={candidate.contactUrl ? `フォームURLを変更（${candidate.contactUrl}）` : "フォームURLを追加"}
                             onClick={() => setEditingContact({ index, draft: candidate.contactUrl || "", error: "" })}
                           >
-                            <Pencil size={13} />
+                            <Pencil size={11} />
                           </button>
                         </div>
                         {editingContact?.index === index && (
