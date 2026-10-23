@@ -907,6 +907,17 @@ export default function LeadsPage() {
                               <Pencil size={11} />
                             </button>
                           )}
+                          {/* 未定のときは、メールとフォームの登録ボタンを、どちらも出す */}
+                          {(lead.contactMethod === "未定" || !lead.contactMethod) && (
+                            <>
+                              <button className="btn secondary icon-tiny" type="button" onClick={() => editEmail(lead)} title="メールアドレスを登録">
+                                <Mail size={11} />
+                              </button>
+                              <button className="btn secondary icon-tiny" type="button" onClick={() => editFormUrl(lead)} title="フォームURLを登録">
+                                <FileText size={11} strokeWidth={1.75} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                       <td><span className="score-badge">{lead.salesScore}</span></td>
