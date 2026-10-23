@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles, TextCursorInput } from "lucide-react";
+import { CheckCircle2, ExternalLink, MessageSquare, Mail, MousePointerClick, FileText, Pencil, Sparkles } from "lucide-react";
 import { STATUSES } from "../../src/domain/lead";
 
 export type CardLead = {
@@ -125,7 +125,7 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                 onClick={() => props.onEditFormUrl(lead)}
                 title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを登録"}
               >
-                {lead.contactFormUrl ? <Pencil size={13} /> : <TextCursorInput size={13} />}
+                {lead.contactFormUrl ? <Pencil size={13} /> : <FileText size={13} strokeWidth={1.75} />}
               </button>
             </div>
 

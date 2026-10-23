@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, TextCursorInput, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
 import ActionMenu, { type ActionMenuItem } from "./ActionMenu";
 import LeadCards, { type CardNotice } from "./LeadCards";
@@ -888,7 +888,7 @@ export default function LeadsPage() {
                             onClick={() => editFormUrl(lead)}
                             title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを登録"}
                           >
-                            {lead.contactFormUrl ? <Pencil size={11} /> : <TextCursorInput size={11} />}
+                            {lead.contactFormUrl ? <Pencil size={11} /> : <FileText size={11} strokeWidth={1.75} />}
                           </button>
                         </div>
                       </td>
