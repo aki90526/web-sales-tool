@@ -679,3 +679,44 @@ export const buildSalesMessage = (
     templateId: "fallback"
   };
 };
+
+// 設定画面のプレビュー用: 入力中の件名・本文で、再送の文面がどう表示されるかを作る（サンプルの会社名・前回送信月で差し込む）
+export const previewFollowUp = (
+  draft: { subject: string; body: string; channel: "メール" | "フォーム" | ""; leadType: string },
+  config: SalesContentConfig
+): { subject: string; body: string } => {
+  const previewTemplate: MessageTemplate = {
+    templateId: "preview",
+    templateName: "preview",
+    targetLeadTypes: [],
+    recommendedApproaches: [],
+    subjectTemplate: draft.subject,
+    bodyTemplate: draft.body,
+    status: "使用中",
+    purpose: "再送",
+    channel: draft.channel
+  };
+  const message = buildSalesMessage(
+    {
+      companyName: "株式会社サンプル",
+      leadType: draft.leadType,
+      industry: "",
+      region: "",
+      officialSiteUrl: "",
+      salesAngle: "",
+      recommendedApproach: "",
+      salesMessageDraft: "",
+      channel: draft.channel || "メール",
+      previousSentAt: previousMonthSample()
+    },
+    { ...config, templates: [previewTemplate] }
+  );
+
+  return { subject: message.subject, body: message.body };
+};
+
+const previousMonthSample = (): string => {
+  const date = new Date();
+  date.setUTCMonth(date.getUTCMonth() - 3);
+  return date.toISOString().slice(0, 10);
+};

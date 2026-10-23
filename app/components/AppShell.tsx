@@ -11,6 +11,7 @@ import {
   Plus,
   Search,
   Send,
+  Settings,
   Sparkles
 } from "lucide-react";
 
@@ -18,7 +19,8 @@ const navItems = [
   { href: "/", label: "ダッシュボード", icon: BarChart3 },
   { href: "/leads", label: "リード一覧", icon: ListChecks },
   { href: "/collect", label: "候補収集", icon: Search },
-  { href: "/actions", label: "実行操作", icon: Send }
+  { href: "/actions", label: "実行操作", icon: Send },
+  { href: "/settings", label: "設定", icon: Settings }
 ];
 
 const isActivePath = (pathname: string, href: string): boolean => {
