@@ -844,7 +844,7 @@ export default function ActionsPage() {
                 {gmailResult.items.map((item, index) => (
                   <li key={`${item.leadId}-${index}`}>
                     <LeadLink leadId={item.leadId} label={`${item.leadId} ${item.company}`} /> ：
-                    {item.type === "booking" ? "面談予約を反映（返信あり）" : item.type === "optout" ? "配信停止・営業お断り → 除外" : item.type === "bounce" ? "メール不達" : "返信あり"} - {item.detail}
+                    {item.type === "booking" ? "面談予約を反映（返信あり）" : item.type === "optout" ? "配信停止・営業お断り → 除外" : item.type === "bounce" ? "メール不達" : item.type === "resend-due" ? "再送の時期になりました" : "返信あり"} - {item.detail}
                   </li>
                 ))}
               </ul>

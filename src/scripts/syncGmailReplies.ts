@@ -10,6 +10,7 @@ import {
 } from "../google/salesManagementRepository";
 import { isBounceSubject, parseBounce } from "../email/bounceDetection";
 import { detectOptOut } from "../email/optOutDetection";
+import { revertDueResends } from "../domain/resendRevert";
 import { createGmailClient, GmailClient, GmailMessageMetadata } from "../google/gmailClient";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
@@ -600,13 +601,7 @@ const printMatches = (matches: ReplyMatch[]): void => {
   });
 };
 
-const main = async (): Promise<void> => {
-  const options = parseArgs(process.argv.slice(2));
-
-  if (options.help) {
-    printHelp();
-    return;
-  }
+const syncReplies = async (options: CliOptions): Promise<void> => {
 
   const config = loadConfig();
   const gmailConfig = requireGmailConfig(config);
@@ -669,6 +664,33 @@ const main = async (): Promise<void> => {
   console.log("");
   console.log(`Updated replies: ${matches.length}`);
   console.log(`[DASHBOARD_SUMMARY] count=${totalCount} mode=sync`);
+};
+
+// 返信の反映のあとに、再送の期日を過ぎた「送信済み」を「送信待ち」に戻す（送信そのものは行わない）
+const revertDueLeads = async (dryRun: boolean): Promise<void> => {
+  const sheets = await createSheetsClient(loadConfig());
+  const reverted = await revertDueResends(sheets, { dryRun });
+
+  console.log("");
+  console.log(`Resend due leads${dryRun ? " (dry-run)" : ""}: ${reverted.length}`);
+
+  for (const entry of reverted) {
+    console.log(
+      `[DASHBOARD_UPDATE] leadId=${entry.leadId} company=${entry.companyName} type=resend-due detail=前回送信${entry.lastSentAt}から${entry.elapsedDays}日経過（${entry.sentCount}回送信済み）→ 送信待ち`
+    );
+  }
+};
+
+const main = async (): Promise<void> => {
+  const options = parseArgs(process.argv.slice(2));
+
+  if (options.help) {
+    printHelp();
+    return;
+  }
+
+  await syncReplies(options);
+  await revertDueLeads(options.dryRun);
 };
 
 main().catch((error: unknown) => {
