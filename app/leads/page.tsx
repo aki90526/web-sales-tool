@@ -770,6 +770,16 @@ export default function LeadsPage() {
                           ) : (
                             <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
                           )}
+                          {lead.contactMethod === "フォーム" && (
+                            <button
+                              className="btn secondary icon-tiny"
+                              type="button"
+                              onClick={() => editFormUrl(lead)}
+                              title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを設定"}
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td><span className="score-badge">{lead.salesScore}</span></td>
