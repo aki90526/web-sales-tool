@@ -15,6 +15,7 @@
     "forms:fill": "ts-node src/scripts/fillForms.ts",
     "forms:mark-sent": "ts-node src/scripts/markFormSubmitted.ts",
     "leads:set-status": "ts-node src/scripts/setLeadStatus.ts",
+    "settings:migrate-resend": "ts-node src/scripts/migrateResendSettings.ts",
     "forms:watch": "ts-node src/scripts/watchFormCompletion.ts",
     "send:emails": "ts-node src/scripts/sendSalesEmails.ts",
     "send:test-email": "ts-node src/scripts/sendTestEmail.ts",

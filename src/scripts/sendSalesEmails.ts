@@ -1,6 +1,7 @@
 import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
+import { readSendRecords } from "../domain/resend";
 import { isValidEmail, parseEmailList } from "../email/emailList";
 import { acquireSendLock } from "../email/sendLock";
 import { createSmtpMailer } from "../email/smtpMailer";
@@ -182,7 +183,8 @@ const toCandidate = (
   lead: SalesManagementLead,
   contentConfig: SalesContentConfig,
   recommendedApproach: string,
-  salesAngle: string
+  salesAngle: string,
+  previousSentAt: string
 ): { candidate?: SalesEmailCandidate; reason?: SkipReason } => {
   if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
@@ -209,7 +211,9 @@ const toCandidate = (
       officialSiteUrl: lead.officialSiteUrl,
       salesAngle,
       recommendedApproach,
-      salesMessageDraft: ""
+      salesMessageDraft: "",
+      channel: "メール",
+      previousSentAt: previousSentAt || undefined
     },
     contentConfig
   );
@@ -243,6 +247,7 @@ const findCandidates = async (
 ): Promise<{ candidates: SalesEmailCandidate[]; skipped: Map<SkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
   const salesContexts = await readAnalysisSalesContexts(sheets);
+  const sendRecords = await readSendRecords(sheets);
   const skipped = new Map<SkipReason, number>();
   const candidates: SalesEmailCandidate[] = [];
   const queuedAddresses = new Set<string>();
@@ -260,7 +265,8 @@ const findCandidates = async (
       lead,
       contentConfig,
       salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
-      salesContexts.get(lead.leadId)?.salesAngle ?? ""
+      salesContexts.get(lead.leadId)?.salesAngle ?? "",
+      sendRecords.get(lead.leadId)?.lastSentAt ?? ""
     );
 
     if (result.candidate) {

@@ -1,6 +1,7 @@
 import { loadConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig } from "../contact/salesMessage";
 import { SHEETS, Status } from "../domain/lead";
+import { readSendRecords } from "../domain/resend";
 import { readLastFormFillSession } from "../form/formFillSession";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
@@ -186,6 +187,7 @@ const main = async (): Promise<void> => {
   const contentConfig = await readSalesContentConfig(sheets);
   const table = await readSalesManagementTable(sheets);
   const salesContexts = await readAnalysisSalesContexts(sheets);
+  const sendRecords = await readSendRecords(sheets);
   const lastSession = options.leadId ? null : readLastFormFillSession();
   const leadId = options.leadId || lastSession?.leadId || "";
 
@@ -214,7 +216,9 @@ const main = async (): Promise<void> => {
       officialSiteUrl: lead.officialSiteUrl,
       salesAngle: salesContexts.get(lead.leadId)?.salesAngle ?? "",
       recommendedApproach: salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
-      salesMessageDraft: ""
+      salesMessageDraft: "",
+      channel: "フォーム",
+      previousSentAt: sendRecords.get(lead.leadId)?.lastSentAt || undefined
     },
     contentConfig
   );

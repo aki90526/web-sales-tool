@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { findFormCandidates } from "../../../../src/contact/formCandidates";
 import { buildSalesMessage, readSalesContentConfig } from "../../../../src/contact/salesMessage";
 import { loadConfig } from "../../../../src/config/env";
+import { readSendRecords } from "../../../../src/domain/resend";
 import { readAnalysisSalesContexts } from "../../../../src/google/analysisDataRepository";
 import { readSalesManagementTable } from "../../../../src/google/salesManagementRepository";
 import { createSheetsClient } from "../../../../src/google/sheetsClient";
@@ -42,10 +43,11 @@ export async function GET(request: Request) {
     }
 
     const leadId = rawLeadId as string;
-    const [table, contentConfig, salesContexts] = await Promise.all([
+    const [table, contentConfig, salesContexts, sendRecords] = await Promise.all([
       readSalesManagementTable(sheets),
       readSalesContentConfig(sheets),
-      readAnalysisSalesContexts(sheets)
+      readAnalysisSalesContexts(sheets),
+      readSendRecords(sheets)
     ]);
 
     const lead = table.leads.find((entry) => entry.leadId === leadId);
@@ -64,7 +66,9 @@ export async function GET(request: Request) {
         officialSiteUrl: lead.officialSiteUrl,
         salesAngle: context?.salesAngle ?? "",
         recommendedApproach: context?.recommendedApproach ?? "",
-        salesMessageDraft: ""
+        salesMessageDraft: "",
+        channel: lead.contactMethod === "フォーム" ? "フォーム" : "メール",
+        previousSentAt: sendRecords.get(leadId)?.lastSentAt || undefined
       },
       contentConfig
     );

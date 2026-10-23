@@ -1,4 +1,4 @@
-import { SalesLeadInput, SHEETS, SETTINGS_CELLS } from "../domain/lead";
+import { buildNextActionDateFormula, SalesLeadInput, SHEETS } from "../domain/lead";
 import {
   columnLetter,
   readSalesManagementTable,
@@ -64,7 +64,7 @@ const buildHeaderMappedSalesLeadRow = (
     row,
     columns,
     "nextActionDate",
-    `=IF(OR(${leadIdCell}="",${lastApproachDateCell}=""),"",${lastApproachDateCell}+${SETTINGS_CELLS.resendIntervalDays})`
+    buildNextActionDateFormula(leadIdCell, lastApproachDateCell)
   );
   setCell(row, columns, "memo", escapeFormulaText(lead.memo));
 

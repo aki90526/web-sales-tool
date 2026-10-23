@@ -1,4 +1,5 @@
 import { SalesContentConfig, buildSalesMessage } from "./salesMessage";
+import { readSendRecords } from "../domain/resend";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
 import {
   readSalesManagementTable,
@@ -54,7 +55,8 @@ const toFormCandidate = (
   lead: SalesManagementLead,
   contentConfig: SalesContentConfig,
   recommendedApproach: string,
-  salesAngle: string
+  salesAngle: string,
+  previousSentAt: string
 ): { candidate?: FormCandidate; reason?: FormSkipReason } => {
   if (lead.status !== "送信待ち") {
     return { reason: "ステータスが送信待ちではない" };
@@ -85,7 +87,9 @@ const toFormCandidate = (
       officialSiteUrl: lead.officialSiteUrl,
       salesAngle,
       recommendedApproach,
-      salesMessageDraft: ""
+      salesMessageDraft: "",
+      channel: "フォーム",
+      previousSentAt: previousSentAt || undefined
     },
     contentConfig
   );
@@ -116,6 +120,7 @@ export const findFormCandidates = async (
 ): Promise<{ candidates: FormCandidate[]; skipped: Map<FormSkipReason, number> }> => {
   const table = await readSalesManagementTable(sheets);
   const salesContexts = await readAnalysisSalesContexts(sheets);
+  const sendRecords = await readSendRecords(sheets);
   const skipped = new Map<FormSkipReason, number>();
   const candidates: FormCandidate[] = [];
 
@@ -128,7 +133,8 @@ export const findFormCandidates = async (
       lead,
       contentConfig,
       salesContexts.get(lead.leadId)?.recommendedApproach ?? "",
-      salesContexts.get(lead.leadId)?.salesAngle ?? ""
+      salesContexts.get(lead.leadId)?.salesAngle ?? "",
+      sendRecords.get(lead.leadId)?.lastSentAt ?? ""
     );
 
     if (result.candidate) {

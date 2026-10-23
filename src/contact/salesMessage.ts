@@ -53,7 +53,13 @@ export type SalesMessageInput = {
   salesAngle: string;
   recommendedApproach: string;
   salesMessageDraft: string;
+  // 連絡手段。再送文面をメール用・フォーム用で切り替えるために使う
+  channel?: "メール" | "フォーム";
+  // 前回送信した日（YYYY-MM-DD）。入っていれば2回目以降の送信として「再送」用の文面を選ぶ
+  previousSentAt?: string;
 };
+
+export type TemplatePurpose = "初回" | "再送";
 
 export type MessageTemplate = {
   templateId: string;
@@ -63,6 +69,9 @@ export type MessageTemplate = {
   subjectTemplate: string;
   bodyTemplate: string;
   status: string;
+  purpose: TemplatePurpose;
+  // 空欄はメール・フォーム共通
+  channel: "メール" | "フォーム" | "";
 };
 
 export type SalesContentConfig = {
@@ -209,10 +218,12 @@ const readFormFieldAliases = (settings: Map<string, string>): FormFieldAliases =
 };
 
 const readMessageTemplates = async (sheets: SheetsClient): Promise<MessageTemplate[]> => {
-  const rows = await sheets.getValues(`'${SHEETS.messageTemplates}'!A2:J100`);
+  const rows = await sheets.getValues(`'${SHEETS.messageTemplates}'!A2:L100`);
 
   return rows
     .map((row): MessageTemplate => {
+      const channel = cell(row, 11);
+
       return {
         templateId: cell(row, 0),
         templateName: cell(row, 1),
@@ -220,7 +231,9 @@ const readMessageTemplates = async (sheets: SheetsClient): Promise<MessageTempla
         recommendedApproaches: splitOptions(cell(row, 3)),
         subjectTemplate: cell(row, 4),
         bodyTemplate: cell(row, 5),
-        status: cell(row, 7)
+        status: cell(row, 7),
+        purpose: cell(row, 10) === "再送" ? "再送" : "初回",
+        channel: channel === "メール" || channel === "フォーム" ? channel : ""
       };
     })
     .filter((template) => template.templateId && template.subjectTemplate && template.bodyTemplate);
@@ -285,7 +298,9 @@ https://aawebcreate.com/profile/
 ※今後このようなご連絡が不要な場合は、お手数ですが本メールへの返信にてお知らせください。以後のご連絡を控えます。
 
 {署名}`,
-  status: "使用中"
+  status: "使用中",
+  purpose: "初回",
+  channel: ""
 };
 
 const DIRECT_CLIENT_FALLBACK_TEMPLATE: MessageTemplate = {
@@ -307,7 +322,128 @@ https://aawebcreate.com/profile/
 
 もし今後、Webサイトの改善や更新をご検討される機会がございましたら、選択肢の一つとしてお声がけいただけますと幸いです。
 何卒よろしくお願いいたします。`,
-  status: "使用中"
+  status: "使用中",
+  purpose: "初回",
+  channel: ""
+};
+
+export const FOLLOW_UP_PLACEHOLDERS = [
+  "{会社名}",
+  "{前回送信月}",
+  "{前回送信日}",
+  "{送信者_氏名}",
+  "{送信者_会社名}",
+  "{送信者_URL}",
+  "{署名}"
+] as const;
+
+const FOLLOW_UP_PARTNER_SUBJECT = "【再ご連絡】Web・システム開発の外部パートナーのご提案｜aaWebCreate 阿部";
+const FOLLOW_UP_DIRECT_SUBJECT = "【再ご連絡】Webサイト改善のご提案｜aaWebCreate 阿部";
+
+export const FOLLOW_UP_DEFAULTS = {
+  partnerEmail: {
+    subject: FOLLOW_UP_PARTNER_SUBJECT,
+    body: `{会社名}
+ご担当者様
+
+aaWebCreateの阿部です。
+{前回送信月}に、外部制作パートナーのご提案で、ご連絡いたしました。お忙しいところ恐れ入ります。改めて、簡単にご連絡いたします。
+
+制作会社様の案件で、リソースが足りない時や、特定の技術（Next.js / Shopify / WordPress改修など）の知見が必要な時に、スポットでもお力になれます。
+最近は、予約システムの開発や、生成AIを組み込んだ業務ツールの制作も、承っております。
+
+▼ 経歴・実績
+https://aawebcreate.com/profile/
+
+▼ オンライン面談のご予約
+https://booking.aawebcreate.com/
+
+現在、必要なければ、このままお読み流しいただいて構いません。
+
+※今後このようなご連絡が不要な場合は、本メールへの返信でお知らせください。以後のご連絡を控えます。`
+  },
+  partnerForm: {
+    subject: FOLLOW_UP_PARTNER_SUBJECT,
+    body: `aaWebCreateの阿部です。{前回送信月}に、外部制作パートナーのご提案で、ご連絡いたしました。改めて、簡単にご連絡いたします。
+
+Web業界12年、WordPress・Shopifyの実装から、Next.js / TypeScriptでのWebアプリ開発まで、制作会社様の案件で、スポットでもお力になれます。
+経歴・実績は、こちらです。
+https://aawebcreate.com/profile/
+
+現在、必要なければ、このままお読み流しください。今後のご連絡が不要な場合は、お知らせいただければ、以後のご連絡を控えます。`
+  },
+  directEmail: {
+    subject: FOLLOW_UP_DIRECT_SUBJECT,
+    body: `{会社名}
+ご担当者様
+
+aaWebCreateの阿部です。
+{前回送信月}に、Webサイトの改善について、ご連絡いたしました。お忙しいところ恐れ入ります。改めて、簡単にご連絡いたします。
+
+WordPressを中心としたWebサイト制作、Shopify構築、既存サイトの改修や保守などを行っております。
+実績・対応領域は、こちらにまとめております。
+https://aawebcreate.com/profile/
+
+現在、必要なければ、このままお読み流しください。
+
+※今後このようなご連絡が不要な場合は、本メールへの返信でお知らせください。以後のご連絡を控えます。`
+  },
+  directForm: {
+    subject: FOLLOW_UP_DIRECT_SUBJECT,
+    body: `aaWebCreateの阿部です。{前回送信月}に、Webサイトの改善について、ご連絡いたしました。改めて、簡単にご連絡いたします。
+
+WordPressを中心としたWebサイト制作、Shopify構築、既存サイトの改修や保守などを行っております。
+実績・対応領域は、こちらです。
+https://aawebcreate.com/profile/
+
+現在、必要なければ、このままお読み流しください。今後のご連絡が不要な場合は、お知らせいただければ、以後のご連絡を控えます。`
+  }
+} as const;
+
+const followUpFallbackTemplate = (input: SalesMessageInput): MessageTemplate => {
+  const isDirect = input.leadType === "直クライアント";
+  const isForm = input.channel === "フォーム";
+  const preset = isDirect
+    ? isForm
+      ? FOLLOW_UP_DEFAULTS.directForm
+      : FOLLOW_UP_DEFAULTS.directEmail
+    : isForm
+      ? FOLLOW_UP_DEFAULTS.partnerForm
+      : FOLLOW_UP_DEFAULTS.partnerEmail;
+
+  return {
+    templateId: `fallback-follow-up-${isDirect ? "direct" : "partner"}-${isForm ? "form" : "email"}`,
+    templateName: "標準テンプレート: 再送",
+    targetLeadTypes: [],
+    recommendedApproaches: [],
+    subjectTemplate: preset.subject,
+    bodyTemplate: preset.body,
+    status: "使用中",
+    purpose: "再送",
+    channel: isForm ? "フォーム" : "メール"
+  };
+};
+
+// 前回送信日から「3月」「2025年11月」のような表記を作る。1年以上前なら年も付ける。
+export const formatPreviousSentMonth = (previousSentAt: string, now: Date = new Date()): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(previousSentAt);
+
+  if (!match) {
+    return "先日";
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const currentYear = Number(
+    new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric" }).format(now)
+  );
+
+  return year === currentYear ? `${month}月` : `${year}年${month}月`;
+};
+
+const formatPreviousSentDate = (previousSentAt: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(previousSentAt);
+  return match ? `${match[1]}年${Number(match[2])}月${Number(match[3])}日` : "";
 };
 
 export const buildSalesSubject = (leadType: string, recommendedApproach: string): string => {
@@ -355,6 +491,10 @@ const matchesTemplate = (template: MessageTemplate, input: SalesMessageInput): b
     return false;
   }
 
+  if (template.purpose === "再送") {
+    return false;
+  }
+
   const leadTypeMatches =
     template.targetLeadTypes.length === 0 || template.targetLeadTypes.includes(input.leadType);
   const approachMatches =
@@ -369,6 +509,10 @@ const matchesLeadType = (template: MessageTemplate, input: SalesMessageInput): b
     return false;
   }
 
+  if (template.purpose === "再送") {
+    return false;
+  }
+
   return template.targetLeadTypes.length === 0 || template.targetLeadTypes.includes(input.leadType);
 };
 
@@ -380,6 +524,30 @@ const pickTemplate = (
     templates.find((template) => matchesTemplate(template, input)) ??
     templates.find((template) => matchesLeadType(template, input))
   );
+};
+
+// 再送用: 使用中の「再送」行から、営業先種別が合い、連絡手段が合うものを選ぶ（連絡手段が一致する行を優先）。
+const pickFollowUpTemplate = (
+  templates: MessageTemplate[],
+  input: SalesMessageInput
+): MessageTemplate | undefined => {
+  const candidates = templates.filter((template) => {
+    if (template.purpose !== "再送" || (template.status && template.status !== "使用中")) {
+      return false;
+    }
+
+    const leadTypeMatches =
+      template.targetLeadTypes.length === 0 || template.targetLeadTypes.includes(input.leadType);
+    const channelMatches = !template.channel || !input.channel || template.channel === input.channel;
+
+    return leadTypeMatches && channelMatches;
+  });
+
+  const exactChannel = candidates.filter((template) => template.channel && template.channel === input.channel);
+  const exactLeadType = (list: MessageTemplate[]): MessageTemplate | undefined =>
+    list.find((template) => template.targetLeadTypes.includes(input.leadType)) ?? list[0];
+
+  return exactLeadType(exactChannel) ?? exactLeadType(candidates);
 };
 
 const pickFallbackTemplate = (input: SalesMessageInput): MessageTemplate | undefined => {
@@ -433,6 +601,8 @@ const renderTemplate = (
     ["具体的一言", clientSpecificObservation],
     ["signature", signature],
     ["署名", signature],
+    ["前回送信月", input.previousSentAt ? formatPreviousSentMonth(input.previousSentAt) : "先日"],
+    ["前回送信日", input.previousSentAt ? formatPreviousSentDate(input.previousSentAt) : "先日"],
     ["recommendedApproach", input.recommendedApproach],
     ["推奨アプローチ", input.recommendedApproach],
     ["senderCompanyName", sender.companyName],
@@ -484,7 +654,12 @@ export const buildSalesMessage = (
   config?: SalesContentConfig
 ): SalesMessage => {
   const sender = config?.sender ?? CONTACT_SENDER;
-  const template = config ? pickTemplate(config.templates, input) : undefined;
+  const isFollowUp = Boolean(input.previousSentAt);
+  const template = isFollowUp
+    ? (config ? pickFollowUpTemplate(config.templates, input) : undefined) ?? followUpFallbackTemplate(input)
+    : config
+      ? pickTemplate(config.templates, input)
+      : undefined;
   const fallbackTemplate = template ?? pickFallbackTemplate(input);
   const autoInsertPreview = buildClientSpecificObservation(input);
 

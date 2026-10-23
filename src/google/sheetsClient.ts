@@ -34,8 +34,12 @@ export type WriteOptions = {
 
 export type SheetsClient = {
   getValues: (range: string) => Promise<unknown[][]>;
+  // 数式セルは計算結果ではなく数式の文字列で返す
+  getFormulas: (range: string) => Promise<unknown[][]>;
   appendValues: (range: string, values: unknown[][], options?: WriteOptions) => Promise<AppendValuesResponse>;
   updateValues: (range: string, values: unknown[][], options?: WriteOptions) => Promise<UpdateValuesResponse>;
+  // シートの列数が足りなければ、右に列を追加する（すでに足りていれば何もしない）
+  ensureColumns: (sheetTitle: string, columnCount: number) => Promise<void>;
 };
 
 // 先頭が = + - @ の文字列は数式と解釈され #NAME? 等になるため、先頭に ' を付けて文字列として書く
@@ -168,11 +172,51 @@ export const createSheetsClient = async (config: AppConfig): Promise<SheetsClien
   const accessToken = await fetchAccessToken(config);
   const baseUrl = `https://sheets.googleapis.com/v4/spreadsheets/${config.googleSpreadsheetId}/values`;
 
+  const spreadsheetUrl = `https://sheets.googleapis.com/v4/spreadsheets/${config.googleSpreadsheetId}`;
+
   return {
+    ensureColumns: async (sheetTitle: string, columnCount: number): Promise<void> => {
+      const metadata = await requestJson<{
+        sheets?: { properties?: { sheetId?: number; title?: string; gridProperties?: { columnCount?: number } } }[];
+      }>({
+        method: "GET",
+        url: `${spreadsheetUrl}?${querystring.stringify({ fields: "sheets.properties(sheetId,title,gridProperties(columnCount))" })}`,
+        accessToken
+      });
+      const properties = metadata.sheets?.map((sheet) => sheet.properties).find((entry) => entry?.title === sheetTitle);
+
+      if (!properties || properties.sheetId === undefined) {
+        throw new Error(`Sheet not found: ${sheetTitle}`);
+      }
+
+      const current = properties.gridProperties?.columnCount ?? 0;
+
+      if (current >= columnCount) {
+        return;
+      }
+
+      await requestJson({
+        method: "POST",
+        url: `${spreadsheetUrl}:batchUpdate`,
+        accessToken,
+        body: {
+          requests: [{ appendDimension: { sheetId: properties.sheetId, dimension: "COLUMNS", length: columnCount - current } }]
+        }
+      });
+    },
     getValues: async (range: string): Promise<unknown[][]> => {
       const response = await requestJson<ValuesResponse>({
         method: "GET",
         url: `${baseUrl}/${encodeURIComponent(range)}`,
+        accessToken
+      });
+
+      return response.values ?? [];
+    },
+    getFormulas: async (range: string): Promise<unknown[][]> => {
+      const response = await requestJson<ValuesResponse>({
+        method: "GET",
+        url: `${baseUrl}/${encodeURIComponent(range)}?${querystring.stringify({ valueRenderOption: "FORMULA" })}`,
         accessToken
       });
 
