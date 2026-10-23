@@ -104,6 +104,57 @@ export const readExistingLeadState = async (sheets: SheetsClient): Promise<Exist
   };
 };
 
+// 連絡先（フォームURL・メール）が無い候補について、公式サイトから探して、プレビューの時点で補う。
+// 見つかったら、「連絡先なし」を理由に「見送り」になっていた候補は、送信待ちに戻す（登録時の処理と同じ条件）。
+// OpenAI は使わず、公式サイトへのアクセスだけで行う
+export const discoverContact = async (
+  candidate: LeadCandidate,
+  context: { autoRejectLowScore?: boolean } = {}
+): Promise<LeadCandidate> => {
+  if (candidate.contactUrl || candidate.email || !candidate.officialSiteUrl) {
+    return candidate;
+  }
+
+  try {
+    let current = (await verifyContactUrl(candidate)).candidate;
+
+    if (current.contactUrl) {
+      current = (await excludeRequestOnlyForm(current)).candidate;
+    }
+
+    if (!current.contactUrl && !current.email) {
+      const found = await findEmailOnSite(current.officialSiteUrl, "");
+
+      if (found) {
+        current = {
+          ...current,
+          email: found.email,
+          memo: [current.memo, `メール出典（自動取得）: ${found.sourceUrl}`].filter(Boolean).join("\n")
+        };
+      }
+    }
+
+    if (!current.contactUrl && !current.email) {
+      return candidate;
+    }
+
+    const revive =
+      current.status === "見送り" &&
+      current.recommendedApproach !== "見送り" &&
+      !current.exclusionReason &&
+      (context.autoRejectLowScore === false || current.salesScore >= scoreThresholdForLeadType(current.leadType));
+
+    return {
+      ...current,
+      status: revive ? "送信待ち" : current.status,
+      memo: [current.memo, `連絡先を自動取得: ${current.contactUrl || current.email}`].filter(Boolean).join("\n")
+    };
+  } catch {
+    // 公式サイトに繋がらないなどの場合は、そのまま（登録時にも、もう一度確認する）
+    return candidate;
+  }
+};
+
 export const leadKey = (value: string): string => {
   return value.trim().toLowerCase().replace(/\/$/, "");
 };

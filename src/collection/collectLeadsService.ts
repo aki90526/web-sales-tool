@@ -3,7 +3,7 @@ import { LeadType } from "../domain/lead";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 import { collectLeadCandidateCollection, isInSearchArea, LeadCandidate } from "../openai/leadCandidateCollector";
 import { createOpenAIClient, WebSearchTrace } from "../openai/openAIClient";
-import { filterUniqueCandidates, formatTargetTypes, readExistingLeadState } from "./leadImport";
+import { discoverContact, filterUniqueCandidates, formatTargetTypes, readExistingLeadState } from "./leadImport";
 
 export const MAX_INITIAL_LIMIT = 10;
 
@@ -57,6 +57,11 @@ export const runLeadCollection = async (
   });
 
   const uniqueCandidates = filterUniqueCandidates(collection.candidates, existing);
+
+  // 連絡先が無い候補は、公式サイトから探して、プレビューの時点で補う（1件ずつ。OpenAIは使わない）
+  for (let index = 0; index < uniqueCandidates.length; index += 1) {
+    uniqueCandidates[index] = await discoverContact(uniqueCandidates[index], { autoRejectLowScore: options.autoRejectLowScore });
+  }
 
   return {
     searchTrace: collection.searchTrace,

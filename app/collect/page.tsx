@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AreaPicker from "./AreaPicker";
-import { Database, Eye, History, RotateCcw, Search, Sparkles } from "lucide-react";
+import { Check, Database, Pencil, X, Eye, History, RotateCcw, Search, Sparkles } from "lucide-react";
 
 const TARGET_TYPES = ["Web制作会社", "広告代理店", "直クライアント"] as const;
 type TargetType = (typeof TARGET_TYPES)[number];
@@ -38,6 +38,7 @@ type Candidate = {
   // AIの所見メモと、点数が「除外」になった理由（営業お断りの記載など）
   memo?: string;
   exclusionReason?: string;
+  recommendedApproach?: string;
 };
 
 const contactMethodLabel = (candidate: Candidate): string => {
@@ -99,10 +100,13 @@ export default function CollectPage() {
   const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
   // メモを全文表示している候補（普段は4行まで）
   const [expandedMemos, setExpandedMemos] = useState<number[]>([]);
+  // フォームURLをその場で追加・変更している候補（番号と入力中のURL）
+  const [editingContact, setEditingContact] = useState<{ index: number; draft: string; error: string } | null>(null);
 
   useEffect(() => {
     setSelectedIndexes(preview ? preview.candidates.map((_, index) => index) : []);
     setExpandedMemos([]);
+    setEditingContact(null);
   }, [preview]);
 
   const toggleCandidate = (index: number) => {
@@ -223,6 +227,36 @@ export default function CollectPage() {
       candidates: entry.candidates
     });
     setModalOpen(true);
+  };
+
+  // 候補のフォームURLを、プレビューの時点で追加・変更する。登録するときは、この内容が使われる。
+  // 「連絡先なし」で見送りになっていた候補は、AIの見送り判断や除外理由が無ければ、送信待ちに戻す
+  const saveContactUrl = (index: number) => {
+    if (!editingContact || !preview) return;
+    const url = editingContact.draft.trim();
+
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      setEditingContact({ ...editingContact, error: "http:// または https:// で始まるURLを入力してください" });
+      return;
+    }
+
+    setPreview({
+      ...preview,
+      candidates: preview.candidates.map((candidate, candidateIndex) => {
+        if (candidateIndex !== index) return candidate;
+
+        const revive =
+          candidate.status === "見送り" && candidate.recommendedApproach !== "見送り" && !candidate.exclusionReason && !candidate.contactUrl && !candidate.email;
+
+        return {
+          ...candidate,
+          contactUrl: url,
+          status: revive ? "送信待ち" : candidate.status,
+          memo: [candidate.memo, `フォームURLを手動で追加: ${url}`].filter(Boolean).join("\n")
+        };
+      })
+    });
+    setEditingContact(null);
   };
 
   const applyArea = (value: string) => {
@@ -472,7 +506,37 @@ export default function CollectPage() {
                               フォーム
                             </a>
                           )}
+                          <button
+                            type="button"
+                            className="btn secondary icon-only"
+                            title={candidate.contactUrl ? `フォームURLを変更（${candidate.contactUrl}）` : "フォームURLを追加"}
+                            onClick={() => setEditingContact({ index, draft: candidate.contactUrl || "", error: "" })}
+                          >
+                            <Pencil size={13} />
+                          </button>
                         </div>
+                        {editingContact?.index === index && (
+                          <div className="url-edit">
+                            <input
+                              value={editingContact.draft}
+                              autoFocus
+                              onChange={(event) => setEditingContact({ ...editingContact, draft: event.target.value, error: "" })}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") saveContactUrl(index);
+                                if (event.key === "Escape") setEditingContact(null);
+                              }}
+                              placeholder="https://example.com/contact/"
+                              aria-label={`${candidate.companyName} のフォームURL`}
+                            />
+                            <button type="button" className="btn primary icon-only" onClick={() => saveContactUrl(index)} title="保存">
+                              <Check size={14} />
+                            </button>
+                            <button type="button" className="btn secondary icon-only" onClick={() => setEditingContact(null)} title="キャンセル">
+                              <X size={14} />
+                            </button>
+                            {editingContact.error && <p className="url-edit-error">{editingContact.error}</p>}
+                          </div>
+                        )}
                       </td>
                       <td className="cell-nowrap"><span className="score-badge">{candidate.salesScore}</span></td>
                       <td className="cell-nowrap"><span className="status-badge">{candidate.status}</span></td>
