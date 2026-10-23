@@ -1289,6 +1289,14 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     return 1;
   };
 
+  // 点数が同じで、どれも一般的な相談系（協業・営業・その他に当たらない）の選択肢のときは、Web制作に近いものを優先する。
+  // 何も手がかりがないときに、先頭の選択肢（別事業の窓口など）が選ばれるのを避けるため
+  const webAffinity = (text: string): number =>
+    /(web|ウェブ|ホームページ|サイト|制作|開発|システム)/i.test(text) && !/(cm|tv|テレビ|動画|映像)/i.test(text) ? 1 : 0;
+
+  const compareChoices = (a: { score: number; text: string }, b: { score: number; text: string }): number =>
+    b.score - a.score || (a.score <= 55 ? webAffinity(b.text) - webAffinity(a.text) : 0);
+
   const scoreOption = (option: HTMLOptionElement): number => {
     if (isPlaceholderOption(option)) {
       return 0;
@@ -1395,7 +1403,7 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
 
     const preferred = Array.from(element.options)
       .map((option) => ({ option, score: scoreOption(option) }))
-      .sort((a, b) => b.score - a.score)[0];
+      .sort((a, b) => compareChoices({ score: a.score, text: a.option.textContent ?? "" }, { score: b.score, text: b.option.textContent ?? "" }))[0];
 
     if (!preferred || preferred.score <= 0) {
       return;
@@ -1774,9 +1782,38 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
           score: scoreChoiceText(normalize(radioOptionLabelFor(element)))
         }))
         .filter((choice) => choice.score > 1)
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => compareChoices({ score: a.score, text: a.optionLabel }, { score: b.score, text: b.optionLabel }));
 
-      const preferred = choices[0];
+      let preferred = choices[0];
+
+      // 種別以外の選択欄で、合う選択肢が見つからない（点数が低い）ときは、「未定」「どちらでも」などの無難な選択肢を選ぶ。
+      // それも無く、欄に「任意」と書かれていて、必須の指定もなければ、何も選ばない（先頭の選択肢を、なんとなく選ばない）
+      // （ページ全体の見出しに「お問い合わせ項目」とあるだけで、種別の欄と判定される欄もあるため、種別かどうかは問わない）
+      if ((preferred?.score ?? 0) < 30) {
+        const neutral = elements
+          .map((element) => ({
+            element,
+            optionLabel: radioOptionLabelFor(element),
+            score: scoreChoiceText(normalize(radioOptionLabelFor(element)))
+          }))
+          .find((choice) => choice.score !== 0 && /(未定|どちらでも|どちらでもよい|特になし|指定なし|わからない|分からない|不明|相談したい)/.test(choice.optionLabel));
+
+        if (neutral) {
+          preferred = neutral;
+        } else {
+          const hardRequired = elements.some(
+            (element) =>
+              element.required ||
+              element.getAttribute("aria-required") === "true" ||
+              element.closest(".wpcf7-validates-as-required, [aria-required='true']") !== null
+          );
+          const marked = `${groupLabel} ${nearestPreviousLabelText(elements[0])}`;
+
+          if (!hardRequired && /(任意|optional)/i.test(marked) && !/(必須|required)/i.test(marked)) {
+            return;
+          }
+        }
+      }
 
       if (!preferred) {
         return;
@@ -2056,7 +2093,7 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
           score: scoreChoiceText(normalize(checkboxOptionLabelFor(element)))
         }))
         .filter((choice) => choice.score > 1)
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => compareChoices({ score: a.score, text: a.optionLabel }, { score: b.score, text: b.optionLabel }));
 
       if (ranked.length === 0) {
         return;
@@ -2550,6 +2587,14 @@ const pageFindSelectKeyboardTarget = (): SelectKeyboardTarget | null => {
     return 1;
   };
 
+  // 点数が同じで、どれも一般的な相談系（協業・営業・その他に当たらない）の選択肢のときは、Web制作に近いものを優先する。
+  // 何も手がかりがないときに、先頭の選択肢（別事業の窓口など）が選ばれるのを避けるため
+  const webAffinity = (text: string): number =>
+    /(web|ウェブ|ホームページ|サイト|制作|開発|システム)/i.test(text) && !/(cm|tv|テレビ|動画|映像)/i.test(text) ? 1 : 0;
+
+  const compareChoices = (a: { score: number; text: string }, b: { score: number; text: string }): number =>
+    b.score - a.score || (a.score <= 55 ? webAffinity(b.text) - webAffinity(a.text) : 0);
+
   const scoreOption = (option: HTMLOptionElement): number => {
     if (!option.value) {
       return 0;
@@ -2573,7 +2618,7 @@ const pageFindSelectKeyboardTarget = (): SelectKeyboardTarget | null => {
 
     const preferred = Array.from(element.options)
       .map((option) => ({ option, score: scoreOption(option) }))
-      .sort((a, b) => b.score - a.score)[0];
+      .sort((a, b) => compareChoices({ score: a.score, text: a.option.textContent ?? "" }, { score: b.score, text: b.option.textContent ?? "" }))[0];
 
     if (!preferred || preferred.score <= 0) {
       continue;

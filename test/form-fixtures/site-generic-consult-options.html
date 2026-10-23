@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- source: 手作りの再現用フォーム（faucet.co.jp/contact/ のように、協業・その他の選択肢が無い種別欄と、任意のラジオボタンがあるフォーム） -->
+<html lang="ja"><head><meta charset="utf-8"><title>generic-consult-options</title></head><body>
+<form>
+  <h2>お問い合わせ項目</h2>
+  <p>お問い合わせ内容をお選びいただくと、必要な入力項目のみが表示されます。</p>
+
+  <fieldset>
+    <legend>お問い合わせ内容を選択してください 必須</legend>
+    <label><input type="radio" name="type" value="event" required> イベントに関するご相談</label>
+    <label><input type="radio" name="type" value="hotel" required> ホテルソリューションに関するご相談</label>
+    <label><input type="radio" name="type" value="web" required> Webサイト制作に関するご相談</label>
+    <label><input type="radio" name="type" value="consulting" required> 経営コンサルティングに関するご相談</label>
+  </fieldset>
+
+  <label for="name">担当者名 必須</label>
+  <input id="name" name="name" type="text" required>
+
+  <label for="email">メールアドレス 必須</label>
+  <input id="email" name="email" type="email" required>
+
+  <!-- ページ全体の見出し「お問い合わせ項目」が、この欄の見出しとして拾われ、種別の欄と判定されるつくり（faucetと同じ） -->
+  <div class="title">お問い合わせ項目</div>
+  <div class="fields">
+    <p>新規制作またはリニューアル 任意</p>
+    <div>
+      <label><input type="radio" name="newren" value="new"> 新規制作</label>
+      <label><input type="radio" name="newren" value="renewal"> リニューアル</label>
+      <label><input type="radio" name="newren" value="undecided"> 未定</label>
+    </div>
+  </div>
+
+  <fieldset>
+    <legend>ご利用の予定 任意</legend>
+    <label><input type="radio" name="plan" value="alpha"> 最初のご契約</label>
+    <label><input type="radio" name="plan" value="beta"> 追加のご契約</label>
+  </fieldset>
+
+  <label for="message">相談内容 必須</label>
+  <textarea id="message" name="message" rows="6" required></textarea>
+
+  <button type="submit">送信する</button>
+</form>
+</body></html>
