@@ -433,6 +433,34 @@ const splitAreaTerms = (value: string): string[] => {
     .filter(Boolean);
 };
 
+// 所在地(region)が、検索エリアに当たるかを判定する。「東京都 港区」のように、都道府県と市区町村を並べた指定では、
+// 都道府県（東京都）だけで全件に当たってしまわないよう、市区町村のほうだけで判定する。「東京都23区」は「東京都」として扱う
+export const isInSearchArea = (region: string, area: string | undefined): boolean => {
+  if (!area || !region) {
+    return false;
+  }
+
+  const terms = splitAreaTerms(area.replace(/23区/g, ""));
+  const specific = terms.filter((term) => !/[都道府県]$/.test(term));
+  const targets = specific.length > 0 ? specific : terms;
+  const prefectureOf = (value: string): string => /^(北海道|.{2,3}[都府県])/.exec(value)?.[1] ?? "";
+
+  return targets.some((term) => {
+    const core = /[都府県]$/.test(term) && term.length > 2 ? term.slice(0, -1) : term;
+
+    if (region.includes(term) || region.includes(core)) {
+      return true;
+    }
+
+    // 登録済みの所在地に都道府県が無い（「渋谷区」だけなど）場合も、「東京都渋谷区」の検索に当てる。
+    // 別の都道府県の同名の区（大阪府の港区など）には当てない
+    const prefecture = prefectureOf(term);
+    const tail = prefecture ? term.slice(prefecture.length) : "";
+
+    return tail.length >= 2 && region.includes(tail) && (prefectureOf(region) === "" || prefectureOf(region) === prefecture);
+  });
+};
+
 // 所在地(region)が除外エリアに当たるかを判定する。「東京都」は「東京」でも一致させる。
 export const isInExcludedArea = (region: string, excludeArea: string | undefined): boolean => {
   if (!excludeArea) {
@@ -446,9 +474,12 @@ export const isInExcludedArea = (region: string, excludeArea: string | undefined
   });
 };
 
+// 検索するエリアに登録済みの会社・URLを、除外リストとして渡す上限（エリアの分だけを渡すので、80より多くしても、全体より少ない）
+const EXCLUDE_LIST_LIMIT = 200;
+
 const buildPrompt = (options: CollectLeadCandidateOptions): string => {
-  const excludedCompanies = options.existingCompanies.slice(-80).join(" / ") || "なし";
-  const excludedUrls = options.existingSiteUrls.slice(-80).join(" / ") || "なし";
+  const excludedCompanies = options.existingCompanies.slice(-EXCLUDE_LIST_LIMIT).join(" / ") || "なし";
+  const excludedUrls = options.existingSiteUrls.slice(-EXCLUDE_LIST_LIMIT).join(" / ") || "なし";
 
   return [
     "あなたは日本のWeb制作営業リスト作成アシスタントです。必ずWeb検索を使い、実在する企業だけを抽出してください。",

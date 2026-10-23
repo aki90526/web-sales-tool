@@ -14,6 +14,8 @@ export type ExistingLeadState = {
   maxNumericLeadId: number;
   companies: string[];
   siteUrls: string[];
+  // 登録済みのリード（会社名・URL・所在地）。検索エリアに合うものだけを、除外リストに使う
+  entries: Array<{ company: string; url: string; region: string }>;
 };
 
 export type ImportedLeadResult = {
@@ -39,6 +41,7 @@ export const readExistingLeadState = async (sheets: SheetsClient): Promise<Exist
   const table = await readSalesManagementTable(sheets);
   const companies: string[] = [];
   const siteUrls: string[] = [];
+  const entries: ExistingLeadState["entries"] = [];
   let maxNumericLeadId = 0;
 
   for (const lead of table.leads) {
@@ -56,12 +59,15 @@ export const readExistingLeadState = async (sheets: SheetsClient): Promise<Exist
     if (lead.officialSiteUrl) {
       siteUrls.push(lead.officialSiteUrl);
     }
+
+    entries.push({ company: lead.companyName, url: lead.officialSiteUrl, region: lead.region });
   }
 
   return {
     maxNumericLeadId,
     companies,
-    siteUrls
+    siteUrls,
+    entries
   };
 };
 

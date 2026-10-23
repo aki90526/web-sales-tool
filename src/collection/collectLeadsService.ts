@@ -1,7 +1,7 @@
 import { AppConfig, requireOpenAiConfig } from "../config/env";
 import { LeadType } from "../domain/lead";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
-import { collectLeadCandidateCollection, LeadCandidate } from "../openai/leadCandidateCollector";
+import { collectLeadCandidateCollection, isInSearchArea, LeadCandidate } from "../openai/leadCandidateCollector";
 import { createOpenAIClient, WebSearchTrace } from "../openai/openAIClient";
 import { filterUniqueCandidates, formatTargetTypes, readExistingLeadState } from "./leadImport";
 
@@ -39,6 +39,9 @@ export const runLeadCollection = async (
   const sheetsClient = sheets ?? (await createSheetsClient(config));
   const existing = await readExistingLeadState(sheetsClient);
   const openAI = createOpenAIClient(openAiConfig);
+  // AIに渡す除外リストは、検索するエリアに登録済みの会社だけにする（全件を渡すと長くなり、無関係な会社も混ざるため）。
+  // 重複の判定は、このあとの filterUniqueCandidates が、登録済みの全件に対して行う
+  const inArea = existing.entries.filter((entry) => isInSearchArea(entry.region, options.area));
 
   const collection = await collectLeadCandidateCollection(openAI, {
     area: options.area,
@@ -46,8 +49,8 @@ export const runLeadCollection = async (
     excludeArea: options.excludeArea,
     targetTypes: options.targetTypes,
     limit: options.limit,
-    existingCompanies: existing.companies,
-    existingSiteUrls: existing.siteUrls
+    existingCompanies: inArea.map((entry) => entry.company).filter(Boolean),
+    existingSiteUrls: inArea.map((entry) => entry.url).filter(Boolean)
   });
 
   const uniqueCandidates = filterUniqueCandidates(collection.candidates, existing);
