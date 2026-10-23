@@ -688,6 +688,15 @@ export default function LeadsPage() {
       );
     }
 
+    // 連絡先の追加（未登録のものだけ）。登録済みの変更は、連絡方法の欄の、ラベルの横にある鉛筆から行う
+    if (!lead.emailAddress) {
+      items.push({ key: "add-email", label: "メールアドレスを登録", icon: <Mail size={15} />, onClick: () => void editEmail(lead) });
+    }
+
+    if (!lead.contactFormUrl) {
+      items.push({ key: "add-form-url", label: "フォームURLを登録", icon: <FileText size={15} />, onClick: () => void editFormUrl(lead) });
+    }
+
     items.push({ key: "message", label: "メッセージを見る", icon: <MessageSquare size={15} />, onClick: () => void openMessage(lead) });
 
     return items;
@@ -865,31 +874,41 @@ export default function LeadsPage() {
                         </div>
                       </td>
                       <td className="hide-mobile">
-                        <div className="btn-row-tight">
-                          {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
-                            <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer">
-                              {lead.contactMethod}
-                            </a>
-                          ) : (
+                        {/* 登録済みの連絡先を、ラベルと鉛筆（変更用）で表示する。追加は、操作メニューから */}
+                        <div className="method-stack">
+                          {lead.emailAddress && (
+                            <span className="method-line">
+                              <span className={methodClass("メール")} title={lead.emailAddress}>
+                                メール
+                              </span>
+                              <button
+                                className="btn secondary icon-tiny"
+                                type="button"
+                                onClick={() => editEmail(lead)}
+                                title={`メールアドレスを変更（${lead.emailAddress}）`}
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            </span>
+                          )}
+                          {lead.contactFormUrl && (
+                            <span className="method-line">
+                              <a className={methodClass("フォーム")} href={lead.contactFormUrl} target="_blank" rel="noreferrer" title={lead.contactFormUrl}>
+                                フォーム
+                              </a>
+                              <button
+                                className="btn secondary icon-tiny"
+                                type="button"
+                                onClick={() => editFormUrl(lead)}
+                                title={`フォームURLを変更（${lead.contactFormUrl}）`}
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            </span>
+                          )}
+                          {!lead.emailAddress && !lead.contactFormUrl && (
                             <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
                           )}
-                          {/* 登録・変更のボタン。登録済みは鉛筆、未登録は、メールならメールのアイコン、フォームならフォームのアイコン */}
-                          <button
-                            className="btn secondary icon-tiny"
-                            type="button"
-                            onClick={() => editEmail(lead)}
-                            title={lead.emailAddress ? `メールアドレスを変更（${lead.emailAddress}）` : "メールアドレスを登録"}
-                          >
-                            {lead.emailAddress ? <Pencil size={11} /> : <Mail size={11} />}
-                          </button>
-                          <button
-                            className="btn secondary icon-tiny"
-                            type="button"
-                            onClick={() => editFormUrl(lead)}
-                            title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを登録"}
-                          >
-                            {lead.contactFormUrl ? <Pencil size={11} /> : <FileText size={11} strokeWidth={1.75} />}
-                          </button>
                         </div>
                       </td>
                       <td><span className="score-badge">{lead.salesScore}</span></td>

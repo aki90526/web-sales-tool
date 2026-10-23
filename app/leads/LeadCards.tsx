@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, MessageSquare, Mail, MousePointerClick, FileText, Pencil, Sparkles } from "lucide-react";
+import { CheckCircle2, ExternalLink, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles } from "lucide-react";
 import { STATUSES } from "../../src/domain/lead";
 
 export type CardLead = {
@@ -103,30 +103,49 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                   </option>
                 ))}
               </select>
-              {isForm && hasFormUrl ? (
-                <a className={props.methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer" title={`フォームを開く（${lead.contactFormUrl}）`}>
-                  {lead.contactMethod}
-                </a>
-              ) : (
-                <span className={props.methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
+              {/* 登録済みの連絡先を、ラベルと鉛筆（変更用）で表示する */}
+              {lead.emailAddress && (
+                <span className="method-line">
+                  <span className={props.methodClass("メール")} title={lead.emailAddress}>
+                    メール
+                  </span>
+                  <button
+                    className="btn secondary icon-tiny"
+                    type="button"
+                    onClick={() => props.onEditEmail(lead)}
+                    title={`メールアドレスを変更（${lead.emailAddress}）`}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                </span>
               )}
-              {/* 登録・変更のボタン。登録済みは鉛筆、未登録は、メールならメールのアイコン、フォームならフォームのアイコン */}
-              <button
-                className="btn secondary icon-only"
-                type="button"
-                onClick={() => props.onEditEmail(lead)}
-                title={lead.emailAddress ? `メールアドレスを変更（${lead.emailAddress}）` : "メールアドレスを登録"}
-              >
-                {lead.emailAddress ? <Pencil size={13} /> : <Mail size={13} />}
-              </button>
-              <button
-                className="btn secondary icon-only"
-                type="button"
-                onClick={() => props.onEditFormUrl(lead)}
-                title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを登録"}
-              >
-                {lead.contactFormUrl ? <Pencil size={13} /> : <FileText size={13} strokeWidth={1.75} />}
-              </button>
+              {hasFormUrl && (
+                <span className="method-line">
+                  <a className={props.methodClass("フォーム")} href={lead.contactFormUrl} target="_blank" rel="noreferrer" title={`フォームを開く（${lead.contactFormUrl}）`}>
+                    フォーム
+                  </a>
+                  <button
+                    className="btn secondary icon-tiny"
+                    type="button"
+                    onClick={() => props.onEditFormUrl(lead)}
+                    title={`フォームURLを変更（${lead.contactFormUrl}）`}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                </span>
+              )}
+              {!lead.emailAddress && !hasFormUrl && <span className={props.methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>}
+              {/* 未登録の連絡先の追加 */}
+              {!lead.emailAddress && (
+                <button className="btn secondary add-contact" type="button" onClick={() => props.onEditEmail(lead)} title="メールアドレスを登録">
+                  ＋メール
+                </button>
+              )}
+              {!hasFormUrl && (
+                <button className="btn secondary add-contact" type="button" onClick={() => props.onEditFormUrl(lead)} title="フォームURLを登録">
+                  ＋フォーム
+                </button>
+              )}
             </div>
 
             <div className="lead-card-links">
