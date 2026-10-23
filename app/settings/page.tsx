@@ -5,9 +5,10 @@ import { Save } from "lucide-react";
 
 type Intervals = { firstIntervalDays: number; laterIntervalDays: number; recheckIntervalDays: number };
 
-type FollowUp = {
+type Template = {
   templateId: string;
   templateName: string;
+  purpose: "初回" | "再送";
   targetLeadTypes: string;
   channel: "メール" | "フォーム" | "";
   status: string;
@@ -15,7 +16,21 @@ type FollowUp = {
   body: string;
 };
 
-type SettingsResponse = { intervals: Intervals; followUps: FollowUp[]; placeholders: string[] };
+type TextSetting = {
+  key: string;
+  label: string;
+  group: "送信者" | "署名・案内";
+  multiline?: boolean;
+  hint?: string;
+  value: string;
+};
+
+type SettingsResponse = {
+  intervals: Intervals;
+  textSettings: TextSetting[];
+  templates: Template[];
+  placeholders: { 初回: string[]; 再送: string[] };
+};
 
 const leadTypeForPreview = (targetLeadTypes: string): string => (targetLeadTypes.includes("直クライアント") ? "直クライアント" : "Web制作会社");
 
@@ -24,9 +39,9 @@ function TemplateEditor({
   placeholders,
   onChange
 }: {
-  template: FollowUp;
-  placeholders: string[];
-  onChange: (next: FollowUp) => void;
+  template: Template;
+  placeholders: readonly string[];
+  onChange: (next: Template) => void;
 }) {
   const [preview, setPreview] = useState<{ subject: string; body: string } | null>(null);
   const [previewError, setPreviewError] = useState("");
@@ -43,6 +58,7 @@ function TemplateEditor({
             subject: template.subject,
             body: template.body,
             channel: template.channel,
+            purpose: template.purpose,
             leadType: leadTypeForPreview(template.targetLeadTypes)
           })
         });
@@ -60,7 +76,7 @@ function TemplateEditor({
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [template.subject, template.body, template.channel, template.targetLeadTypes]);
+  }, [template.subject, template.body, template.channel, template.targetLeadTypes, template.purpose]);
 
   const insertPlaceholder = (placeholder: string) => {
     const element = bodyRef.current;
@@ -105,7 +121,7 @@ function TemplateEditor({
         </div>
 
         <div className="settings-preview">
-          <p className="panel-caption">プレビュー（会社名は「株式会社サンプル」、前回送信月は3か月前で表示）</p>
+          <p className="panel-caption">プレビュー（会社名は「株式会社サンプル」、前回送信月は3か月前で表示。署名・案内文は保存済みの設定で表示）</p>
           {previewError ? (
             <p className="settings-error">{previewError}</p>
           ) : preview ? (
@@ -125,14 +141,16 @@ function TemplateEditor({
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsResponse | null>(null);
   const [intervals, setIntervals] = useState<Intervals | null>(null);
-  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [textValues, setTextValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   const apply = useCallback((next: SettingsResponse) => {
     setData(next);
     setIntervals(next.intervals);
-    setFollowUps(next.followUps);
+    setTemplates(next.templates);
+    setTextValues(Object.fromEntries(next.textSettings.map((entry) => [entry.key, entry.value])));
   }, []);
 
   useEffect(() => {
@@ -161,7 +179,8 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           intervals,
-          followUps: followUps.map((entry) => ({ templateId: entry.templateId, subject: entry.subject, body: entry.body }))
+          textSettings: textValues,
+          templates: templates.map((entry) => ({ templateId: entry.templateId, subject: entry.subject, body: entry.body }))
         })
       });
       const body = (await response.json()) as SettingsResponse & { message?: string };
@@ -185,11 +204,11 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="page-stack">
+    <div className="page-stack settings-page">
       <div className="page-heading">
         <div>
           <h2>設定</h2>
-          <p>再送の間隔と、再送用の文面を変更します。内容はスプレッドシート（設定・メッセージテンプレート）と同じものです。</p>
+          <p>送信する文面（初回・再送）、送信者の情報、再送の間隔を変更します。内容はスプレッドシート（設定・メッセージテンプレート）と同じものです。</p>
         </div>
         <button type="button" className="btn primary" onClick={save} disabled={saving || !intervals}>
           <Save size={16} />
@@ -232,27 +251,76 @@ export default function SettingsPage() {
       )}
 
       {data && (
-        <section className="form-panel">
-          <div className="panel-header">
-            <div>
-              <h3 className="panel-title">再送の文面</h3>
-              <p className="panel-caption">
-                2回目以降の送信で自動的に使われます（メール用・フォーム用、制作会社向け・直クライアント向け）。署名と、配信停止のご案内（本文に無い場合）は自動で付きます。
-              </p>
-            </div>
-          </div>
-          <div className="settings-template-list">
-            {followUps.length === 0 && <p className="panel-caption">再送用の文面がシートにありません（npm run settings:migrate-resend で追加できます）。</p>}
-            {followUps.map((template, index) => (
-              <TemplateEditor
-                key={template.templateId}
-                template={template}
-                placeholders={data.placeholders}
-                onChange={(next) => setFollowUps((current) => current.map((entry, entryIndex) => (entryIndex === index ? next : entry)))}
-              />
-            ))}
-          </div>
-        </section>
+        <>
+          {(["初回", "再送"] as const).map((purpose) => (
+            <section className="form-panel" key={purpose}>
+              <div className="panel-header">
+                <div>
+                  <h3 className="panel-title">{purpose === "初回" ? "初回の文面" : "再送の文面"}</h3>
+                  <p className="panel-caption">
+                    {purpose === "初回"
+                      ? "はじめて連絡するときに使います（制作会社・広告代理店向け／直クライアント向け）。署名と、配信停止のご案内（本文に無い場合）は自動で付きます。"
+                      : "2回目以降の送信で自動的に使われます（メール用・フォーム用、制作会社向け・直クライアント向け）。署名と、配信停止のご案内（本文に無い場合）は自動で付きます。"}
+                  </p>
+                </div>
+              </div>
+              <div className="settings-template-list">
+                {templates.filter((template) => template.purpose === purpose).length === 0 && (
+                  <p className="panel-caption">文面がシートにありません（npm run settings:migrate-resend で再送用を追加できます）。</p>
+                )}
+                {templates.map((template, index) =>
+                  template.purpose === purpose ? (
+                    <TemplateEditor
+                      key={template.templateId}
+                      template={template}
+                      placeholders={data.placeholders[purpose]}
+                      onChange={(next) => setTemplates((current) => current.map((entry, entryIndex) => (entryIndex === index ? next : entry)))}
+                    />
+                  ) : null
+                )}
+              </div>
+            </section>
+          ))}
+
+          {(["送信者", "署名・案内"] as const).map((group) => (
+            <section className="form-panel" key={group}>
+              <div className="panel-header">
+                <div>
+                  <h3 className="panel-title">{group === "送信者" ? "送信者の情報" : "署名・配信停止の案内"}</h3>
+                  <p className="panel-caption">
+                    {group === "送信者"
+                      ? "文面の差し込み、署名、フォームの自動入力に使います。"
+                      : "すべての文面の末尾に付きます。"}
+                  </p>
+                </div>
+              </div>
+              <div className="field-grid">
+                {data.textSettings
+                  .filter((entry) => entry.group === group)
+                  .map((entry) => (
+                    <label className={entry.multiline ? "field full" : "field"} key={entry.key}>
+                      {entry.label}
+                      {entry.multiline ? (
+                        <textarea
+                          rows={3}
+                          maxLength={500}
+                          value={textValues[entry.key] ?? ""}
+                          onChange={(event) => setTextValues({ ...textValues, [entry.key]: event.target.value })}
+                        />
+                      ) : (
+                        <input
+                          maxLength={500}
+                          value={textValues[entry.key] ?? ""}
+                          onChange={(event) => setTextValues({ ...textValues, [entry.key]: event.target.value })}
+                        />
+                      )}
+                      {entry.hint && <small className="panel-caption">{entry.hint}</small>}
+                    </label>
+                  ))}
+              </div>
+            </section>
+          ))}
+        </>
       )}
     </div>
   );

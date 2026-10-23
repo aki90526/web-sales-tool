@@ -2319,8 +2319,8 @@ a.method-badge:hover {
   font-weight: 800;
 }
 
-.settings-template .field textarea,
-.settings-template .field input {
+.settings-page .field textarea,
+.settings-page .field input {
   font-weight: 400;
   line-height: 1.6;
 }

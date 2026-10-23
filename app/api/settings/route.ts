@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadConfig } from "../../../src/config/env";
-import { FOLLOW_UP_PLACEHOLDERS } from "../../../src/contact/salesMessage";
+import { FIRST_PLACEHOLDERS, FOLLOW_UP_PLACEHOLDERS } from "../../../src/contact/salesMessage";
 import { createSheetsClient } from "../../../src/google/sheetsClient";
 import { AppSettingsUpdate, readAppSettings, saveAppSettings } from "../../../src/settings/appSettings";
 
@@ -11,7 +11,7 @@ export async function GET() {
     const sheets = await createSheetsClient(loadConfig());
     const settings = await readAppSettings(sheets);
 
-    return NextResponse.json({ ...settings, placeholders: FOLLOW_UP_PLACEHOLDERS });
+    return NextResponse.json({ ...settings, placeholders: { 初回: FIRST_PLACEHOLDERS, 再送: FOLLOW_UP_PLACEHOLDERS } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error instanceof Error ? error.message : "invalid input" }, { status: 400 });
     }
 
-    return NextResponse.json({ ...(await readAppSettings(sheets)), placeholders: FOLLOW_UP_PLACEHOLDERS });
+    return NextResponse.json({ ...(await readAppSettings(sheets)), placeholders: { 初回: FIRST_PLACEHOLDERS, 再送: FOLLOW_UP_PLACEHOLDERS } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });

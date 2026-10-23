@@ -36,7 +36,9 @@ export const TEST_PAYLOAD: FormAutofillPayload = {
     postalCode: "344-0067",
     prefecture: "埼玉県",
     city: "春日部市",
-    streetAddress: "中央1-2-3"
+    streetAddress: "中央1-2-3",
+    signatureTagline: "",
+    optOutNotice: ""
   },
   formFieldAliases: {
     companyName: [],

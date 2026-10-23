@@ -22,6 +22,10 @@ export type SenderInfo = {
   prefecture: string;
   city: string;
   streetAddress: string;
+  // 署名の1行目に、会社名のあとに続ける紹介文
+  signatureTagline: string;
+  // 配信停止の案内文（本文に無いときに自動で付ける）
+  optOutNotice: string;
 };
 
 export type FormFieldAliases = {
@@ -107,7 +111,10 @@ export const CONTACT_SENDER: SenderInfo = {
   postalCode: "344-0112",
   prefecture: "埼玉県",
   city: "春日部市",
-  streetAddress: "西金野井1074-10"
+  streetAddress: "西金野井1074-10",
+  signatureTagline: "春日部市でフリーランスのWeb制作を行っています。",
+  optOutNotice:
+    "※今後このようなご連絡が不要な場合は、お手数ですが本メールへの返信にてお知らせください。以後のご連絡を控えます。"
 } as const;
 
 const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
@@ -129,9 +136,6 @@ const DEFAULT_FORM_FIELD_ALIASES: FormFieldAliases = {
   subject: ["件名", "タイトル", "お問い合わせ種別", "題名"],
   body: ["お問い合わせ内容", "内容", "メッセージ", "本文", "詳細"]
 };
-
-const OPT_OUT_NOTICE =
-  "※今後このようなご連絡が不要な場合は、お手数ですが本メールへの返信にてお知らせください。以後のご連絡を控えます。";
 
 const cell = (row: unknown[], index: number): string => {
   const value = row[index];
@@ -186,7 +190,9 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     postalCode: setting(settings, "送信者_郵便番号", CONTACT_SENDER.postalCode),
     prefecture: setting(settings, "送信者_都道府県", CONTACT_SENDER.prefecture),
     city: setting(settings, "送信者_市区町村", CONTACT_SENDER.city),
-    streetAddress: setting(settings, "送信者_以降の住所", CONTACT_SENDER.streetAddress)
+    streetAddress: setting(settings, "送信者_以降の住所", CONTACT_SENDER.streetAddress),
+    signatureTagline: setting(settings, "署名_紹介文", CONTACT_SENDER.signatureTagline),
+    optOutNotice: setting(settings, "配信停止の案内文", CONTACT_SENDER.optOutNotice)
   };
 };
 
@@ -257,7 +263,7 @@ const buildSignature = (sender: SenderInfo): string => {
 
   return [
     SIGNATURE_RULE,
-    `${sender.companyName} | 春日部市でフリーランスのWeb制作を行っています。`,
+    `${sender.companyName}${sender.signatureTagline ? ` | ${sender.signatureTagline}` : ""}`,
     `${sender.name} / ${sender.nameRoman}`,
     `住所 : ${postalCode}${sender.formAddress || sender.address}`,
     `TEL : ${sender.tel}`,
@@ -326,6 +332,17 @@ https://aawebcreate.com/profile/
   purpose: "初回",
   channel: ""
 };
+
+export const FIRST_PLACEHOLDERS = [
+  "{会社名}",
+  "{本文向け一言}",
+  "{営業の切り口}",
+  "{送信者_氏名}",
+  "{送信者_会社名}",
+  "{送信者_住所}",
+  "{送信者_URL}",
+  "{署名}"
+] as const;
 
 export const FOLLOW_UP_PLACEHOLDERS = [
   "{会社名}",
@@ -476,7 +493,7 @@ export const buildSalesBody = (draft: string, sender: SenderInfo = CONTACT_SENDE
   const parts = [draft.trim()];
 
   if (!draft.includes("今後このようなご連絡が不要") && !draft.includes("以後のご連絡を控え")) {
-    parts.push(OPT_OUT_NOTICE);
+    parts.push(sender.optOutNotice);
   }
 
   if (!draft.includes(sender.companyName) || !draft.includes(sender.email)) {
@@ -680,9 +697,9 @@ export const buildSalesMessage = (
   };
 };
 
-// 設定画面のプレビュー用: 入力中の件名・本文で、再送の文面がどう表示されるかを作る（サンプルの会社名・前回送信月で差し込む）
-export const previewFollowUp = (
-  draft: { subject: string; body: string; channel: "メール" | "フォーム" | ""; leadType: string },
+// 設定画面のプレビュー用: 入力中の件名・本文で、文面がどう表示されるかを作る（サンプルの会社名・前回送信月で差し込む）
+export const previewTemplate = (
+  draft: { subject: string; body: string; channel: "メール" | "フォーム" | ""; leadType: string; purpose: TemplatePurpose },
   config: SalesContentConfig
 ): { subject: string; body: string } => {
   const previewTemplate: MessageTemplate = {
@@ -693,21 +710,21 @@ export const previewFollowUp = (
     subjectTemplate: draft.subject,
     bodyTemplate: draft.body,
     status: "使用中",
-    purpose: "再送",
+    purpose: draft.purpose,
     channel: draft.channel
   };
   const message = buildSalesMessage(
     {
       companyName: "株式会社サンプル",
       leadType: draft.leadType,
-      industry: "",
-      region: "",
-      officialSiteUrl: "",
-      salesAngle: "",
+      industry: "Web制作",
+      region: "東京都",
+      officialSiteUrl: "https://example.com/",
+      salesAngle: "サイトの更新を外部に任せる余地がある",
       recommendedApproach: "",
       salesMessageDraft: "",
       channel: draft.channel || "メール",
-      previousSentAt: previousMonthSample()
+      previousSentAt: draft.purpose === "再送" ? previousMonthSample() : undefined
     },
     { ...config, templates: [previewTemplate] }
   );
