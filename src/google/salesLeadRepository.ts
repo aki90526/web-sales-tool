@@ -1,4 +1,4 @@
-import { buildNextActionDateFormula, SalesLeadInput, SHEETS } from "../domain/lead";
+import { buildContactCountFormula, buildNextActionDateFormula, SalesLeadInput, SHEETS } from "../domain/lead";
 import {
   columnLetter,
   readSalesManagementTable,
@@ -36,7 +36,7 @@ const buildHeaderMappedSalesLeadRow = (
   columns: SalesManagementColumnMap,
   width: number
 ): unknown[] => {
-  const row = Array.from({ length: width }, () => "");
+  const row: unknown[] = Array.from({ length: width }, () => "");
   const approachLeadColumn = "'アプローチ履歴'!$A:$A";
   const approachSentAtColumn = "'アプローチ履歴'!$B:$B";
   const approachSendStatusColumn = "'アプローチ履歴'!$H:$H";
@@ -67,6 +67,10 @@ const buildHeaderMappedSalesLeadRow = (
     buildNextActionDateFormula(leadIdCell, lastApproachDateCell)
   );
   setCell(row, columns, "memo", escapeFormulaText(lead.memo));
+
+  if (columns.contactCount >= 0) {
+    setCell(row, columns, "contactCount", buildContactCountFormula(leadIdCell));
+  }
 
   return row;
 };

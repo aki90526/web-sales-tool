@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "../../../../src/config/env";
 import { STATUSES, Status } from "../../../../src/domain/lead";
 import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../../../../src/google/salesManagementRepository";
+import { clearRecheckDays, normalizeRecheckInput, setRecheckDays } from "../../../../src/domain/skipTracking";
 import { createSheetsClient } from "../../../../src/google/sheetsClient";
 
 const isStatus = (value: unknown): value is Status => {
@@ -25,7 +26,7 @@ const formatTokyoDateTime = (date: Date): string =>
 // 「元に戻す」のときは、removeLine に、そのとき追記した行を渡すと、ステータスを戻して、その行をメモから消す。
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { leadId?: unknown; status?: unknown; removeLine?: unknown };
+    const body = (await request.json()) as { leadId?: unknown; status?: unknown; removeLine?: unknown; recheckDays?: unknown };
     const leadId = typeof body.leadId === "string" ? body.leadId.trim() : "";
 
     if (!leadId) {
@@ -37,6 +38,13 @@ export async function POST(request: Request) {
         { message: `status must be one of: ${STATUSES.join(", ")}` },
         { status: 400 }
       );
+    }
+
+    // 見送りにするときの、再確認までの日数（日数 / "なし" / 空 = 設定シートの既定）
+    const recheckDays = normalizeRecheckInput(body.recheckDays);
+
+    if (recheckDays === null) {
+      return NextResponse.json({ message: "recheckDays must be a number of days (1-3650) or \"なし\"" }, { status: 400 });
     }
 
     const removeLine = typeof body.removeLine === "string" ? body.removeLine.trim() : "";
@@ -57,7 +65,13 @@ export async function POST(request: Request) {
     const previousStatus = lead.status;
 
     if (previousStatus === body.status && !removeLine) {
-      return NextResponse.json({ leadId, status: body.status, previousStatus, memo: lead.memo, historyLine: "" });
+      // すでに見送りのリードで、再確認までの日数だけを変える場合
+      if (body.status === "見送り" && body.recheckDays !== undefined) {
+        await setRecheckDays(sheets, table, lead, recheckDays);
+        return NextResponse.json({ leadId, status: body.status, previousStatus, memo: lead.memo, historyLine: "", recheckDays });
+      }
+
+      return NextResponse.json({ leadId, status: body.status, previousStatus, memo: lead.memo, historyLine: "", recheckDays: lead.recheckDays });
     }
 
     let memo = lead.memo;
@@ -83,7 +97,18 @@ export async function POST(request: Request) {
       await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[memo]]);
     }
 
-    return NextResponse.json({ leadId, status: body.status, previousStatus, memo, historyLine });
+    // 見送りにしたら、再確認までの日数を書く。見送りでなくなったら、その指定を消す
+    let nextRecheckDays = lead.recheckDays;
+
+    if (body.status === "見送り" && previousStatus !== "見送り" && !removeLine) {
+      await setRecheckDays(sheets, table, lead, recheckDays);
+      nextRecheckDays = recheckDays;
+    } else if (previousStatus === "見送り" && body.status !== "見送り") {
+      await clearRecheckDays(sheets, table, lead);
+      nextRecheckDays = "";
+    }
+
+    return NextResponse.json({ leadId, status: body.status, previousStatus, memo, historyLine, recheckDays: nextRecheckDays });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ message }, { status: 500 });

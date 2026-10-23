@@ -2,6 +2,7 @@
 
 import { CheckCircle2, ExternalLink, FileText, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles } from "lucide-react";
 import ActionMenu from "./ActionMenu";
+import { skipPeriodLabel } from "../components/SkipPeriodDialog";
 import { STATUSES } from "../../src/domain/lead";
 
 export type CardLead = {
@@ -16,6 +17,8 @@ export type CardLead = {
   salesScore: number;
   status: string;
   memo: string;
+  contactCount?: number;
+  recheckDays?: string;
 };
 
 export type CardNotice = { status: "success" | "failed"; text: string };
@@ -39,6 +42,7 @@ type LeadCardsProps<T extends CardLead> = {
   onAutoFill: (lead: T) => void;
   onManualFill: (lead: T) => void;
   onMarkFormSent: (lead: T) => void;
+  onChangeRecheck: (lead: T) => void;
 };
 
 // メモ欄の高さを、内容に合わせる（普段は最大3行まで。編集中は全文を表示する。上限はCSS側）
@@ -104,6 +108,21 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                   </option>
                 ))}
               </select>
+              {(lead.contactCount ?? 0) > 0 && (
+                <span className="skip-count-badge" title="これまでに連絡した回数（送信済みの件数）">
+                  連絡{lead.contactCount}回
+                </span>
+              )}
+              {lead.status === "見送り" && (
+                <button
+                  className="skip-count-badge"
+                  type="button"
+                  onClick={() => props.onChangeRecheck(lead)}
+                  title="見送りの再確認までの期間（クリックで変更）"
+                >
+                  再確認 {skipPeriodLabel(lead.recheckDays ?? "")}
+                </button>
+              )}
               {/* 連絡方法は、想定する連絡方法（メール・フォーム）か、未定だけを表示する。連絡先の登録・変更は、「連絡先」メニューから */}
               {isForm && hasFormUrl ? (
                 <a className={props.methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer" title={`フォームを開く（${lead.contactFormUrl}）`}>

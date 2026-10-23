@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Check, CheckCircle2, Copy, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
+import SkipPeriodDialog, { skipPeriodLabel } from "../components/SkipPeriodDialog";
 import ActionMenu, { type ActionMenuItem } from "./ActionMenu";
 import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
@@ -24,6 +25,9 @@ type Lead = {
   lastApproachDate: string;
   nextActionDate: string;
   memo: string;
+  // 連絡した回数（送信済みの件数）と、見送りの再確認までの日数（空欄 = 既定、「なし」 = 再確認しない）
+  contactCount?: number;
+  recheckDays?: string;
 };
 
 const ALL = "すべて";
@@ -78,6 +82,7 @@ export default function LeadsPage() {
   const [autoRecordedLeadIds, setAutoRecordedLeadIds] = useState<Set<string>>(new Set());
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [skipDialog, setSkipDialog] = useState<{ lead: Lead; mode: "status" | "edit" } | null>(null);
   const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string } | null>(null);
   const [messageContent, setMessageContent] = useState<{ subject: string; body: string } | null>(null);
   const [messageLoading, setMessageLoading] = useState(false);
@@ -301,8 +306,14 @@ export default function LeadsPage() {
     }
   };
 
-  const updateStatus = async (lead: Lead, nextStatus: string) => {
+  // 見送りにするときは、再確認までの期間を選んでもらう（recheckDays が未指定のときはダイアログを開く）
+  const updateStatus = async (lead: Lead, nextStatus: string, recheckDays?: string) => {
     if (nextStatus === lead.status) return;
+
+    if (nextStatus === "見送り" && recheckDays === undefined) {
+      setSkipDialog({ lead, mode: "status" });
+      return;
+    }
 
     // フォームのリードを「送信済み」にするときは、送信の記録（アプローチ履歴）も残すかを確認する。
     // 履歴がないと、月別のグラフや返信の検知の対象にならない
@@ -330,12 +341,16 @@ export default function LeadsPage() {
       const res = await fetch("/api/leads/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: lead.leadId, status: nextStatus })
+        body: JSON.stringify({ leadId: lead.leadId, status: nextStatus, ...(recheckDays !== undefined ? { recheckDays } : {}) })
       });
       const body = await res.json();
       if (!res.ok) {
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
+
+      setLeads((current) =>
+        current ? current.map((entry) => (entry.leadId === lead.leadId ? { ...entry, recheckDays: body.recheckDays ?? "" } : entry)) : current
+      );
 
       // 変更の履歴がメモに追記されるので、画面のメモも更新し、「元に戻す」を出す
       setLeads((current) =>
@@ -355,6 +370,27 @@ export default function LeadsPage() {
       setStatusError(err instanceof Error ? err.message : "ステータスの更新に失敗しました");
     } finally {
       setUpdatingLeadId(null);
+    }
+  };
+
+  // すでに見送りのリードの、再確認までの期間だけを変える
+  const changeRecheckDays = async (lead: Lead, recheckDays: string) => {
+    setStatusError(null);
+
+    try {
+      const res = await fetch("/api/leads/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.leadId, status: "見送り", recheckDays })
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+
+      setLeads((current) => (current ? current.map((entry) => (entry.leadId === lead.leadId ? { ...entry, recheckDays: body.recheckDays ?? "" } : entry)) : current));
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : "再確認の期間を更新できませんでした");
     }
   };
 
@@ -414,7 +450,11 @@ export default function LeadsPage() {
         }
         setLeads((current) =>
           current
-            ? current.map((entry) => (entry.leadId === info.leadId ? { ...entry, status: info.previousStatus, memo: body.memo ?? entry.memo } : entry))
+            ? current.map((entry) =>
+                entry.leadId === info.leadId
+                  ? { ...entry, status: info.previousStatus, memo: body.memo ?? entry.memo, recheckDays: body.recheckDays ?? "" }
+                  : entry
+              )
             : current
         );
       }
@@ -682,6 +722,15 @@ export default function LeadsPage() {
       );
     }
 
+    if (lead.status === "見送り") {
+      items.push({
+        key: "recheck-days",
+        label: `再確認の期間を変更（${skipPeriodLabel(lead.recheckDays ?? "")}）`,
+        icon: <RefreshCw size={15} />,
+        onClick: () => setSkipDialog({ lead, mode: "edit" })
+      });
+    }
+
     // 連絡先の登録・変更（登録済みなら変更、未登録なら登録として使える）
     items.push(
       {
@@ -813,7 +862,8 @@ export default function LeadsPage() {
               notices={cardNotices}
               statusClass={statusClass}
               methodClass={methodClass}
-              onStatusChange={updateStatus}
+              onStatusChange={(lead, status) => updateStatus(lead, status)}
+              onChangeRecheck={(lead) => setSkipDialog({ lead, mode: "edit" })}
               onMemoSave={updateMemo}
               onEditFormUrl={editFormUrl}
               onEditEmail={editEmail}
@@ -941,6 +991,21 @@ export default function LeadsPage() {
                             </option>
                           ))}
                         </select>
+                        {(lead.contactCount ?? 0) > 0 && (
+                          <span className="skip-count-badge" title="これまでに連絡した回数（送信済みの件数）">
+                            連絡{lead.contactCount}回
+                          </span>
+                        )}
+                        {lead.status === "見送り" && (
+                          <button
+                            className="skip-count-badge"
+                            type="button"
+                            onClick={() => setSkipDialog({ lead, mode: "edit" })}
+                            title="見送りの再確認までの期間（クリックで変更）"
+                          >
+                            再確認 {skipPeriodLabel(lead.recheckDays ?? "")}
+                          </button>
+                        )}
                       </td>
                       <td className="col-memo">
                         <textarea
@@ -976,6 +1041,25 @@ export default function LeadsPage() {
       </section>
 
       <UndoToast toast={undoToast} onUndo={undoStatusChange} onClose={() => setUndoToast(null)} />
+
+      {skipDialog && (
+        <SkipPeriodDialog
+          title={skipDialog.mode === "status" ? "見送りにする" : "再確認の期間を変更"}
+          companyName={`${skipDialog.lead.leadId} ${skipDialog.lead.companyName}`}
+          initialValue={skipDialog.mode === "edit" ? skipDialog.lead.recheckDays ?? "" : ""}
+          confirmLabel={skipDialog.mode === "status" ? "見送りにする" : "変更する"}
+          onCancel={() => setSkipDialog(null)}
+          onConfirm={(value) => {
+            const { lead, mode } = skipDialog;
+            setSkipDialog(null);
+            if (mode === "status") {
+              void updateStatus(lead, "見送り", value);
+            } else {
+              void changeRecheckDays(lead, value);
+            }
+          }}
+        />
+      )}
 
       {messageModal && (
         <div className="modal-backdrop" onClick={closeMessage}>

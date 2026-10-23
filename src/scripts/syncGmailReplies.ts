@@ -11,6 +11,7 @@ import {
 import { isBounceSubject, parseBounce } from "../email/bounceDetection";
 import { detectOptOut } from "../email/optOutDetection";
 import { recheckRejectedLeads } from "../collection/rejectedRecheck";
+import { todayInTokyo } from "../domain/resend";
 import { revertDueResends } from "../domain/resendRevert";
 import { createGmailClient, GmailClient, GmailMessageMetadata } from "../google/gmailClient";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
@@ -554,6 +555,8 @@ const syncBounces = async (
     );
 
     if (!dryRun) {
+      let skipLine = "";
+
       await sheets.updateValues(`'${SHEETS.approachHistory}'!I${history.rowNumber}:J${history.rowNumber}`, [
         ["不達", [history.memo, reasonText].filter(Boolean).join("\n")]
       ]);
@@ -564,10 +567,12 @@ const syncBounces = async (
           await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["送信待ち" as Status]]);
         } else {
           await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["見送り" as Status]]);
+          // 見送りの再確認の起点になる、見送りにした日の記録
+          skipLine = `ステータス変更: ${lead.status || "(空)"} → 見送り (${todayInTokyo()})`;
         }
       }
 
-      const memoLines = [lead.memo, reasonText, actionLine].filter(Boolean).join("\n");
+      const memoLines = [lead.memo, reasonText, actionLine, skipLine].filter(Boolean).join("\n");
       await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[memoLines]]);
       lead.memo = memoLines;
     }

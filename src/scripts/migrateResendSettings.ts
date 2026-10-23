@@ -1,6 +1,6 @@
 import { loadConfig } from "../config/env";
 import { FOLLOW_UP_DEFAULTS } from "../contact/salesMessage";
-import { buildNextActionDateFormula, DEFAULT_RESEND_SETTINGS, RESEND_SETTING_KEYS, SHEETS } from "../domain/lead";
+import { buildContactCountFormula, buildNextActionDateFormula, DEFAULT_RESEND_SETTINGS, RESEND_SETTING_KEYS, SHEETS } from "../domain/lead";
 import { columnLetter } from "../google/salesManagementRepository";
 import { createSheetsClient } from "../google/sheetsClient";
 
@@ -8,6 +8,7 @@ import { createSheetsClient } from "../google/sheetsClient";
 //  1. 設定シートに「再送間隔日数（2回目以降）」「見送り再確認間隔日数」の行を追加
 //  2. メッセージテンプレートシートに「用途」「連絡方法」の列と、再送用の文面（4行）を追加
 //  3. 営業管理の「次回対応日」の数式を、送信回数に応じた間隔で計算するものに更新
+//  4. 営業管理に「連絡回数」（数式）「再確認までの日数」の列を用意する
 
 const dryRun = process.argv.includes("--dry-run");
 
@@ -122,6 +123,41 @@ const main = async (): Promise<void> => {
   }
 
   console.log(`営業管理の次回対応日の数式を更新: ${updated} 行${dryRun ? "（dry-run）" : ""}`);
+
+  // 4. 営業管理の「連絡回数」（数式）と「再確認までの日数」の列
+  const renamed = headers.indexOf("見送り回数");
+  const workingHeaders = [...headers];
+
+  if (renamed >= 0) {
+    workingHeaders[renamed] = "連絡回数";
+    await write(`'${SHEETS.salesManagement}'!${columnLetter(renamed)}1`, [["連絡回数"]]);
+    console.log("営業管理の列名を「見送り回数」から「連絡回数」に変更しました");
+  }
+
+  const newHeaders = ["連絡回数", "再確認までの日数"].filter((name) => !workingHeaders.includes(name));
+
+  if (newHeaders.length > 0) {
+    const firstColumn = workingHeaders.length;
+
+    if (!dryRun) {
+      await sheets.ensureColumns(SHEETS.salesManagement, firstColumn + newHeaders.length);
+    }
+
+    await write(`'${SHEETS.salesManagement}'!${columnLetter(firstColumn)}1:${columnLetter(firstColumn + newHeaders.length - 1)}1`, [newHeaders]);
+    workingHeaders.push(...newHeaders);
+    console.log(`営業管理に列を追加しました: ${newHeaders.join(" / ")}`);
+  }
+
+  // 連絡回数は、アプローチ履歴の「送信済み」（不達を除く）の件数。数式で入れる
+  const countColumn = workingHeaders.indexOf("連絡回数");
+  const countFormulas = managementFormulas.slice(1).map((_, index) => {
+    const rowNumber = index + 2;
+    return [buildContactCountFormula(`${columnLetter(leadIdColumn)}${rowNumber}`)];
+  });
+  const countLetter = columnLetter(countColumn);
+
+  await write(`'${SHEETS.salesManagement}'!${countLetter}2:${countLetter}${countFormulas.length + 1}`, countFormulas, true);
+  console.log(`連絡回数の数式を記入: ${countFormulas.length} 行${dryRun ? "（dry-run）" : ""}`);
 };
 
 main().catch((error: unknown) => {

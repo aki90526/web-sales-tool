@@ -1,6 +1,7 @@
 import { loadConfig } from "../config/env";
 import { STATUSES, Status } from "../domain/lead";
 import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../google/salesManagementRepository";
+import { normalizeRecheckInput, setRecheckDays } from "../domain/skipTracking";
 import { createSheetsClient } from "../google/sheetsClient";
 
 const printHelp = (): void => {
@@ -12,6 +13,7 @@ Options:
   --lead-id    ステータスを変更するリードID（必須）
   --status     変更後のステータス（${STATUSES.join(" / ")}）
   --note       理由など。メモ欄に「ステータス変更: ...」として追記します
+  --recheck-days  見送りにするときの、再確認までの日数（数字 / なし）。省略時は設定シートの既定
 `);
 };
 
@@ -39,6 +41,7 @@ const main = async (): Promise<void> => {
   let leadId = "";
   let status = "";
   let note = "";
+  let recheckDaysArg = "";
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -54,6 +57,9 @@ const main = async (): Promise<void> => {
       index += 1;
     } else if (arg === "--note") {
       note = nextValue(args, index, "--note");
+      index += 1;
+    } else if (arg === "--recheck-days") {
+      recheckDaysArg = nextValue(args, index, "--recheck-days");
       index += 1;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
@@ -76,10 +82,20 @@ const main = async (): Promise<void> => {
     throw new Error(`Lead not found: ${leadId}`);
   }
 
+  const recheckDays = normalizeRecheckInput(recheckDaysArg);
+
+  if (recheckDays === null) {
+    throw new Error('--recheck-days must be a number of days (1-3650) or "なし"');
+  }
+
   const line = `ステータス変更: ${lead.status || "(空)"} → ${status} (${formatTokyoDate(new Date())})${note ? ` ${note}` : ""}`;
 
   await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [[status as Status]]);
   await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[lead.memo ? `${lead.memo}\n${line}` : line]]);
+
+  if (status === "見送り" && lead.status !== "見送り") {
+    await setRecheckDays(sheets, table, lead, recheckDays);
+  }
 
   console.log(`${lead.leadId} ${lead.companyName}: ${lead.status || "(空)"} -> ${status}`);
   console.log(`[DASHBOARD_UPDATE] leadId=${lead.leadId} company=${lead.companyName} type=status detail=${lead.status || "(空)"} → ${status}`);

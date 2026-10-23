@@ -1,5 +1,6 @@
 import { daysBetween, readResendSettings, todayInTokyo } from "../domain/resend";
 import { SHEETS } from "../domain/lead";
+import { clearRecheckDays, parseRecheckSetting } from "../domain/skipTracking";
 import { detectSalesForbidden } from "../domain/salesForbiddenDetection";
 import { fieldRangeForRow, readSalesManagementTable, SalesManagementLead, statusRangeForRow } from "../google/salesManagementRepository";
 import { SheetsClient } from "../google/sheetsClient";
@@ -9,14 +10,12 @@ import { checkFormPresence, excludeRequestOnlyForm, isRequestOnlyForm, verifyCon
 import { findEmailOnSite } from "./emailFinder";
 
 // 「見送り」のリードを、一定の間隔で再確認する。
-//  公式サイトが開く / 営業お断りの記載がない / 連絡先（メールかフォーム）がある / フォームが依頼・予約専用ではない、を満たせば「送信できる」と判断する。
-//  ただし「送信待ち」に自動で戻すのは、次のどちらかの場合だけにする（過去に送信を試して失敗した連絡先を、くり返し試さないため）。
-//   - 連絡先が未登録だったが、今回見つかった
-//   - 以前はサイトが開けず見送りにしていたが、今回は開いた
-//  それ以外は見送りのまま、確認日だけをメモに残す。「除外」と、返信のあったリードは対象外。
+//  公式サイトが開く / 営業お断りの記載がない / 連絡先（メールかフォーム）がある / フォームが依頼・予約専用ではない、を満たせば「送信できる」と判断し、「送信待ち」に戻す。
+//  （以前に送信を試して失敗した連絡先でも、直っている可能性があるため、戻す）
+//  間隔は、リードごとの「再確認までの日数」があればそれ、なければ設定シートの「見送り再確認間隔日数」。「なし」のリードは再確認しない。
+//  「除外」と、返信のあったリードは対象外。
 
 const RECHECK_LINE_PREFIX = "見送りの再確認:";
-const SITE_DOWN_MEMO_PATTERN = /(サイトが開け|サイトにアクセスできな|サイトが表示されな|サイトが見られな|公式サイトが開け)/;
 const REACTED_REPLY_STATUSES = new Set(["返信あり", "再送案内"]);
 
 export type RecheckResult = {
@@ -135,21 +134,14 @@ const assessLead = async (lead: SalesManagementLead): Promise<Assessment> => {
   return { sendable: false, reason: "連絡先を見つけられない" };
 };
 
+// 最後に確認した日、または見送りにした日（メモの記録）のうち、新しい方。記録がなければ空（すぐ確認する）
 const lastCheckedDate = (memo: string): string => {
-  const lines = memo.split("\n");
-  const recheck = lines.filter((line) => line.startsWith(RECHECK_LINE_PREFIX)).pop();
-  const fromRecheck = recheck ? /(\d{4}-\d{2}-\d{2})/.exec(recheck)?.[1] : undefined;
+  const dates = memo
+    .split("\n")
+    .filter((line) => line.startsWith(RECHECK_LINE_PREFIX) || /^ステータス変更: .* → 見送り \(\d{4}-\d{2}-\d{2}/.test(line))
+    .map((line) => /(\d{4}-\d{2}-\d{2})/.exec(line)?.[1] ?? "");
 
-  if (fromRecheck) {
-    return fromRecheck;
-  }
-
-  // 見送りにした日（ステータス変更の履歴）を起点にする。履歴がなければ空（すぐ確認する）
-  const changed = lines
-    .filter((line) => /^ステータス変更: .* → 見送り \(\d{4}-\d{2}-\d{2}/.test(line))
-    .pop();
-
-  return changed ? (/(\d{4}-\d{2}-\d{2})/.exec(changed)?.[1] ?? "") : "";
+  return dates.sort().pop() ?? "";
 };
 
 const replaceRecheckLine = (memo: string, line: string): string => {
@@ -185,8 +177,12 @@ export const recheckRejectedLeads = async (
   const due = table.leads
     .filter((lead) => lead.status === "見送り" && !reacted.has(lead.leadId) && lead.officialSiteUrl)
     .filter((lead) => !options.leadIds || options.leadIds.includes(lead.leadId))
-    .map((lead) => ({ lead, last: lastCheckedDate(lead.memo) }))
-    .filter(({ last }) => !last || daysBetween(last, today) >= settings.recheckIntervalDays)
+    .map((lead) => ({ lead, last: lastCheckedDate(lead.memo), setting: parseRecheckSetting(lead.recheckDays) }))
+    .filter(({ setting }) => setting.kind !== "never")
+    .filter(({ last, setting }) => {
+      const interval = setting.kind === "days" ? setting.days : settings.recheckIntervalDays;
+      return !last || options.leadIds !== undefined || daysBetween(last, today) >= interval;
+    })
     // 確認日が古い（または未確認の）ものから先に確認する
     .sort((a, b) => a.last.localeCompare(b.last))
     .slice(0, options.limit);
@@ -197,16 +193,13 @@ export const recheckRejectedLeads = async (
     }
 
     const assessment = await assessLead(lead);
-    const wasSiteDown = SITE_DOWN_MEMO_PATTERN.test(lead.memo);
     const newContact = Boolean(assessment.foundFormUrl || assessment.foundEmail);
-    const revive = assessment.sendable && (newContact || wasSiteDown);
+    const revive = assessment.sendable;
     let line: string;
 
     if (revive) {
       const contact = assessment.foundEmail || assessment.foundFormUrl || lead.emailAddress || lead.contactFormUrl;
-      line = `${RECHECK_LINE_PREFIX}${newContact ? "連絡先を確認できたため" : "サイトを開けるようになったため"}送信待ちに変更 (${today}) ${contact}`;
-    } else if (assessment.sendable) {
-      line = `${RECHECK_LINE_PREFIX}${today} 確認。公式サイトと連絡先は確認できたが、見送りの理由が残っているため見送りのまま`;
+      line = `${RECHECK_LINE_PREFIX}${newContact ? "連絡先を確認できたため" : "公式サイトと連絡先を確認できたため"}送信待ちに変更 (${today}) ${contact}`;
     } else {
       line = `${RECHECK_LINE_PREFIX}${today} 確認。見送りのまま（${assessment.reason}）`;
     }
@@ -226,6 +219,7 @@ export const recheckRejectedLeads = async (
         }
 
         await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["送信待ち"]]);
+        await clearRecheckDays(sheets, table, lead);
       }
 
       await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[replaceRecheckLine(lead.memo, line)]]);

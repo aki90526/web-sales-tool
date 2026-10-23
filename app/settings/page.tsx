@@ -224,7 +224,7 @@ export default function SettingsPage() {
               見送りの再確認（日）
               <input type="number" min={1} max={3650} value={intervals.recheckIntervalDays || ""} onChange={(event) => setInterval("recheckIntervalDays", event.target.value)} />
               <small className="panel-caption">
-                「見送り」のリードの公式サイト・連絡先を確認し直す間隔。「除外」にしたリードと、返信のあったリードは対象外です
+                「見送り」のリードの公式サイト・連絡先を確認し直す間隔（リードごとに期間を決めていない場合に使います。リードごとの期間は、見送りにするときに選べます）。「除外」にしたリードと、返信のあったリードは対象外です
               </small>
             </label>
           </div>

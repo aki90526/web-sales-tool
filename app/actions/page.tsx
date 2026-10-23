@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
+import SkipPeriodDialog from "../components/SkipPeriodDialog";
 import CandidatePanel, { isManualOnly, type Candidate } from "./CandidatePanel";
 import ResultBar from "./ResultBar";
 import ResultDock from "./ResultDock";
@@ -41,6 +42,7 @@ export default function ActionsPage() {
   const [selection, setSelection] = useState<{ touched: boolean; ids: string[] }>({ touched: false, ids: [] });
   const [candidateNotice, setCandidateNotice] = useState<string | null>(null);
   const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [skipDialogLead, setSkipDialogLead] = useState<Candidate | null>(null);
   const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
   const undoInfo = useRef<{ leadId: string; previousStatus: string; historyLine: string } | null>(null);
   const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string } | null>(null);
@@ -186,12 +188,18 @@ export default function ActionsPage() {
     }
   };
 
-  const changeCandidateStatus = async (lead: Candidate, status: string) => {
+  const changeCandidateStatus = async (lead: Candidate, status: string, recheckDays?: string) => {
+    // 見送りにするときは、再確認までの期間を選んでもらう
+    if (status === "見送り" && recheckDays === undefined) {
+      setSkipDialogLead(lead);
+      return;
+    }
+
     try {
       const res = await fetch("/api/leads/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: lead.leadId, status })
+        body: JSON.stringify({ leadId: lead.leadId, status, ...(recheckDays !== undefined ? { recheckDays } : {}) })
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
@@ -1093,6 +1101,20 @@ export default function ActionsPage() {
       )}
 
       <UndoToast toast={undoToast} onUndo={undoCandidateStatus} onClose={() => setUndoToast(null)} />
+
+      {skipDialogLead && (
+        <SkipPeriodDialog
+          title="見送りにする"
+          companyName={`${skipDialogLead.leadId} ${skipDialogLead.companyName}`}
+          confirmLabel="見送りにする"
+          onCancel={() => setSkipDialogLead(null)}
+          onConfirm={(value) => {
+            const lead = skipDialogLead;
+            setSkipDialogLead(null);
+            void changeCandidateStatus(lead, "見送り", value);
+          }}
+        />
+      )}
 
       <ResultDock watchEntries={watchEntries} watchLoaded={watchLoaded} onOpenLog={() => { setLogTab("watch"); setLogOpen(true); }} />
 

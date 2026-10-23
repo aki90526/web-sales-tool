@@ -24,6 +24,11 @@ export const DEFAULT_RESEND_SETTINGS = {
   recheckIntervalDays: 30
 } as const;
 
+// 営業管理の「連絡回数」。アプローチ履歴の「送信済み」（不達を除く）の件数
+export const buildContactCountFormula = (leadIdCell: string): string => {
+  return `=IF(${leadIdCell}="","",COUNTIFS('アプローチ履歴'!$A:$A,${leadIdCell},'アプローチ履歴'!$H:$H,"送信済み",'アプローチ履歴'!$I:$I,"<>不達"))`;
+};
+
 // 営業管理の「次回対応日」。送信済みが1回なら初回の間隔、2回目以降なら「2回目以降」の間隔を足す。
 export const buildNextActionDateFormula = (leadIdCell: string, lastApproachDateCell: string): string => {
   const sentCount = `COUNTIFS('アプローチ履歴'!$A:$A,${leadIdCell},'アプローチ履歴'!$H:$H,"送信済み")`;

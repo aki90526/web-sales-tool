@@ -17,6 +17,10 @@ export type SalesManagementLead = {
   lastApproachDate: string;
   nextActionDate: string;
   memo: string;
+  // 連絡した回数（アプローチ履歴の「送信済み」の件数。不達は除く。シートの数式で計算される）
+  contactCount: number;
+  // 見送りの再確認までの日数。空欄は設定シートの既定、「なし」は再確認しない
+  recheckDays: string;
 };
 
 export type SalesManagementColumnMap = {
@@ -34,6 +38,9 @@ export type SalesManagementColumnMap = {
   lastApproachDate: number;
   nextActionDate: number;
   memo: number;
+  // 見送りの管理用の列。シートに無い間は -1（npm run settings:migrate-resend で追加する）
+  contactCount: number;
+  recheckDays: number;
 };
 
 export type SalesManagementTable = {
@@ -56,8 +63,12 @@ const HEADER_ALIASES: Record<keyof SalesManagementColumnMap, string[]> = {
   status: ["ステータス"],
   lastApproachDate: ["最終アプローチ日"],
   nextActionDate: ["次回対応日"],
-  memo: ["メモ"]
+  memo: ["メモ"],
+  contactCount: ["連絡回数"],
+  recheckDays: ["再確認までの日数"]
 };
+
+const OPTIONAL_COLUMNS: ReadonlyArray<keyof SalesManagementColumnMap> = ["contactCount", "recheckDays"];
 
 const RANGE = `'${SHEETS.salesManagement}'!A:AZ`;
 
@@ -92,6 +103,10 @@ const buildColumnMap = (headers: string[]): SalesManagementColumnMap => {
   const entries = Object.entries(HEADER_ALIASES).map(([key, aliases]) => {
     const index = findColumnIndex(headers, aliases);
 
+    if (index === -1 && OPTIONAL_COLUMNS.includes(key as keyof SalesManagementColumnMap)) {
+      return [key, -1];
+    }
+
     if (index === -1) {
       throw new Error(`Missing required column in ${SHEETS.salesManagement}: ${aliases.join(" / ")}`);
     }
@@ -122,7 +137,9 @@ const toLead = (
     status: cell(row, columns.status),
     lastApproachDate: cell(row, columns.lastApproachDate),
     nextActionDate: cell(row, columns.nextActionDate),
-    memo: cell(row, columns.memo)
+    memo: cell(row, columns.memo),
+    contactCount: columns.contactCount >= 0 ? parseScore(cell(row, columns.contactCount)) : 0,
+    recheckDays: columns.recheckDays >= 0 ? cell(row, columns.recheckDays) : ""
   };
 };
 
