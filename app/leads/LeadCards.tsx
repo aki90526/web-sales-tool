@@ -32,6 +32,7 @@ type LeadCardsProps<T extends CardLead> = {
   onStatusChange: (lead: T, status: string) => void;
   onMemoSave: (lead: T, memo: string) => void;
   onEditFormUrl: (lead: T) => void;
+  onEditEmail: (lead: T) => void;
   onShowMessage: (lead: T) => void;
   onSendEmail: (lead: T) => void;
   onAutoFill: (lead: T) => void;
@@ -119,6 +120,14 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                   <Pencil size={13} />
                 </button>
               )}
+              <button
+                className="btn secondary icon-only"
+                type="button"
+                onClick={() => props.onEditEmail(lead)}
+                title={lead.emailAddress ? `メールアドレスを変更（${lead.emailAddress}）` : "メールアドレスを登録"}
+              >
+                {lead.emailAddress ? <Pencil size={13} /> : <Mail size={13} />}
+              </button>
             </div>
 
             <div className="lead-card-links">

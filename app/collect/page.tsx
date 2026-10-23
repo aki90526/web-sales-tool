@@ -103,8 +103,8 @@ export default function CollectPage() {
   const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
   // メモを全文表示している候補（普段は4行まで）
   const [expandedMemos, setExpandedMemos] = useState<number[]>([]);
-  // フォームURLをその場で追加・変更している候補（番号と入力中のURL）
-  const [editingContact, setEditingContact] = useState<{ index: number; draft: string; error: string } | null>(null);
+  // フォームURL・メールアドレスをその場で追加・変更している候補（番号・項目・入力中の値）
+  const [editingContact, setEditingContact] = useState<{ index: number; field: "contactUrl" | "email"; draft: string; error: string } | null>(null);
 
   useEffect(() => {
     setSelectedIndexes(preview ? preview.candidates.map((_, index) => index) : []);
@@ -250,14 +250,18 @@ export default function CollectPage() {
     });
   };
 
-  // 候補のフォームURLを、プレビューの時点で追加・変更する。登録するときは、この内容が使われる。
+  // 候補のフォームURL・メールアドレスを、プレビューの時点で追加・変更する。登録するときは、この内容が使われる。
   // 「連絡先なし」で見送りになっていた候補は、AIの見送り判断や除外理由が無ければ、送信待ちに戻す
-  const saveContactUrl = (index: number) => {
+  const saveContact = (index: number) => {
     if (!editingContact || !preview) return;
-    const url = editingContact.draft.trim();
+    const value = editingContact.draft.trim();
+    const isEmail = editingContact.field === "email";
 
-    if (!/^https?:\/\/\S+$/i.test(url)) {
-      setEditingContact({ ...editingContact, error: "http:// または https:// で始まるURLを入力してください" });
+    if (isEmail ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) : !/^https?:\/\/\S+$/i.test(value)) {
+      setEditingContact({
+        ...editingContact,
+        error: isEmail ? "メールアドレスの形式が正しくありません" : "http:// または https:// で始まるURLを入力してください"
+      });
       return;
     }
 
@@ -268,12 +272,13 @@ export default function CollectPage() {
 
         const revive =
           candidate.status === "見送り" && candidate.recommendedApproach !== "見送り" && !candidate.exclusionReason && !candidate.contactUrl && !candidate.email;
+        const line = isEmail ? `メールアドレスを手動で追加: ${value}` : `フォームURLを手動で追加: ${value}`;
 
         return {
           ...candidate,
-          contactUrl: url,
+          ...(isEmail ? { email: value } : { contactUrl: value }),
           status: revive ? "送信待ち" : candidate.status,
-          memo: [candidate.memo, `フォームURLを手動で追加: ${url}`].filter(Boolean).join("\n")
+          memo: [candidate.memo, line].filter(Boolean).join("\n")
         };
       })
     });
@@ -510,42 +515,66 @@ export default function CollectPage() {
                       <td className="cell-nowrap hide-mobile">{candidate.region}</td>
                       <td className="cell-nowrap">
                         {(() => {
-                          // 鉛筆は、フォームURLの追加・変更用。フォームのバッジがあれば、その横に、無ければ、1つだけのバッジの横に置く
-                          const pencil = (
+                          const edit = (field: "contactUrl" | "email") => (
                             <button
                               type="button"
                               className="btn secondary icon-tiny"
-                              title={candidate.contactUrl ? `フォームURLを変更（${candidate.contactUrl}）` : "フォームURLを追加"}
-                              onClick={() => setEditingContact({ index, draft: candidate.contactUrl || "", error: "" })}
+                              title={
+                                field === "email"
+                                  ? candidate.email
+                                    ? `メールアドレスを変更（${candidate.email}）`
+                                    : "メールアドレスを追加"
+                                  : candidate.contactUrl
+                                  ? `フォームURLを変更（${candidate.contactUrl}）`
+                                  : "フォームURLを追加"
+                              }
+                              onClick={() => setEditingContact({ index, field, draft: (field === "email" ? candidate.email : candidate.contactUrl) || "", error: "" })}
                             >
                               <Pencil size={11} />
+                            </button>
+                          );
+                          const add = (field: "contactUrl" | "email") => (
+                            <button
+                              type="button"
+                              className="btn secondary add-contact"
+                              onClick={() => setEditingContact({ index, field, draft: "", error: "" })}
+                              title={field === "email" ? "メールアドレスを追加" : "フォームURLを追加"}
+                            >
+                              ＋{field === "email" ? "メール" : "フォーム"}
                             </button>
                           );
 
                           return (
                             <div className="method-stack">
-                              {candidate.email && (
-                                <span className="method-line">
-                                  <span className={contactMethodClass(candidate)} title={candidate.email}>
-                                    メール
-                                  </span>
-                                  {!candidate.contactUrl && pencil}
-                                </span>
-                              )}
-                              {candidate.contactUrl && (
-                                <span className="method-line">
-                                  <a className="method-badge form" href={candidate.contactUrl} target="_blank" rel="noreferrer" title={candidate.contactUrl}>
-                                    フォーム
-                                  </a>
-                                  {pencil}
-                                </span>
-                              )}
                               {!candidate.email && !candidate.contactUrl && (
                                 <span className="method-line">
                                   <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
-                                  {pencil}
                                 </span>
                               )}
+                              <span className="method-line">
+                                {candidate.email ? (
+                                  <>
+                                    <span className={contactMethodClass(candidate)} title={candidate.email}>
+                                      メール
+                                    </span>
+                                    {edit("email")}
+                                  </>
+                                ) : (
+                                  add("email")
+                                )}
+                              </span>
+                              <span className="method-line">
+                                {candidate.contactUrl ? (
+                                  <>
+                                    <a className="method-badge form" href={candidate.contactUrl} target="_blank" rel="noreferrer" title={candidate.contactUrl}>
+                                      フォーム
+                                    </a>
+                                    {edit("contactUrl")}
+                                  </>
+                                ) : (
+                                  add("contactUrl")
+                                )}
+                              </span>
                             </div>
                           );
                         })()}
@@ -556,13 +585,13 @@ export default function CollectPage() {
                               autoFocus
                               onChange={(event) => setEditingContact({ ...editingContact, draft: event.target.value, error: "" })}
                               onKeyDown={(event) => {
-                                if (event.key === "Enter") saveContactUrl(index);
+                                if (event.key === "Enter") saveContact(index);
                                 if (event.key === "Escape") setEditingContact(null);
                               }}
-                              placeholder="https://example.com/contact/"
-                              aria-label={`${candidate.companyName} のフォームURL`}
+                              placeholder={editingContact.field === "email" ? "info@example.com" : "https://example.com/contact/"}
+                              aria-label={`${candidate.companyName} の${editingContact.field === "email" ? "メールアドレス" : "フォームURL"}`}
                             />
-                            <button type="button" className="btn primary icon-only" onClick={() => saveContactUrl(index)} title="保存">
+                            <button type="button" className="btn primary icon-only" onClick={() => saveContact(index)} title="保存">
                               <Check size={14} />
                             </button>
                             <button type="button" className="btn secondary icon-only" onClick={() => setEditingContact(null)} title="キャンセル">

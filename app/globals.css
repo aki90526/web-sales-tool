@@ -2229,3 +2229,13 @@ a.method-badge:hover {
   align-items: center;
   gap: 4px;
 }
+
+/* 連絡先の「＋メール」「＋フォーム」ボタン（検索結果プレビュー） */
+.btn.add-contact {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}

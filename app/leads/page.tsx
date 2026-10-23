@@ -94,7 +94,11 @@ export default function LeadsPage() {
   const [cardNotices, setCardNotices] = useState<Record<string, CardNotice>>({});
   // ステータスを変えた直後の「元に戻す」通知
   const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
-  const undoInfo = useRef<{ leadId: string; previousStatus: string; historyLine: string } | null>(null);
+  const undoInfo = useRef<
+    | { kind: "status"; leadId: string; previousStatus: string; historyLine: string }
+    | { kind: "email"; leadId: string; restore: { email: string; contactMethod: string; status: string }; removeLine: string }
+    | null
+  >(null);
 
   useEffect(() => {
     try {
@@ -204,6 +208,52 @@ export default function LeadsPage() {
     }
   };
 
+  // メールアドレスを登録・変更する（サイトの画像で貼られていたアドレスを見つけた場合など）。
+  // 送信前のフォーム・未定のリードは、連絡方法がメールになり、「連絡先なし」で見送りだったリードは、送信待ちに戻る
+  const editEmail = async (lead: Lead) => {
+    const input = window.prompt(`${lead.companyName}（${lead.leadId}）のメールアドレス`, lead.emailAddress);
+    if (input === null) return;
+
+    const nextEmail = input.trim();
+    if (nextEmail === lead.emailAddress) return;
+
+    if (!isValidEmail(nextEmail)) {
+      setStatusError("メールアドレスの形式が正しくありません");
+      return;
+    }
+
+    setStatusError(null);
+
+    try {
+      const res = await fetch("/api/leads/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.leadId, email: nextEmail })
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+
+      setLeads((current) =>
+        current
+          ? current.map((entry) =>
+              entry.leadId === lead.leadId
+                ? { ...entry, emailAddress: body.emailAddress, contactMethod: body.contactMethod, status: body.status, memo: body.memo ?? entry.memo }
+                : entry
+            )
+          : current
+      );
+
+      if (body.historyLine) {
+        undoInfo.current = { kind: "email", leadId: lead.leadId, restore: body.previous, removeLine: body.historyLine };
+        setUndoToast({ key: Date.now(), message: `${lead.leadId} ${lead.companyName} のメールアドレスを登録しました（${body.contactMethod} / ${body.status}）` });
+      }
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : "メールアドレスの更新に失敗しました");
+    }
+  };
+
   const editFormUrl = async (lead: Lead) => {
     const input = window.prompt(`${lead.companyName}（${lead.leadId}）のフォームURL`, lead.contactFormUrl);
     if (input === null) return;
@@ -281,7 +331,7 @@ export default function LeadsPage() {
       );
 
       if (body.historyLine && (STATUSES as readonly string[]).includes(previousStatus)) {
-        undoInfo.current = { leadId: lead.leadId, previousStatus, historyLine: body.historyLine };
+        undoInfo.current = { kind: "status", leadId: lead.leadId, previousStatus, historyLine: body.historyLine };
         setUndoToast({ key: Date.now(), message: `${lead.leadId} ${lead.companyName} を「${nextStatus}」にしました` });
       }
     } catch (err) {
@@ -302,20 +352,41 @@ export default function LeadsPage() {
     if (!info) return;
 
     try {
-      const res = await fetch("/api/leads/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: info.leadId, status: info.previousStatus, removeLine: info.historyLine })
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        throw new Error(body.message ?? `HTTP ${res.status}`);
+      if (info.kind === "email") {
+        const res = await fetch("/api/leads/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: info.leadId, restore: info.restore, removeLine: info.removeLine })
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(body.message ?? `HTTP ${res.status}`);
+        }
+        setLeads((current) =>
+          current
+            ? current.map((entry) =>
+                entry.leadId === info.leadId
+                  ? { ...entry, emailAddress: body.emailAddress, contactMethod: body.contactMethod, status: body.status, memo: body.memo ?? entry.memo }
+                  : entry
+              )
+            : current
+        );
+      } else {
+        const res = await fetch("/api/leads/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: info.leadId, status: info.previousStatus, removeLine: info.historyLine })
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(body.message ?? `HTTP ${res.status}`);
+        }
+        setLeads((current) =>
+          current
+            ? current.map((entry) => (entry.leadId === info.leadId ? { ...entry, status: info.previousStatus, memo: body.memo ?? entry.memo } : entry))
+            : current
+        );
       }
-      setLeads((current) =>
-        current
-          ? current.map((entry) => (entry.leadId === info.leadId ? { ...entry, status: info.previousStatus, memo: body.memo ?? entry.memo } : entry))
-          : current
-      );
     } catch (err) {
       setStatusError(err instanceof Error ? err.message : "元に戻せませんでした");
     }
@@ -704,6 +775,7 @@ export default function LeadsPage() {
               onStatusChange={updateStatus}
               onMemoSave={updateMemo}
               onEditFormUrl={editFormUrl}
+              onEditEmail={editEmail}
               onShowMessage={openMessage}
               onSendEmail={sendEmailToLead}
               onAutoFill={autoFillLead}
@@ -780,6 +852,15 @@ export default function LeadsPage() {
                               <Pencil size={11} />
                             </button>
                           )}
+                          {/* メールアドレスの登録・変更。メールのリードは鉛筆、それ以外は「メールを追加」 */}
+                          <button
+                            className="btn secondary icon-tiny"
+                            type="button"
+                            onClick={() => editEmail(lead)}
+                            title={lead.emailAddress ? `メールアドレスを変更（${lead.emailAddress}）` : "メールアドレスを登録"}
+                          >
+                            {lead.emailAddress ? <Pencil size={11} /> : <Mail size={11} />}
+                          </button>
                         </div>
                       </td>
                       <td><span className="score-badge">{lead.salesScore}</span></td>
