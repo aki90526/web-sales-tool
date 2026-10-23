@@ -509,35 +509,46 @@ export default function CollectPage() {
                       <td className="cell-nowrap hide-mobile">{candidate.leadType}</td>
                       <td className="cell-nowrap hide-mobile">{candidate.region}</td>
                       <td className="cell-nowrap">
-                        <div className="method-row">
-                          <div className="method-stack">
-                          {candidate.email ? (
-                            <span className={contactMethodClass(candidate)} title={candidate.email}>
-                              {contactMethodLabel(candidate)}
-                            </span>
-                          ) : candidate.contactUrl ? (
-                            <a className={contactMethodClass(candidate)} href={candidate.contactUrl} target="_blank" rel="noreferrer" title={candidate.contactUrl}>
-                              {contactMethodLabel(candidate)}
-                            </a>
-                          ) : (
-                            <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
-                          )}
-                          {/* メールがある候補にも、フォームがあれば、フォームへのリンクを出す */}
-                          {candidate.email && candidate.contactUrl && (
-                            <a className="method-badge form" href={candidate.contactUrl} target="_blank" rel="noreferrer" title={candidate.contactUrl}>
-                              フォーム
-                            </a>
-                          )}
-                          </div>
-                          <button
-                            type="button"
-                            className="btn secondary icon-tiny"
-                            title={candidate.contactUrl ? `フォームURLを変更（${candidate.contactUrl}）` : "フォームURLを追加"}
-                            onClick={() => setEditingContact({ index, draft: candidate.contactUrl || "", error: "" })}
-                          >
-                            <Pencil size={11} />
-                          </button>
-                        </div>
+                        {(() => {
+                          // 鉛筆は、フォームURLの追加・変更用。フォームのバッジがあれば、その横に、無ければ、1つだけのバッジの横に置く
+                          const pencil = (
+                            <button
+                              type="button"
+                              className="btn secondary icon-tiny"
+                              title={candidate.contactUrl ? `フォームURLを変更（${candidate.contactUrl}）` : "フォームURLを追加"}
+                              onClick={() => setEditingContact({ index, draft: candidate.contactUrl || "", error: "" })}
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          );
+
+                          return (
+                            <div className="method-stack">
+                              {candidate.email && (
+                                <span className="method-line">
+                                  <span className={contactMethodClass(candidate)} title={candidate.email}>
+                                    メール
+                                  </span>
+                                  {!candidate.contactUrl && pencil}
+                                </span>
+                              )}
+                              {candidate.contactUrl && (
+                                <span className="method-line">
+                                  <a className="method-badge form" href={candidate.contactUrl} target="_blank" rel="noreferrer" title={candidate.contactUrl}>
+                                    フォーム
+                                  </a>
+                                  {pencil}
+                                </span>
+                              )}
+                              {!candidate.email && !candidate.contactUrl && (
+                                <span className="method-line">
+                                  <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
+                                  {pencil}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {editingContact?.index === index && (
                           <div className="url-edit">
                             <input

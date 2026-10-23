@@ -2222,3 +2222,10 @@ a.method-badge:hover {
   padding: 0;
   border-radius: 6px;
 }
+
+/* 連絡方法: 1行ごとに、バッジと（フォームURL用の）鉛筆を横に並べる */
+.method-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
