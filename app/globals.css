@@ -2190,3 +2190,11 @@ a.method-badge:hover {
   max-width: 300px;
   white-space: normal;
 }
+
+/* 連絡方法のバッジ: メールとフォームの両方があるときは、縦に並べて、幅を節約する */
+.method-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}

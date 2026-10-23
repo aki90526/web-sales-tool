@@ -454,7 +454,7 @@ export default function CollectPage() {
                       <td className="cell-nowrap hide-mobile">{candidate.leadType}</td>
                       <td className="cell-nowrap hide-mobile">{candidate.region}</td>
                       <td className="cell-nowrap">
-                        <div className="btn-row-tight">
+                        <div className="method-stack">
                           {candidate.email ? (
                             <span className={contactMethodClass(candidate)} title={candidate.email}>
                               {contactMethodLabel(candidate)}
