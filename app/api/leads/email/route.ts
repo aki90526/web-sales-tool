@@ -83,8 +83,9 @@ export async function POST(request: Request) {
         }
       }
     } else {
-      // メールを優先する（送信前のフォーム・未定のリードは、連絡方法をメールにする）。送信後のリードは、連絡方法を変えない
-      if (lead.contactMethod !== "メール" && !SENT_STATUSES.includes(lead.status)) {
+      // メールを優先する。連絡方法が未定のリードは、ステータスを問わず、メールにする。
+      // フォームのリードは、送信前（送信後のステータスでない）ときだけ、メールにする。送信後のリードは、連絡方法を変えない
+      if (!lead.contactMethod || lead.contactMethod === "未定" || (lead.contactMethod !== "メール" && !SENT_STATUSES.includes(lead.status))) {
         nextMethod = "メール";
       }
 
