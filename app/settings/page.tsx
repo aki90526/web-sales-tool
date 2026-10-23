@@ -33,6 +33,15 @@ type SettingsResponse = {
   placeholders: { 初回: string[]; 再送: string[] };
 };
 
+const TABS = ["初回の文面", "再送の文面", "送信者・署名", "メール送信", "営業先の収集", "再送の間隔"] as const;
+type Tab = (typeof TABS)[number];
+
+const TAB_GROUPS: Partial<Record<Tab, Array<"送信者" | "署名・案内" | "メール送信" | "営業先の収集">>> = {
+  "送信者・署名": ["送信者", "署名・案内"],
+  メール送信: ["メール送信"],
+  営業先の収集: ["営業先の収集"]
+};
+
 const GROUP_INFO = {
   送信者: { title: "送信者の情報", caption: "文面の差し込み、署名、フォームの自動入力に使います。" },
   "署名・案内": { title: "署名・配信停止の案内", caption: "すべての文面の末尾に付きます。" },
@@ -152,6 +161,7 @@ export default function SettingsPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [textValues, setTextValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<Tab>("初回の文面");
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   const apply = useCallback((next: SettingsResponse) => {
@@ -160,6 +170,21 @@ export default function SettingsPage() {
     setTemplates(next.templates);
     setTextValues(Object.fromEntries(next.textSettings.map((entry) => [entry.key, entry.value])));
   }, []);
+
+  // 開いているタブは、URLの # に残す（再読み込みしても、同じタブを開く）
+  useEffect(() => {
+    const fromHash = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    const found = TABS.find((entry) => entry === fromHash);
+
+    if (found) {
+      setTab(found);
+    }
+  }, []);
+
+  const selectTab = (next: Tab) => {
+    setTab(next);
+    window.history.replaceState(null, "", `#${encodeURIComponent(next)}`);
+  };
 
   useEffect(() => {
     fetch("/api/settings")
@@ -216,7 +241,7 @@ export default function SettingsPage() {
       <div className="page-heading">
         <div>
           <h2>設定</h2>
-          <p>送信する文面（初回・再送）、送信者の情報、再送の間隔を変更します。内容はスプレッドシート（設定・メッセージテンプレート）と同じものです。</p>
+          <p>種類ごとのタブで切り替えます。変更は、どのタブのものも、右の「保存」でまとめて保存されます。内容はスプレッドシート（設定・メッセージテンプレート）と同じものです。</p>
         </div>
         <button type="button" className="btn primary" onClick={save} disabled={saving || !intervals}>
           <Save size={16} />
@@ -224,9 +249,24 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      <div className="settings-tabs" role="tablist" aria-label="設定の種類">
+        {TABS.map((entry) => (
+          <button
+            key={entry}
+            type="button"
+            role="tab"
+            aria-selected={tab === entry}
+            className={tab === entry ? "settings-tab active" : "settings-tab"}
+            onClick={() => selectTab(entry)}
+          >
+            {entry}
+          </button>
+        ))}
+      </div>
+
       {message && <p className={message.type === "ok" ? "settings-ok" : "settings-error"}>{message.text}</p>}
 
-      {intervals && (
+      {tab === "再送の間隔" && intervals && (
         <section className="form-panel">
           <div className="panel-header">
             <div>
@@ -260,7 +300,7 @@ export default function SettingsPage() {
 
       {data && (
         <>
-          {(["初回", "再送"] as const).map((purpose) => (
+          {(tab === "初回の文面" ? (["初回"] as const) : tab === "再送の文面" ? (["再送"] as const) : []).map((purpose) => (
             <section className="form-panel" key={purpose}>
               <div className="panel-header">
                 <div>
@@ -290,7 +330,7 @@ export default function SettingsPage() {
             </section>
           ))}
 
-          {(["送信者", "署名・案内", "メール送信", "営業先の収集"] as const).map((group) => (
+          {(TAB_GROUPS[tab] ?? []).map((group) => (
             <section className="form-panel" key={group}>
               <div className="panel-header">
                 <div>
