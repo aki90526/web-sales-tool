@@ -2148,3 +2148,25 @@ a.method-badge:hover {
 .link-accent:hover {
   text-decoration: underline;
 }
+
+/* 検索結果プレビュー: メモ・除外理由の列 */
+.col-preview-memo {
+  min-width: 260px;
+  max-width: 340px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.preview-exclusion {
+  margin: 0 0 4px;
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.clamp-4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

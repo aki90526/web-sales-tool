@@ -35,6 +35,9 @@ type Candidate = {
   salesScore: number;
   status: string;
   salesAngle: string;
+  // AIの所見メモと、点数が「除外」になった理由（営業お断りの記載など）
+  memo?: string;
+  exclusionReason?: string;
 };
 
 const contactMethodLabel = (candidate: Candidate): string => {
@@ -94,9 +97,12 @@ export default function CollectPage() {
   const [modalOpen, setModalOpen] = useState(false);
   // プレビューのうち、登録する候補（番号）。新しいプレビューが出るたびに、全件が選ばれた状態に戻す
   const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
+  // メモを全文表示している候補（普段は4行まで）
+  const [expandedMemos, setExpandedMemos] = useState<number[]>([]);
 
   useEffect(() => {
     setSelectedIndexes(preview ? preview.candidates.map((_, index) => index) : []);
+    setExpandedMemos([]);
   }, [preview]);
 
   const toggleCandidate = (index: number) => {
@@ -418,6 +424,7 @@ export default function CollectPage() {
                     <th className="cell-nowrap">スコア</th>
                     <th className="cell-nowrap">ステータス</th>
                     <th className="hide-mobile">切り口</th>
+                    <th className="hide-mobile col-preview-memo">メモ・除外理由</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -470,6 +477,27 @@ export default function CollectPage() {
                       <td className="cell-nowrap"><span className="score-badge">{candidate.salesScore}</span></td>
                       <td className="cell-nowrap"><span className="status-badge">{candidate.status}</span></td>
                       <td className="hide-mobile">{candidate.salesAngle}</td>
+                      <td className="hide-mobile col-preview-memo">
+                        {candidate.exclusionReason && <p className="preview-exclusion">除外理由: {candidate.exclusionReason}</p>}
+                        {candidate.memo ? (
+                          <>
+                            <div className={expandedMemos.includes(index) ? undefined : "clamp-4"}>{candidate.memo}</div>
+                            {candidate.memo.length > 90 && (
+                              <button
+                                type="button"
+                                className="link-button"
+                                onClick={() =>
+                                  setExpandedMemos((current) => (current.includes(index) ? current.filter((entry) => entry !== index) : [...current, index]))
+                                }
+                              >
+                                {expandedMemos.includes(index) ? "閉じる" : "全文を見る"}
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          !candidate.exclusionReason && <span className="panel-caption">-</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
