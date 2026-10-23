@@ -39,12 +39,12 @@ export const runLeadCollection = async (
   const sheetsClient = sheets ?? (await createSheetsClient(config));
   const existing = await readExistingLeadState(sheetsClient);
   const openAI = createOpenAIClient(openAiConfig);
-  // AIに渡す除外リストは、「検索するエリアに登録済みの会社」と「ステータスが『除外』の会社（営業お断りなど。エリアは問わない）」にする。
-  // 全件を渡すと長くなり、無関係な会社も混ざるため。重複の判定は、このあとの filterUniqueCandidates が、登録済みの全件に対して行う
-  const inArea = existing.entries.filter((entry) => isInSearchArea(entry.region, options.area));
-  const excludedStatus = existing.entries.filter((entry) => entry.status === "除外");
-  // 除外の会社は、リストの末尾に置く（長いリストが切られるときも、残るように）
-  const scoped = Array.from(new Map([...inArea, ...excludedStatus].map((entry) => [`${entry.company}|${entry.url}`, entry])).values());
+  // AIに渡す除外リストは、「検索するエリアに登録済みの会社」と「『除外リスト』シートの会社（エリアは問わない）」にする。
+  // 全件を渡すと長くなり、無関係な会社も混ざるため。重複の判定は、このあとの filterUniqueCandidates が、登録済みの全件と除外リストに対して行う
+  const inArea = existing.entries.filter((entry) => entry.source === "lead" && isInSearchArea(entry.region, options.area));
+  const exclusionList = existing.entries.filter((entry) => entry.source === "exclusionList");
+  // 除外リストの会社は、リストの末尾に置く（長いリストが切られるときも、残るように）
+  const scoped = Array.from(new Map([...inArea, ...exclusionList].map((entry) => [`${entry.company}|${entry.url}`, entry])).values());
 
   const collection = await collectLeadCandidateCollection(openAI, {
     area: options.area,
