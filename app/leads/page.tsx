@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, TextCursorInput, Users, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
 import ActionMenu, { type ActionMenuItem } from "./ActionMenu";
 import LeadCards, { type CardNotice } from "./LeadCards";
@@ -873,17 +873,7 @@ export default function LeadsPage() {
                           ) : (
                             <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
                           )}
-                          {(lead.contactMethod === "フォーム" || lead.contactMethod === "未定" || !lead.contactMethod) && (
-                            <button
-                              className="btn secondary icon-tiny"
-                              type="button"
-                              onClick={() => editFormUrl(lead)}
-                              title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを設定"}
-                            >
-                              <Pencil size={11} />
-                            </button>
-                          )}
-                          {/* メールアドレスの登録・変更。メールのリードは鉛筆、それ以外は「メールを追加」 */}
+                          {/* 登録・変更のボタン。登録済みは鉛筆、未登録は、メールならメールのアイコン、フォームならフォームのアイコン */}
                           <button
                             className="btn secondary icon-tiny"
                             type="button"
@@ -891,6 +881,14 @@ export default function LeadsPage() {
                             title={lead.emailAddress ? `メールアドレスを変更（${lead.emailAddress}）` : "メールアドレスを登録"}
                           >
                             {lead.emailAddress ? <Pencil size={11} /> : <Mail size={11} />}
+                          </button>
+                          <button
+                            className="btn secondary icon-tiny"
+                            type="button"
+                            onClick={() => editFormUrl(lead)}
+                            title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを登録"}
+                          >
+                            {lead.contactFormUrl ? <Pencil size={11} /> : <TextCursorInput size={11} />}
                           </button>
                         </div>
                       </td>

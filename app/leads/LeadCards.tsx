@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles } from "lucide-react";
+import { CheckCircle2, ExternalLink, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles, TextCursorInput } from "lucide-react";
 import { STATUSES } from "../../src/domain/lead";
 
 export type CardLead = {
@@ -110,16 +110,7 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
               ) : (
                 <span className={props.methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
               )}
-              {(isForm || lead.contactMethod === "未定" || !lead.contactMethod) && (
-                <button
-                  className="btn secondary icon-only"
-                  type="button"
-                  onClick={() => props.onEditFormUrl(lead)}
-                  title={lead.contactFormUrl ? `フォームURLを編集（${lead.contactFormUrl}）` : "フォームURLを設定"}
-                >
-                  <Pencil size={13} />
-                </button>
-              )}
+              {/* 登録・変更のボタン。登録済みは鉛筆、未登録は、メールならメールのアイコン、フォームならフォームのアイコン */}
               <button
                 className="btn secondary icon-only"
                 type="button"
@@ -127,6 +118,14 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                 title={lead.emailAddress ? `メールアドレスを変更（${lead.emailAddress}）` : "メールアドレスを登録"}
               >
                 {lead.emailAddress ? <Pencil size={13} /> : <Mail size={13} />}
+              </button>
+              <button
+                className="btn secondary icon-only"
+                type="button"
+                onClick={() => props.onEditFormUrl(lead)}
+                title={lead.contactFormUrl ? `フォームURLを変更（${lead.contactFormUrl}）` : "フォームURLを登録"}
+              >
+                {lead.contactFormUrl ? <Pencil size={13} /> : <TextCursorInput size={13} />}
               </button>
             </div>
 
