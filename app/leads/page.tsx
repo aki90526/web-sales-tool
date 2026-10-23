@@ -672,12 +672,6 @@ export default function LeadsPage() {
           onClick: () => manualFillLead(lead)
         },
         {
-          key: "edit-url",
-          label: "フォームURLを変更",
-          icon: <Pencil size={15} />,
-          onClick: () => void editFormUrl(lead)
-        },
-        {
           key: "mark-sent",
           label: "フォーム送信済みにする",
           icon: <CheckCircle2 size={15} />,
@@ -688,14 +682,21 @@ export default function LeadsPage() {
       );
     }
 
-    // 連絡先の追加（未登録のものだけ）。登録済みの変更は、連絡方法の欄の、ラベルの横にある鉛筆から行う
-    if (!lead.emailAddress) {
-      items.push({ key: "add-email", label: "メールアドレスを登録", icon: <Mail size={15} />, onClick: () => void editEmail(lead) });
-    }
-
-    if (!lead.contactFormUrl) {
-      items.push({ key: "add-form-url", label: "フォームURLを登録", icon: <FileText size={15} />, onClick: () => void editFormUrl(lead) });
-    }
+    // 連絡先の登録・変更（登録済みなら変更、未登録なら登録として使える）
+    items.push(
+      {
+        key: "edit-email",
+        label: lead.emailAddress ? "メールアドレスを変更" : "メールアドレスを登録",
+        icon: lead.emailAddress ? <Pencil size={15} /> : <Mail size={15} />,
+        onClick: () => void editEmail(lead)
+      },
+      {
+        key: "edit-form-url",
+        label: lead.contactFormUrl ? "フォームURLを変更" : "フォームURLを登録",
+        icon: lead.contactFormUrl ? <Pencil size={15} /> : <FileText size={15} />,
+        onClick: () => void editFormUrl(lead)
+      }
+    );
 
     items.push({ key: "message", label: "メッセージを見る", icon: <MessageSquare size={15} />, onClick: () => void openMessage(lead) });
 
@@ -874,40 +875,37 @@ export default function LeadsPage() {
                         </div>
                       </td>
                       <td className="hide-mobile">
-                        {/* 登録済みの連絡先を、ラベルと鉛筆（変更用）で表示する。追加は、操作メニューから */}
-                        <div className="method-stack">
-                          {lead.emailAddress && (
-                            <span className="method-line">
-                              <span className={methodClass("メール")} title={lead.emailAddress}>
-                                メール
-                              </span>
-                              <button
-                                className="btn secondary icon-tiny"
-                                type="button"
-                                onClick={() => editEmail(lead)}
-                                title={`メールアドレスを変更（${lead.emailAddress}）`}
-                              >
-                                <Pencil size={11} />
-                              </button>
+                        {/* 連絡方法は、想定する連絡方法（メール・フォーム）か、未定だけを表示する。登録済みのものは、鉛筆で変更できる。
+                            登録・変更は、操作メニューからもできる */}
+                        <div className="btn-row-tight">
+                          {lead.contactMethod === "フォーム" && lead.contactFormUrl ? (
+                            <a className={methodClass(lead.contactMethod)} href={lead.contactFormUrl} target="_blank" rel="noreferrer" title={lead.contactFormUrl}>
+                              {lead.contactMethod}
+                            </a>
+                          ) : (
+                            <span className={methodClass(lead.contactMethod)} title={lead.contactMethod === "メール" ? lead.emailAddress : undefined}>
+                              {lead.contactMethod || "未設定"}
                             </span>
                           )}
-                          {lead.contactFormUrl && (
-                            <span className="method-line">
-                              <a className={methodClass("フォーム")} href={lead.contactFormUrl} target="_blank" rel="noreferrer" title={lead.contactFormUrl}>
-                                フォーム
-                              </a>
-                              <button
-                                className="btn secondary icon-tiny"
-                                type="button"
-                                onClick={() => editFormUrl(lead)}
-                                title={`フォームURLを変更（${lead.contactFormUrl}）`}
-                              >
-                                <Pencil size={11} />
-                              </button>
-                            </span>
+                          {lead.contactMethod === "メール" && lead.emailAddress && (
+                            <button
+                              className="btn secondary icon-tiny"
+                              type="button"
+                              onClick={() => editEmail(lead)}
+                              title={`メールアドレスを変更（${lead.emailAddress}）`}
+                            >
+                              <Pencil size={11} />
+                            </button>
                           )}
-                          {!lead.emailAddress && !lead.contactFormUrl && (
-                            <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
+                          {lead.contactMethod === "フォーム" && lead.contactFormUrl && (
+                            <button
+                              className="btn secondary icon-tiny"
+                              type="button"
+                              onClick={() => editFormUrl(lead)}
+                              title={`フォームURLを変更（${lead.contactFormUrl}）`}
+                            >
+                              <Pencil size={11} />
+                            </button>
                           )}
                         </div>
                       </td>
