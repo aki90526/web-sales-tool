@@ -435,19 +435,37 @@ export default function CollectPage() {
                         />
                       </td>
                       <td className="cell-number cell-nowrap hide-mobile">{index + 1}</td>
-                      <td>{candidate.companyName}</td>
+                      <td>
+                        {candidate.officialSiteUrl ? (
+                          <a className="link-accent" href={candidate.officialSiteUrl} target="_blank" rel="noreferrer" title={candidate.officialSiteUrl}>
+                            {candidate.companyName}
+                          </a>
+                        ) : (
+                          candidate.companyName
+                        )}
+                      </td>
                       <td className="cell-nowrap hide-mobile">{candidate.leadType}</td>
                       <td className="cell-nowrap hide-mobile">{candidate.region}</td>
                       <td className="cell-nowrap">
-                        {candidate.email ? (
-                          <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
-                        ) : candidate.contactUrl ? (
-                          <a className={contactMethodClass(candidate)} href={candidate.contactUrl} target="_blank" rel="noreferrer">
-                            {contactMethodLabel(candidate)}
-                          </a>
-                        ) : (
-                          <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
-                        )}
+                        <div className="btn-row-tight">
+                          {candidate.email ? (
+                            <span className={contactMethodClass(candidate)} title={candidate.email}>
+                              {contactMethodLabel(candidate)}
+                            </span>
+                          ) : candidate.contactUrl ? (
+                            <a className={contactMethodClass(candidate)} href={candidate.contactUrl} target="_blank" rel="noreferrer" title={candidate.contactUrl}>
+                              {contactMethodLabel(candidate)}
+                            </a>
+                          ) : (
+                            <span className={contactMethodClass(candidate)}>{contactMethodLabel(candidate)}</span>
+                          )}
+                          {/* メールがある候補にも、フォームがあれば、フォームへのリンクを出す */}
+                          {candidate.email && candidate.contactUrl && (
+                            <a className="method-badge form" href={candidate.contactUrl} target="_blank" rel="noreferrer" title={candidate.contactUrl}>
+                              フォーム
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td className="cell-nowrap"><span className="score-badge">{candidate.salesScore}</span></td>
                       <td className="cell-nowrap"><span className="status-badge">{candidate.status}</span></td>

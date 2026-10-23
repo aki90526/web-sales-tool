@@ -2138,3 +2138,13 @@ a.method-badge:hover {
 .undo-toast .btn {
   min-height: 32px;
 }
+
+/* 企業名などのリンク（青色で、重ねると下線） */
+.link-accent {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.link-accent:hover {
+  text-decoration: underline;
+}
