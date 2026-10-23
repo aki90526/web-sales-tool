@@ -14,6 +14,19 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 **Googleスプレッドシートをデータベースとして使う**。営業先の収集 → 連絡先の発見 → メール送信／フォーム自動入力 → 返信の同期 → 再送、までを扱う。
 このファイルが、AIエージェント向けの「いまの仕様」の正。`SPEC.md` は初期の構想メモで、古い（先頭の注記を参照）。使い方の説明は `README.md`。
 
+## URL・場所
+
+- スプレッドシート（データベース）: https://docs.google.com/spreadsheets/d/1F8VgiLEdtQ1Fs6qiN3FXtDl1Da1v6lR1nt_CDjBcCkk/edit （IDは `.env` の `GOOGLE_SPREADSHEET_ID`）
+- 管理画面（ダッシュボード）: https://aasales.tail682a27.ts.net:8443 （Tailscale Serve。tailnet 内の端末だけ。ローカルの実体は http://127.0.0.1:3100）
+  - 画面: `/` ダッシュボード、`/leads` リード一覧、`/collect` 候補収集、`/actions` 実行操作、`/settings` 設定
+- 営業メールで案内している先: 経歴・実績 https://aawebcreate.com/profile/ 、オンライン面談の予約 https://booking.aawebcreate.com/
+- リポジトリ: GitHub の aki90526/web-sales-tool（非公開）。ローカルは `/Users/akihitoabe/01_仕事/営業ツール/web-sales-tool`。
+- 隣のフォルダ（`/Users/akihitoabe/01_仕事/営業ツール/` 内）: `booking-system`（面談予約システム）、`calendar-sync`、`web-sales-tool-server`。
+
+## 特記事項の置き場
+
+このファイル（`CLAUDE.md` から読み込まれる `AGENTS.md`）が、プロジェクトの特記事項・仕様・決めごとの置き場。仕様を変えたとき、新しいルールが決まったときは、ここを更新する。
+
 ## 最優先のルール
 
 - **実際のリード・クライアントに影響する操作を、検証のために行わない。** 本物のメール送信、本物のフォーム送信、実リードのステータス変更・メモ変更は、阿部の指示がない限りしない。確認は `--dry-run`、`--test-to`（自分宛）、テスト用データで行い、触ったものは必ず元に戻す。
