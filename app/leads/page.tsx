@@ -97,6 +97,7 @@ export default function LeadsPage() {
   const undoInfo = useRef<
     | { kind: "status"; leadId: string; previousStatus: string; historyLine: string }
     | { kind: "email"; leadId: string; restore: { email: string; contactMethod: string; status: string }; removeLine: string }
+    | { kind: "formUrl"; leadId: string; restore: { contactFormUrl: string; contactMethod: string; status: string }; removeLine: string }
     | null
   >(null);
 
@@ -261,13 +262,7 @@ export default function LeadsPage() {
     const nextUrl = input.trim();
     if (nextUrl === lead.contactFormUrl) return;
 
-    const previousUrl = lead.contactFormUrl;
     setStatusError(null);
-    setLeads((current) =>
-      current
-        ? current.map((entry) => (entry.leadId === lead.leadId ? { ...entry, contactFormUrl: nextUrl } : entry))
-        : current
-    );
 
     try {
       const res = await fetch("/api/leads/form-url", {
@@ -279,12 +274,29 @@ export default function LeadsPage() {
       if (!res.ok) {
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
-    } catch (err) {
+
       setLeads((current) =>
         current
-          ? current.map((entry) => (entry.leadId === lead.leadId ? { ...entry, contactFormUrl: previousUrl } : entry))
+          ? current.map((entry) =>
+              entry.leadId === lead.leadId
+                ? {
+                    ...entry,
+                    contactFormUrl: body.contactFormUrl,
+                    contactMethod: body.contactMethod ?? entry.contactMethod,
+                    status: body.status ?? entry.status,
+                    memo: body.memo ?? entry.memo
+                  }
+                : entry
+            )
           : current
       );
+
+      // 連絡方法・ステータスが変わった（未定からフォームになった）ときは、「元に戻す」を出す
+      if (body.historyLine && (body.contactMethod !== lead.contactMethod || body.status !== lead.status)) {
+        undoInfo.current = { kind: "formUrl", leadId: lead.leadId, restore: body.previous, removeLine: body.historyLine };
+        setUndoToast({ key: Date.now(), message: `${lead.leadId} ${lead.companyName} のフォームURLを登録しました（${body.contactMethod} / ${body.status}）` });
+      }
+    } catch (err) {
       setStatusError(err instanceof Error ? err.message : "フォームURLの更新に失敗しました");
     }
   };
@@ -352,7 +364,26 @@ export default function LeadsPage() {
     if (!info) return;
 
     try {
-      if (info.kind === "email") {
+      if (info.kind === "formUrl") {
+        const res = await fetch("/api/leads/form-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: info.leadId, restore: info.restore, removeLine: info.removeLine })
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(body.message ?? `HTTP ${res.status}`);
+        }
+        setLeads((current) =>
+          current
+            ? current.map((entry) =>
+                entry.leadId === info.leadId
+                  ? { ...entry, contactFormUrl: body.contactFormUrl, contactMethod: body.contactMethod, status: body.status, memo: body.memo ?? entry.memo }
+                  : entry
+              )
+            : current
+        );
+      } else if (info.kind === "email") {
         const res = await fetch("/api/leads/email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -842,7 +873,7 @@ export default function LeadsPage() {
                           ) : (
                             <span className={methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
                           )}
-                          {lead.contactMethod === "フォーム" && (
+                          {(lead.contactMethod === "フォーム" || lead.contactMethod === "未定" || !lead.contactMethod) && (
                             <button
                               className="btn secondary icon-tiny"
                               type="button"

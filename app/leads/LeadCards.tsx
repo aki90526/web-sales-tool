@@ -110,7 +110,7 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
               ) : (
                 <span className={props.methodClass(lead.contactMethod)}>{lead.contactMethod || "未設定"}</span>
               )}
-              {isForm && (
+              {(isForm || lead.contactMethod === "未定" || !lead.contactMethod) && (
                 <button
                   className="btn secondary icon-only"
                   type="button"
