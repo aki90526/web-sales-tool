@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import AreaPicker from "./AreaPicker";
 import { Check, Database, Pencil, X, Eye, History, RotateCcw, Search, Sparkles } from "lucide-react";
 
+// 登録するときに選べるステータス（送信済み以降は、登録の時点では選ばない）
+const REGISTER_STATUSES = ["送信待ち", "未確認", "確認済み", "保留", "見送り", "除外"] as const;
+
 const TARGET_TYPES = ["Web制作会社", "広告代理店", "直クライアント"] as const;
 type TargetType = (typeof TARGET_TYPES)[number];
 
@@ -227,6 +230,24 @@ export default function CollectPage() {
       candidates: entry.candidates
     });
     setModalOpen(true);
+  };
+
+  // 候補のステータスを、登録前に変える。登録するときは、この内容が使われる
+  const changeCandidateStatus = (index: number, status: string) => {
+    if (!preview) return;
+
+    setPreview({
+      ...preview,
+      candidates: preview.candidates.map((candidate, candidateIndex) =>
+        candidateIndex === index && candidate.status !== status
+          ? {
+              ...candidate,
+              status,
+              memo: [candidate.memo, `ステータスを登録前に手動で変更: ${candidate.status} → ${status}`].filter(Boolean).join("\n")
+            }
+          : candidate
+      )
+    });
   };
 
   // 候補のフォームURLを、プレビューの時点で追加・変更する。登録するときは、この内容が使われる。
@@ -539,7 +560,23 @@ export default function CollectPage() {
                         )}
                       </td>
                       <td className="cell-nowrap"><span className="score-badge">{candidate.salesScore}</span></td>
-                      <td className="cell-nowrap"><span className="status-badge">{candidate.status}</span></td>
+                      <td className="cell-nowrap">
+                        <select
+                          className="status-badge status-select"
+                          aria-label={`${candidate.companyName} のステータス`}
+                          value={REGISTER_STATUSES.includes(candidate.status as (typeof REGISTER_STATUSES)[number]) ? candidate.status : ""}
+                          onChange={(event) => changeCandidateStatus(index, event.target.value)}
+                        >
+                          {!REGISTER_STATUSES.includes(candidate.status as (typeof REGISTER_STATUSES)[number]) && (
+                            <option value="">{candidate.status || "未設定"}</option>
+                          )}
+                          {REGISTER_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="hide-mobile col-preview-angle">{candidate.salesAngle}</td>
                       <td className="hide-mobile col-preview-memo">
                         {candidate.exclusionReason && <p className="preview-exclusion">除外理由: {candidate.exclusionReason}</p>}
@@ -584,8 +621,16 @@ export default function CollectPage() {
               <tbody>
                 {importResults.map((result) => (
                   <tr key={result.leadId}>
-                    <td>{result.leadId}</td>
-                    <td>{result.companyName}</td>
+                    <td className="cell-nowrap">
+                      <a className="link-accent" href={`/leads?leadId=${encodeURIComponent(result.leadId)}`} target="_blank" rel="noreferrer" title="リード一覧で開く（別タブ）">
+                        {result.leadId}
+                      </a>
+                    </td>
+                    <td>
+                      <a className="link-accent" href={`/leads?leadId=${encodeURIComponent(result.leadId)}`} target="_blank" rel="noreferrer" title="リード一覧で開く（別タブ）">
+                        {result.companyName}
+                      </a>
+                    </td>
                     <td>{result.companyNameCorrection || result.contactUrlCorrection || (result.emailFound ? `メール取得: ${result.emailFound}` : "-")}
                       {result.contactUrlWarning ? ` ⚠ ${result.contactUrlWarning}` : ""}</td>
                   </tr>

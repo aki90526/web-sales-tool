@@ -197,7 +197,10 @@ export const importLeadCandidates = async (
   for (const candidate of uniqueCandidates) {
     const leadId = nextLeadId(nextNumericId);
     const verification = await verifyCompanyName(candidate);
-    const contactVerification = await verifyContactUrl(verification.candidate);
+    // プレビューで手動で入れたフォームURLは、自動の差し替え（より良さそうなリンクへの置き換え）をしない
+    const manualContactUrl =
+      Boolean(verification.candidate.contactUrl) && (verification.candidate.memo ?? "").includes(`フォームURLを手動で追加: ${verification.candidate.contactUrl}`);
+    const contactVerification = manualContactUrl ? { candidate: verification.candidate } : await verifyContactUrl(verification.candidate);
     const targetCheck = await verifyContactUrlTarget(contactVerification.candidate);
     const requestOnlyCheck = await excludeRequestOnlyForm(targetCheck.candidate);
     let verifiedCandidate = requestOnlyCheck.candidate;
