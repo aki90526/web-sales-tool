@@ -41,7 +41,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Next.js 16（App Router）+ React 19 + Tailwind v4 のダッシュボード（`app/`）。この Next.js は一般的な知識と違う点がある。書く前に `node_modules/next/dist/docs/` を読む（上の注意を参照）。
 - CLI は ts-node の TypeScript（`src/scripts/*`、`package.json` の `scripts`）。ダッシュボードは、同じコードを呼ぶ（`src/dashboard/jobRunner.ts` が子プロセスとして起動し、標準出力の `[DASHBOARD_UPDATE]` / `[DASHBOARD_SUMMARY]` を画面に反映する）。
 - Google Sheets は REST を自前で呼ぶ（`src/google/sheetsClient.ts`。`getValues` / `getFormulas` / `updateValues` / `appendValues` / `ensureColumns`）。
-- フォーム自動入力は、リモートデバッグ付きの Chrome（ポート 9222）を `chrome-remote-interface` で操作する（`src/form/browserFormAutofill.ts`）。**送信ボタンは押さない**（人が確認して送る）。CAPTCHAは回避しない。
+- フォーム自動入力は、リモートデバッグ付きの Chrome（ポート 9222）を `chrome-remote-interface` で操作する（`src/form/browserFormAutofill.ts`）。**送信ボタンは押さない**（人が確認して送る）。CAPTCHAは回避しない。メルマガ・案内メールの受信希望欄（ラジオ・チェック・プルダウン）は、「希望しない」側を選ぶ（サイトが「希望する」を初期選択にしていても直す）。「はい／いいえ」だけで受信しない側が判別できない欄、個人情報・規約への同意と一体の欄、必須の欄は触らず、警告で手動確認を促す（`fillMarketingOptOut`。回帰テスト `synthetic-marketing-optout.html`）。
 - メールは SMTP（nodemailer）で送り、返信・不達・面談予約の検知は Gmail API（`gmail:sync-replies`）。
 - OpenAI は、営業先候補の収集と分析（`src/openai/`）。
 - 認証: ダッシュボードは Tailscale Serve（tailnet 内のみ）経由。`proxy.ts` が `Tailscale-User-Login` ヘッダーと `DASHBOARD_ALLOWED_TAILSCALE_USER`（`.env`）を検査し、書き込み系の同一オリジンと JSON を強制する。
