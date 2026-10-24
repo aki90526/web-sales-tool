@@ -2377,6 +2377,165 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     .querySelectorAll<HTMLSelectElement>("select")
     .forEach((element) => fillSelect(element));
 
+  // メルマガ・案内メールの受信希望の欄では、受信しない側（「希望しない」など）を選ぶ。
+  // こちらは営業メールの送り手であり、相手のメルマガの受信を勝手に有効にしないため。サイト側が「希望する」を初期選択にしている場合も、「希望しない」に直す。
+  // 個人情報・規約への同意と一体の欄（必須の欄を含む）や、意味が判別できない欄（はい／いいえだけ）は、触らず、手動確認の警告を出す
+  const MARKETING_CONTEXT =
+    /(メール(マガジン|配信)|メルマガ|ニュースレター|newsletter|(各種|最新|新着|セミナー|イベント|キャンペーン|サービス|商品|製品).{0,8}(ご)?(案内|お知らせ|情報)|(今後|当社|弊社|各種).{0,12}(配信|ご案内)|(配信|受信|受け取り).{0,8}(希望|可否)|(広告|宣伝|販促|営業|プロモーション).{0,4}(メール|連絡))/i;
+  const PRIVACY_CONTEXT = /(個人情報|プライバシー|規約|privacy|policy)/i;
+  const isOptOutText = (text: string): boolean =>
+    /(希望しない|希望いたしません|希望しません|希望なし|不要|受け取らない|受け取りません|受信しない|受信しません|配信しない|配信不要|いらない)/.test(text);
+
+  const uncheckInput = (element: HTMLInputElement): void => {
+    const label = labelElementFor(element);
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
+
+    element.focus();
+    (label || element).click();
+
+    if (element.checked) {
+      if (descriptor?.set) {
+        descriptor.set.call(element, false);
+      } else {
+        element.checked = false;
+      }
+    }
+
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  const fillMarketingOptOut = (): void => {
+    const radioGroups = new Map<string, HTMLInputElement[]>();
+
+    document.querySelectorAll<HTMLInputElement>("input[type='radio']").forEach((element) => {
+      if (element.disabled || !radioVisible(element)) {
+        return;
+      }
+
+      const formKey = element.form?.id || element.form?.getAttribute("name") || "form";
+      const key = `${formKey}:name:${element.name || radioGroupLabelFor([element])}`;
+      radioGroups.set(key, [...(radioGroups.get(key) ?? []), element]);
+    });
+
+    radioGroups.forEach((elements) => {
+      const groupLabel = radioGroupLabelFor(elements);
+      const context = `${groupLabel} ${nearestPreviousLabelText(elements[0])}`.slice(0, 300);
+      const optionTexts = elements.map((element) => radioOptionLabelFor(element));
+
+      if (!MARKETING_CONTEXT.test(context) || PRIVACY_CONTEXT.test(`${context} ${optionTexts.join(" ")}`)) {
+        return;
+      }
+
+      const optOut = elements.find((element) => isOptOutText(radioOptionLabelFor(element)));
+
+      if (!optOut) {
+        // 「はい／いいえ」などで、どちらが受信しない側か判別できない。勝手に決めず、手動で確認してもらう
+        result.warnings.push(`${groupLabel.slice(0, 60)} は受信希望の欄です。受信しない側を手動で確認してください。`);
+        return;
+      }
+
+      if (!optOut.checked) {
+        checkRadio(optOut);
+      }
+
+      if (optOut.checked) {
+        result.selected.push({ label: groupLabel, option: radioOptionLabelFor(optOut) });
+      } else {
+        result.warnings.push(`${groupLabel.slice(0, 60)} は受信希望の欄です。「希望しない」を手動で選択してください。`);
+      }
+    });
+
+    const checkboxGroups = new Map<string, HTMLInputElement[]>();
+
+    document.querySelectorAll<HTMLInputElement>("input[type='checkbox']").forEach((element) => {
+      if (element.disabled || !radioVisible(element)) {
+        return;
+      }
+
+      const key = `${element.form?.id || "form"}:name:${element.name || checkboxOptionLabelFor(element)}`;
+      checkboxGroups.set(key, [...(checkboxGroups.get(key) ?? []), element]);
+    });
+
+    checkboxGroups.forEach((elements) => {
+      const groupLabel = elements.length === 1 ? `${checkboxGroupLabelFor(elements)} ${surroundingTextFor(elements[0]).slice(0, 80)}` : checkboxGroupLabelFor(elements);
+      const optionTexts = elements.map((element) => checkboxOptionLabelFor(element));
+      // 受信希望の欄かどうかは、欄の見出し（選択肢が1つだけのときは、その文言も）で判定する。複数の選択肢を連結した文で判定すると、事業内容の選択肢の文言（「会社案内」など）に反応してしまう
+      const marketingText = elements.length === 1 ? `${groupLabel} ${optionTexts[0]}` : groupLabel;
+
+      if (!MARKETING_CONTEXT.test(marketingText) || PRIVACY_CONTEXT.test(`${groupLabel} ${optionTexts.join(" ")}`)) {
+        return;
+      }
+
+      const optOuts = elements.filter((element) => isOptOutText(checkboxOptionLabelFor(element)));
+
+      if (optOuts.length > 0) {
+        // 「希望しない」の選択肢がある。それを選び、受信する側の選択肢は外す
+        optOuts.forEach((element) => {
+          if (!element.checked) {
+            checkInput(element);
+          }
+
+          if (element.checked) {
+            result.selected.push({ label: checkboxGroupLabelFor(elements), option: checkboxOptionLabelFor(element) });
+          }
+        });
+        elements
+          .filter((element) => !optOuts.includes(element) && element.checked)
+          .forEach((element) => {
+            if (!element.required) {
+              uncheckInput(element);
+            }
+          });
+        return;
+      }
+
+      // 受信する側の選択肢（「メルマガを受け取る」など）だけがある。初期選択されていれば外す（必須のものは触らない）
+      elements.forEach((element) => {
+        if (!element.checked) {
+          return;
+        }
+
+        if (element.required || element.getAttribute("aria-required") === "true") {
+          result.warnings.push(`${checkboxOptionLabelFor(element).slice(0, 60)} は必須の受信希望の欄です。内容を手動で確認してください。`);
+          return;
+        }
+
+        uncheckInput(element);
+
+        if (!element.checked) {
+          result.selected.push({ label: checkboxOptionLabelFor(element).slice(0, 60), option: "受信しない（チェックを外した）" });
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLSelectElement>("select").forEach((element) => {
+      if (element.disabled) {
+        return;
+      }
+
+      const context = labelFor(element);
+
+      if (!MARKETING_CONTEXT.test(context) || PRIVACY_CONTEXT.test(context)) {
+        return;
+      }
+
+      const optOut = Array.from(element.options).find((option) => isOptOutText(option.textContent || option.value));
+
+      if (!optOut) {
+        return;
+      }
+
+      element.value = optOut.value;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+
+      if (element.value === optOut.value) {
+        result.selected.push({ label: shortLabelFor(element), option: optOut.textContent?.trim() || optOut.value });
+      }
+    });
+  };
+
   fillContactMethodChoices();
 
   fillComboboxes();
@@ -2388,6 +2547,8 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
   document
     .querySelectorAll<HTMLInputElement>("input[type='checkbox']")
     .forEach((element) => checkConsent(element));
+
+  fillMarketingOptOut();
 
   document
     .querySelectorAll<HTMLSelectElement>("select[required], select[aria-required='true']")

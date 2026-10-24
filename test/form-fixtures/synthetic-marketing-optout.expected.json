@@ -1,0 +1,22 @@
+{
+  "company": "テスト商店",
+  "your-name": "山田 太郎",
+  "your-email": "test@example.com",
+  "your-message": "テスト本文",
+  "news_a": [
+    "0"
+  ],
+  "news_b": [],
+  "news_c[]": [
+    "notwant"
+  ],
+  "news_d": "no",
+  "news_e": [],
+  "agree_bundle": [
+    "on"
+  ],
+  "topic[]": [
+    "a",
+    "b"
+  ]
+}
