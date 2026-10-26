@@ -189,8 +189,9 @@ npm run settings:migrate-resend  # 再送・見送りまわりのシート整備
 - 受信希望欄（c1）: main で「希望しない」側を選ぶ実装を入れ（`333acea`、警告の修正 `0939c87`）、pilot へ取り込み済み。合成フィクスチャで、「触らず警告」の説明と実装が一致することを確認した。実サイト全般の動作は未確認。
 - 同意欄（c2〜c4）: 阿部が、Claude の案で試すと決めた（暫定）。main で「個人情報・規約への同意だけ自動チェック。何への同意か不明な欄・「送信」を含む欄は、チェックせず警告」を実装し（`cf83fa8`）、pilot へ取り込み済み。使ってみて見直す。
 - 取り込み後の 1B（同意欄の方針を含む）: 期待値との一致 12/12、終了コード 0。取り込み後の 1A: 期待値との一致 12/12。ただし、発生元未確定の通信試行（`accounts.google.com`）が実行によって出る（終了コード 6）。変更前のコードでも出たが、今回の変更と無関係か、環境起因かは確定していない（要確認）。
+- 段階2A（2026-10-26。動くテスト用フォーム 8 種での入力処理の対応範囲）: 実施済み。確認画面・同一オリジン iframe・後から描画は対応、複数ステップ・独自プルダウンは一部対応、CAPTCHA 検出と別オリジン iframe は想定どおり。複数ステップ・添付必須・独自プルダウンで警告が出ない課題を発見（修正は未実施。扱いは阿部が決める）。2B（PC アプリ内の一連の流れ）は、必要になったら進める。
 - 1C（クラウドブラウザ方式の成立性確認）と OpenAI 収集の追加検証、外部提供は、未開始。
-- 詳細は転記しない。参照先（`feature/cloud-pilot` 内）: `pilot/README.md`、`pilot/records/13-before-manual-check.md`、`pilot/records/14-main-newsletter-change.md`、`pilot/records/10-consent-policy-proposal.md`。
+- 詳細は転記しない。参照先（`feature/cloud-pilot` 内）: `pilot/README.md`、`pilot/records/13-before-manual-check.md`、`pilot/records/14-main-newsletter-change.md`、`pilot/records/18-stage2a-dynamic-forms.md`、`pilot/records/10-consent-policy-proposal.md`。
 
 ## 法務・運用の注意
 
