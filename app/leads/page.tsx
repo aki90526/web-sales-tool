@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { Check, CheckCircle2, Copy, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
 import SkipPeriodDialog, { skipPeriodLabel } from "../components/SkipPeriodDialog";
+import { nextRecheckLabel } from "../../src/domain/recheckSchedule";
 import ActionMenu, { type ActionMenuItem } from "./ActionMenu";
 import LeadCards, { type CardNotice } from "./LeadCards";
 import { STATUSES } from "../../src/domain/lead";
@@ -76,6 +77,8 @@ const rowClass = (status: string): string => {
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
+  // 見送りの再確認の既定の日数（設定画面の値）。リードごとの日数が無いときの、次回の再確認日の計算に使う
+  const [recheckDefaultDays, setRecheckDefaultDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [leadTypeFilter, setLeadTypeFilter] = useState(ALL);
@@ -158,6 +161,9 @@ export default function LeadsPage() {
     const body = await res.json();
     if (!res.ok) {
       throw new Error(body.message ?? `HTTP ${res.status}`);
+    }
+    if (typeof body.recheckDefaultDays === "number") {
+      setRecheckDefaultDays(body.recheckDefaultDays);
     }
     return body.leads as Lead[];
   };
@@ -854,6 +860,7 @@ export default function LeadsPage() {
         ) : viewMode === "card" ? (
           <>
             <LeadCards
+              recheckDefaultDays={recheckDefaultDays}
               leads={filtered.slice(0, cardLimit)}
               highlightedLeadId={highlightedLeadId}
               busy={runningLeadId !== null}
@@ -1001,9 +1008,9 @@ export default function LeadsPage() {
                             className="skip-count-badge"
                             type="button"
                             onClick={() => setSkipDialog({ lead, mode: "edit" })}
-                            title="見送りの再確認までの期間（クリックで変更）"
+                            title={`見送りの再確認の予定日（期間: ${skipPeriodLabel(lead.recheckDays ?? "")}。クリックで変更）`}
                           >
-                            再確認 {skipPeriodLabel(lead.recheckDays ?? "")}
+                            {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", recheckDefaultDays)}
                           </button>
                         )}
                       </td>

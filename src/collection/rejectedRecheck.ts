@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { daysBetween, readResendSettings, todayInTokyo } from "../domain/resend";
 import { SHEETS } from "../domain/lead";
+import { lastCheckedDate } from "../domain/recheckSchedule";
 import { clearRecheckDays, parseRecheckSetting } from "../domain/skipTracking";
 import { detectSalesForbidden } from "../domain/salesForbiddenDetection";
 import { fieldRangeForRow, readSalesManagementTable, SalesManagementLead, statusRangeForRow } from "../google/salesManagementRepository";
@@ -188,16 +189,6 @@ const assessLead = async (lead: SalesManagementLead): Promise<Assessment> => {
   }
 
   return { sendable: false, reason: "連絡先を見つけられない" };
-};
-
-// 最後に確認した日、または見送りにした日（メモの記録）のうち、新しい方。記録がなければ空（すぐ確認する）
-const lastCheckedDate = (memo: string): string => {
-  const dates = memo
-    .split("\n")
-    .filter((line) => line.startsWith(RECHECK_LINE_PREFIX) || /^ステータス変更: .* → 見送り \(\d{4}-\d{2}-\d{2}/.test(line))
-    .map((line) => /(\d{4}-\d{2}-\d{2})/.exec(line)?.[1] ?? "");
-
-  return dates.sort().pop() ?? "";
 };
 
 const replaceRecheckLine = (memo: string, line: string): string => {

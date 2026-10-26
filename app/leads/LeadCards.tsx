@@ -3,6 +3,7 @@
 import { CheckCircle2, ExternalLink, FileText, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles } from "lucide-react";
 import ActionMenu from "./ActionMenu";
 import { skipPeriodLabel } from "../components/SkipPeriodDialog";
+import { nextRecheckLabel } from "../../src/domain/recheckSchedule";
 import { STATUSES } from "../../src/domain/lead";
 
 export type CardLead = {
@@ -43,6 +44,7 @@ type LeadCardsProps<T extends CardLead> = {
   onManualFill: (lead: T) => void;
   onMarkFormSent: (lead: T) => void;
   onChangeRecheck: (lead: T) => void;
+  recheckDefaultDays: number;
 };
 
 // メモ欄の高さを、内容に合わせる（普段は最大3行まで。編集中は全文を表示する。上限はCSS側）
@@ -118,9 +120,9 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                   className="skip-count-badge"
                   type="button"
                   onClick={() => props.onChangeRecheck(lead)}
-                  title="見送りの再確認までの期間（クリックで変更）"
+                  title={`見送りの再確認の予定日（期間: ${skipPeriodLabel(lead.recheckDays ?? "")}。クリックで変更）`}
                 >
-                  再確認 {skipPeriodLabel(lead.recheckDays ?? "")}
+                  {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", props.recheckDefaultDays)}
                 </button>
               )}
               {/* 連絡方法は、想定する連絡方法（メール・フォーム）か、未定だけを表示する。連絡先の登録・変更は、「連絡先」メニューから */}
