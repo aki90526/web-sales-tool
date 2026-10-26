@@ -1720,10 +1720,11 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       const groupLabel = radioGroupLabelFor(elements);
 
       // 「個人情報の取り扱い ◯同意する」のようなラジオボタン形式の同意欄
-      if (/(同意|プライバシー|個人情報|規約|privacy|policy)/i.test(`${groupLabel} ${nearestPreviousLabelText(elements[0])}`)) {
+      // 個人情報・規約への同意だけを自動で選ぶ。何への同意か判別できない欄や、「送信する」の意味を含む選択肢は、選ばない
+      if (/(プライバシー|個人情報|規約|privacy|policy)/i.test(`${groupLabel} ${nearestPreviousLabelText(elements[0])}`)) {
         const agree = elements.find((element) => {
           const option = radioOptionLabelFor(element);
-          return /(同意する|同意します|同意の上|承諾|agree|accept)/i.test(option) && !/(同意しない|しない|disagree)/i.test(option);
+          return /(同意する|同意します|同意の上|承諾|agree|accept)/i.test(option) && !/(同意しない|しない|disagree|送信)/i.test(option);
         });
 
         if (agree) {
@@ -2297,6 +2298,25 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
 
     const text = consentTextFor(element);
     if (!/(同意|承諾|確認|プライバシー|個人情報|個人情報保護|規約|privacy|policy|チェックを入れ|スパム|spam)/i.test(text)) {
+      return;
+    }
+
+    // 自動でチェックするのは、個人情報・規約への同意（とスパム防止の確認）だけ。次の同意欄は、チェックせず、警告で手動確認を促す。
+    //  ・「送信する」の意味を含む同意（例:「個人情報保護方針に同意して送信する」）
+    //  ・何への同意か判別できない同意（例:「同意する」だけ。自分の文言と、自分だけを含む段落の文言で判定する。周辺の他の欄の文言は使わない）
+    const ownLabelText = normalize(checkboxOptionLabelFor(element));
+    const ownBlock = element.closest("p, li, dd, td, div");
+    const ownBlockText =
+      ownBlock && ownBlock.querySelectorAll("input[type='checkbox']").length <= 1 ? normalize((ownBlock.textContent ?? "").slice(0, 200)) : "";
+
+    // 欄の name・id に、個人情報・規約を示す語がある場合も、個人情報・規約への同意として扱う（例: acceptance-privacy）
+    const ownIdentity = `${element.name} ${element.id}`;
+
+    if (
+      /送信/.test(ownLabelText) ||
+      !/(個人情報|プライバシー|規約|privacy|policy|スパム|spam)/i.test(`${ownLabelText} ${ownBlockText}`) &&
+        !/(privacy|プライバシー|policy|kojin|personal|個人情報|規約|terms)/i.test(ownIdentity)
+    ) {
       return;
     }
 

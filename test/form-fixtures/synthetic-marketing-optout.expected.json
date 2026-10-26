@@ -25,8 +25,15 @@
   "agree_radio": [
     "agree"
   ],
+  "c2_privacy": [
+    "on"
+  ],
+  "acceptance-privacy": [
+    "on"
+  ],
+  "c3_generic": [],
+  "c4_send": [],
   "topic[]": [
-    "a",
     "b"
   ]
 }

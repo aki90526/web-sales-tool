@@ -4,7 +4,5 @@
   "department": "代表",
   "email": "test@example.com",
   "content": "テスト本文",
-  "input#5": [
-    "on"
-  ]
+  "input#5": []
 }

@@ -61,6 +61,12 @@
     <label><input type="radio" name="agree_radio" value="disagree"> 同意しない</label>
   </fieldset>
 
+  <!-- 同意欄の方針: 個人情報・規約への同意だけを自動でチェックし、何への同意か不明な欄・「送信する」を含む欄はチェックしない -->
+  <p><label><input type="checkbox" name="c2_privacy" value="on"> 個人情報の取り扱いについて同意する</label></p>
+  <p><label><input type="checkbox" name="acceptance-privacy" value="on"> 同意する</label></p>
+  <p><label><input type="checkbox" name="c3_generic" value="on"> 同意する</label></p>
+  <p><label><input type="checkbox" name="c4_send" value="on"> 個人情報保護方針に同意して送信する</label></p>
+
   <fieldset>
     <legend>お問い合わせ項目</legend>
     <label><input type="checkbox" name="topic[]" value="a"> 販促物・会社案内の制作</label>

@@ -3,7 +3,5 @@
   "your-email": "test@example.com",
   "your-email_confirm": "test@example.com",
   "your-message": "テスト本文",
-  "privacy": [
-    "1"
-  ]
+  "privacy": []
 }
