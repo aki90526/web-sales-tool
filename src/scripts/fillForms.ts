@@ -194,6 +194,23 @@ const startCompletionWatcher = (
   console.log(`送信完了の自動検知を開始しました（最大90分、ログ: .tmp/form-watch.log）`);
 };
 
+// 指定されたリードが対象にならない理由を、いまのシートの状態から説明する（画面に表示される）
+const explainIneligible = async (sheets: SheetsClient, leadIds: string[]): Promise<string> => {
+  const table = await readSalesManagementTable(sheets);
+  const reasons = leadIds.map((leadId) => {
+    const lead = table.leads.find((entry) => entry.leadId === leadId);
+
+    if (!lead) return `${leadId}: シートに見つかりません`;
+    if (lead.status !== "送信待ち") return `${leadId}: すでに「${lead.status}」で、送信待ちではありません`;
+    if (lead.contactMethod !== "フォーム") return `${leadId}: 連絡方法がフォームではありません（${lead.contactMethod}）`;
+    if (!/^https?:\/\//i.test(lead.contactFormUrl)) return `${leadId}: フォームURLがありません`;
+    if (lead.memo.includes("[CAPTCHA]")) return `${leadId}: CAPTCHAがあるため、自動入力の対象外です`;
+    return `${leadId}: 次回対応日（${lead.nextActionDate}）がまだ先です`;
+  });
+
+  return reasons.join(" / ");
+};
+
 const main = async (): Promise<void> => {
   const options = parseArgs(process.argv.slice(2));
 
@@ -210,18 +227,20 @@ const main = async (): Promise<void> => {
   const targets = filterCandidates(candidates, options);
 
   if (options.leadId && targets.length === 0) {
-    throw new Error(`No eligible form lead found for ${options.leadId}`);
+    throw new Error(`No eligible form lead found for ${options.leadId}（${await explainIneligible(sheets, [options.leadId])}）。画面を再読み込みして、候補を更新してください`);
   }
 
   if (options.leadIds.length > 0) {
     const missing = options.leadIds.filter((leadId) => !targets.some((target) => target.leadId === leadId));
 
     if (targets.length === 0) {
-      throw new Error(`No eligible form lead found for ${options.leadIds.join(", ")}`);
+      throw new Error(
+        `No eligible form lead found for ${options.leadIds.join(", ")}（${await explainIneligible(sheets, options.leadIds)}）。画面を再読み込みして、候補を更新してください`
+      );
     }
 
     if (missing.length > 0) {
-      console.log(`対象外のためスキップ: ${missing.join(", ")}（送信待ち・フォームURLあり・次回対応日を確認してください）`);
+      console.log(`対象外のためスキップ: ${await explainIneligible(sheets, missing)}`);
     }
   }
 
