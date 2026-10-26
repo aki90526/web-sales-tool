@@ -1638,7 +1638,8 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     });
 
     checkboxGroups.forEach((elements) => {
-      const groupLabel = `${checkboxGroupLabelFor(elements)} ${surroundingTextFor(elements[0]).slice(0, 80)}`;
+      // 見出し（「ご希望の連絡方法※」など）が、選択肢の外の兄弟要素にあるサイトのため、直前の見出しも見る
+      const groupLabel = `${checkboxGroupLabelFor(elements)} ${surroundingTextFor(elements[0]).slice(0, 80)} ${nearestPreviousLabelText(elements[0])}`;
 
       if (elements.length < 2 || !isContactMethodLabel(groupLabel)) {
         return;
