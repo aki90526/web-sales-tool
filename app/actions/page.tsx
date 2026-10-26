@@ -31,6 +31,8 @@ export default function ActionsPage() {
   const [leadId, setLeadId] = useState("");
   // リードID欄が、自動入力の結果で自動的に入ったもの（手入力ではない）か
   const leadIdFromAutoFill = useRef(false);
+  // 送信完了の自動検知で「送信済み」に変わったのを、すでに画面へ反映したリード
+  const recordedSeen = useRef(new Set<string>());
   const [note, setNote] = useState("");
   const [confirmEmail, setConfirmEmail] = useState(false);
   const [confirmForm, setConfirmForm] = useState(false);
@@ -313,6 +315,16 @@ export default function ActionsPage() {
           const recordedIds = new Set(
             entries.filter((entry) => entry.state === "recorded" || entry.state === "already-recorded").map((entry) => entry.leadId)
           );
+
+          // 送信済みに変わったリードを、候補・選択から外す（古い一覧のまま「自動入力」を押して、対象外のリードを指定してしまうのを防ぐ）
+          const newlyRecorded = Array.from(recordedIds).filter((id) => !recordedSeen.current.has(id));
+
+          if (newlyRecorded.length > 0) {
+            newlyRecorded.forEach((id) => recordedSeen.current.add(id));
+            loadLeads();
+            loadTargets();
+            setSelection((current) => ({ touched: current.touched, ids: current.ids.filter((id) => !newlyRecorded.includes(id)) }));
+          }
           if (leadIdFromAutoFill.current) {
             setLeadId((current) => {
               if (current && recordedIds.has(current.trim())) {
@@ -367,15 +379,42 @@ export default function ActionsPage() {
     setAutoFillResult(null);
     setConfirmedLeadIds([]);
     setFillWarnings([]);
+    // 実行の直前に、最新のステータスを取り直す（送信完了の自動検知や別の操作で、すでに送信済みになったリードを、対象から外す）
+    let waitingIds: Set<string> | null = null;
+
+    try {
+      const res = await fetch("/api/leads", { cache: "no-store" });
+      const body = await res.json();
+
+      if (res.ok && Array.isArray(body.leads)) {
+        setAllLeads(body.leads as Candidate[]);
+        waitingIds = new Set((body.leads as Candidate[]).filter((lead) => lead.status === "送信待ち").map((lead) => lead.leadId));
+      }
+    } catch {
+      // 取得できなければ、いまの一覧のまま進める
+    }
+
+    const stale = waitingIds ? selectedIds.filter((id) => !waitingIds!.has(id)) : [];
+    const currentIds = selectedIds.filter((id) => !stale.includes(id));
+
     // CAPTCHAで自動入力できないものは、対象から外す
-    const autoIds = selectedIds.filter((id) => {
+    const autoIds = currentIds.filter((id) => {
       const lead = candidates?.find((entry) => entry.leadId === id);
       return lead ? !isManualOnly(lead) : false;
     });
-    const skipped = selectedIds.filter((id) => !autoIds.includes(id));
+    const skipped = currentIds.filter((id) => !autoIds.includes(id));
+
+    if (stale.length > 0) {
+      setSelection((current) => ({ touched: current.touched, ids: current.ids.filter((id) => !stale.includes(id)) }));
+      setCandidateNotice(`${stale.join("・")} はすでに送信待ちではないため、対象から外しました`);
+    }
 
     if (autoIds.length === 0) {
-      setError("自動入力できるリードが選ばれていません（CAPTCHAがあるリードは「手動入力」を使ってください）。");
+      setError(
+        stale.length > 0
+          ? "選ばれていたリードは、すでに送信待ちではありませんでした。候補を更新したので、もう一度、対象を選んで実行してください。"
+          : "自動入力できるリードが選ばれていません（CAPTCHAがあるリードは「手動入力」を使ってください）。"
+      );
       return;
     }
 
