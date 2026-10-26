@@ -443,7 +443,10 @@ export const isRequestOnlyForm = (html: string): boolean => {
   // 「必須 打合せご希望日時」のように、必須マークが項目名の前に付くサイトもある
   const markFirstSchedulePattern = new RegExp(`${REQUIRED_MARK}\\s*${SCHEDULE_LABEL}`, "i");
 
-  if (labelPattern.test(text) || markFirstSchedulePattern.test(text)) {
+  // 「上限予算※」のように、項目名の直後に ※ が付くサイトもある（※ を必須の印にしている。注記の※と区別するため、項目名にすぐ続く場合だけ）
+  const noteMarkBudgetPattern = /(?:予算|納期|希望時期)(?:額|金額)?\s?※/;
+
+  if (labelPattern.test(text) || markFirstSchedulePattern.test(text) || noteMarkBudgetPattern.test(text)) {
     return true;
   }
 
