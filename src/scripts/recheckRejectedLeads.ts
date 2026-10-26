@@ -15,6 +15,7 @@ Options:
   --dry-run    シートを更新せず、結果だけ表示します
   --limit      1回で確認する件数の上限（既定 15）
   --lead-ids   対象のリードID（カンマ区切り）。間隔に関係なく確認します
+  --baseline   ステータスは変えず、いまのフォームの状態（指紋）と確認日だけを記録します（--lead-ids と併用）
 `);
 };
 
@@ -37,7 +38,7 @@ const main = async (): Promise<void> => {
   }
 
   const sheets = await createSheetsClient(loadConfig());
-  const results = await recheckRejectedLeads(sheets, { dryRun, limit, leadIds });
+  const results = await recheckRejectedLeads(sheets, { dryRun, limit, leadIds, baselineOnly: args.includes("--baseline") });
 
   console.log(`Rejected lead recheck${dryRun ? " (dry-run)" : ""}: ${results.length} checked, ${results.filter((r) => r.outcome === "revived").length} revived`);
 
