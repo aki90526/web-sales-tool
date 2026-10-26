@@ -328,7 +328,7 @@ export default function ActionsPage() {
     };
 
     loadWatch();
-    const timer = setInterval(loadWatch, 5000);
+    const timer = setInterval(loadWatch, 2000);
 
     return () => clearInterval(timer);
   }, []);

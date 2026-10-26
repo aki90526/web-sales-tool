@@ -11,7 +11,7 @@ import {
 } from "../google/salesManagementRepository";
 import { createSheetsClient, SheetsClient } from "../google/sheetsClient";
 
-type CliOptions = {
+export type MarkSentOptions = {
   dryRun: boolean;
   force: boolean;
   help: boolean;
@@ -44,8 +44,8 @@ const nextValue = (args: string[], index: number, name: string): string => {
   return value;
 };
 
-const parseArgs = (argv: string[]): CliOptions => {
-  const options: CliOptions = {
+const parseArgs = (argv: string[]): MarkSentOptions => {
+  const options: MarkSentOptions = {
     dryRun: false,
     force: false,
     help: false,
@@ -174,14 +174,9 @@ const printRecord = (lead: SalesManagementLead, subject: string, body: string, s
   console.log(`Note: ${note || "forms:mark-sent による手動フォーム送信記録"}`);
 };
 
-const main = async (): Promise<void> => {
-  const options = parseArgs(process.argv.slice(2));
-
-  if (options.help) {
-    printHelp();
-    return;
-  }
-
+// フォーム送信を記録する（アプローチ履歴に1行追加し、ステータスを「送信済み」にする）。
+// 送信完了の自動検知（watchFormCompletion）からも、プロセスを起動し直さずに呼べるよう、関数として公開している
+export const markFormSent = async (options: MarkSentOptions): Promise<void> => {
   const config = loadConfig();
   const sheets = await createSheetsClient(config);
   const contentConfig = await readSalesContentConfig(sheets);
@@ -255,12 +250,26 @@ const main = async (): Promise<void> => {
   console.log(`Marked form submission as sent: ${lead.leadId}`);
 };
 
-main().catch((error: unknown) => {
-  if (error instanceof Error) {
-    console.error(error.message);
-  } else {
-    console.error(error);
+const main = async (): Promise<void> => {
+  const options = parseArgs(process.argv.slice(2));
+
+  if (options.help) {
+    printHelp();
+    return;
   }
 
-  process.exitCode = 1;
-});
+  await markFormSent(options);
+};
+
+// 直接実行されたときだけ動かす（他のスクリプトから読み込まれたときは動かさない）
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    if (error instanceof Error) {
+      console.error(error.message);
+    } else {
+      console.error(error);
+    }
+
+    process.exitCode = 1;
+  });
+}

@@ -13,6 +13,7 @@ import { appendCaptchaNote } from "../form/formCaptchaNote";
 import { appendFormOutcome, domainOf, FormOutcomeKind } from "../form/formOutcomeLog";
 import { touchFormWatchHeartbeat, upsertFormWatchEntry } from "../form/formWatchStatus";
 import { loadConfig } from "../config/env";
+import { markFormSent } from "./markFormSubmitted";
 import { createSheetsClient } from "../google/sheetsClient";
 
 type WatchEntry = {
@@ -111,7 +112,7 @@ const checkIframes = async (CDP: ChromeRemoteInterface, port: number, parentTarg
   return null;
 };
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 1000;
 const MAX_WATCH_MS = 90 * 60 * 1000;
 const logPath = path.resolve(process.cwd(), ".tmp", "form-watch.log");
 
@@ -147,17 +148,14 @@ const notify = (title: string, message: string): void => {
   execFile("osascript", ["-e", `display notification ${JSON.stringify(message)} with title ${JSON.stringify(title)}`], () => undefined);
 };
 
-const markSent = (leadId: string): Promise<{ ok: boolean; output: string }> => {
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-
-  return new Promise((resolve) => {
-    execFile(
-      npm,
-      ["run", "forms:mark-sent", "--", "--lead-id", leadId, "--note", "フォーム送信完了画面を自動検知して記録"],
-      { cwd: process.cwd() },
-      (error, stdout, stderr) => resolve({ ok: !error, output: `${stdout}${stderr}`.trim() })
-    );
-  });
+// 送信済みの記録は、別プロセス（npm run）を起動せず、同じプロセスの中で行う（起動に5〜9秒かかっていたため）
+const markSent = async (leadId: string): Promise<{ ok: boolean; output: string }> => {
+  try {
+    await markFormSent({ leadId, note: "フォーム送信完了画面を自動検知して記録", dryRun: false, force: false, help: false });
+    return { ok: true, output: `Marked form submission as sent: ${leadId}` };
+  } catch (error: unknown) {
+    return { ok: false, output: error instanceof Error ? error.message : String(error) };
+  }
 };
 
 const checkEntry = async (
