@@ -2997,6 +2997,8 @@ type ConfirmStateResult = {
   url: string;
   errors: string[];
   looksLikeConfirmPage: boolean;
+  // サイト側のプログラムのエラー（PHPの Fatal error など）が画面に出ているときの、その文言
+  siteError: string;
 };
 
 const pageReadConfirmState = (): ConfirmStateResult => {
@@ -3025,10 +3027,13 @@ const pageReadConfirmState = (): ConfirmStateResult => {
     errors.push(`未入力・形式エラーの項目が${invalidCount}件あります`);
   }
 
+  const phpError = /(Fatal error|Parse error|Uncaught (?:Error|Exception|TypeError)|Call to undefined function|Stack trace:|Warning: .{0,120} on line \d+)/i.exec(text);
+
   return {
     url: location.href,
     errors,
-    looksLikeConfirmPage: /(入力内容.{0,6}確認|内容を?ご確認|確認画面|以下の内容で|この内容で|内容でよろしければ)/.test(text)
+    looksLikeConfirmPage: /(入力内容.{0,6}確認|内容を?ご確認|確認画面|以下の内容で|この内容で|内容でよろしければ)/.test(text),
+    siteError: phpError ? text.slice(Math.max(0, phpError.index), phpError.index + 140).replace(/\s+/g, " ").trim() : ""
   };
 };
 
@@ -3214,6 +3219,15 @@ const runConfirmStep = async (client: ChromeClient, contextIds: Set<number>): Pr
         returnByValue: true
       });
       const state = stateResponse.result?.value as ConfirmStateResult | undefined;
+
+      // 確認ボタンを押したあと、サイト側のプログラムのエラー（PHPのエラーなど）が表示された場合は、こちらでは直せないフォームの不具合
+      if (state?.siteError) {
+        return {
+          status: "validation-error",
+          label: clicked.label,
+          detail: `サイト側のプログラムのエラーで、確認画面が表示されません（${state.siteError}）。フォームの不具合のため、他の連絡先（メール・電話）を探してください。`
+        };
+      }
 
       if (state && state.errors.length > 0) {
         return { status: "validation-error", label: clicked.label, detail: state.errors.join(" / ") };
