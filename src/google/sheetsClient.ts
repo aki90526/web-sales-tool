@@ -40,6 +40,8 @@ export type SheetsClient = {
   updateValues: (range: string, values: unknown[][], options?: WriteOptions) => Promise<UpdateValuesResponse>;
   // シートの列数が足りなければ、右に列を追加する（すでに足りていれば何もしない）
   ensureColumns: (sheetTitle: string, columnCount: number) => Promise<void>;
+  // シートが無ければ作る（作ったら true）
+  ensureSheet: (sheetTitle: string, columnCount: number) => Promise<boolean>;
 };
 
 // 先頭が = + - @ の文字列は数式と解釈され #NAME? 等になるため、先頭に ' を付けて文字列として書く
@@ -175,6 +177,26 @@ export const createSheetsClient = async (config: AppConfig): Promise<SheetsClien
   const spreadsheetUrl = `https://sheets.googleapis.com/v4/spreadsheets/${config.googleSpreadsheetId}`;
 
   return {
+    ensureSheet: async (sheetTitle: string, columnCount: number): Promise<boolean> => {
+      const metadata = await requestJson<{ sheets?: { properties?: { title?: string } }[] }>({
+        method: "GET",
+        url: `${spreadsheetUrl}?${querystring.stringify({ fields: "sheets.properties.title" })}`,
+        accessToken
+      });
+
+      if (metadata.sheets?.some((sheet) => sheet.properties?.title === sheetTitle)) {
+        return false;
+      }
+
+      await requestJson({
+        method: "POST",
+        url: `${spreadsheetUrl}:batchUpdate`,
+        accessToken,
+        body: { requests: [{ addSheet: { properties: { title: sheetTitle, gridProperties: { rowCount: 1000, columnCount } } } }] }
+      });
+
+      return true;
+    },
     ensureColumns: async (sheetTitle: string, columnCount: number): Promise<void> => {
       const metadata = await requestJson<{
         sheets?: { properties?: { sheetId?: number; title?: string; gridProperties?: { columnCount?: number } } }[];

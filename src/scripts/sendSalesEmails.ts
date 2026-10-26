@@ -1,6 +1,7 @@
 import { loadConfig, requireSmtpConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig, SalesContentConfig } from "../contact/salesMessage";
 import { SHEETS } from "../domain/lead";
+import { appendLeadLog } from "../domain/leadLog";
 import { readSendRecords } from "../domain/resend";
 import { readMailOverrides } from "../settings/mailSettings";
 import { isValidEmail, parseEmailList } from "../email/emailList";
@@ -454,6 +455,7 @@ const main = async (): Promise<void> => {
 
       try {
         await appendApproachHistory(sheets, candidate, messageId, sentAt);
+        await appendLeadLog(sheets, [{ leadId: candidate.leadId, kind: "送信", text: `メールを送信しました（${candidate.subject}）` }]);
       } catch (error) {
         console.error(
           `WARNING: ${candidate.leadId} は送信済みですが、アプローチ履歴への記録に失敗しました。手動で追記してください。Message ID: ${messageId}`

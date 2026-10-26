@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { loadConfig } from "../../../../src/config/env";
 import { STATUSES, Status } from "../../../../src/domain/lead";
-import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../../../../src/google/salesManagementRepository";
+import { appendLeadLog } from "../../../../src/domain/leadLog";
+import { readSalesManagementTable, statusRangeForRow } from "../../../../src/google/salesManagementRepository";
 import { clearRecheckDays, normalizeRecheckInput, setRecheckDays } from "../../../../src/domain/skipTracking";
 import { createSheetsClient } from "../../../../src/google/sheetsClient";
 
@@ -74,28 +75,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ leadId, status: body.status, previousStatus, memo: lead.memo, historyLine: "", recheckDays: lead.recheckDays });
     }
 
-    let memo = lead.memo;
-    let historyLine = "";
-
-    if (removeLine) {
-      // 元に戻す: そのとき追記した行を、メモから消す（いちばん後ろの一致を1つだけ）
-      const lines = memo.split("\n");
-      const index = lines.lastIndexOf(removeLine);
-
-      if (index >= 0) {
-        lines.splice(index, 1);
-        memo = lines.join("\n");
-      }
-    } else {
-      historyLine = `${HISTORY_PREFIX} ${previousStatus || "(空)"} → ${body.status} (${formatTokyoDateTime(new Date())})`;
-      memo = memo ? `${memo}\n${historyLine}` : historyLine;
-    }
+    // 変更の履歴は、メモではなく、リードログに残す。「元に戻す」も、ログに追記する（ログは消さない）
+    const stamp = formatTokyoDateTime(new Date());
+    const historyLine = removeLine ? "" : `${HISTORY_PREFIX} ${previousStatus || "(空)"} → ${body.status} (${stamp})`;
+    const memo = lead.memo;
 
     await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [[body.status]]);
-
-    if (memo !== lead.memo) {
-      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[memo]]);
-    }
+    await appendLeadLog(sheets, [
+      {
+        leadId,
+        kind: "ステータス変更",
+        text: removeLine
+          ? `${previousStatus || "(空)"} → ${body.status}（元に戻す）`
+          : `${previousStatus || "(空)"} → ${body.status}`,
+        actor: "手入力"
+      }
+    ]);
 
     // 見送りにしたら、再確認までの日数を書く。見送りでなくなったら、その指定を消す
     let nextRecheckDays = lead.recheckDays;

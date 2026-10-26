@@ -1,5 +1,6 @@
 "use client";
 
+import { LeadLogControls, type LatestLog } from "../components/LeadLog";
 import { useState } from "react";
 import { Check, ExternalLink, Mail, MessageSquare, Pencil, X } from "lucide-react";
 import ActionMenu, { type ActionMenuItem } from "../leads/ActionMenu";
@@ -17,6 +18,8 @@ export type Candidate = {
   status: string;
   memo: string;
   nextActionDate: string;
+  currentNote?: string;
+  latestLog?: LatestLog;
 };
 
 type CandidatePanelProps = {
@@ -28,6 +31,8 @@ type CandidatePanelProps = {
   error: string | null;
   onToggle: (leadId: string) => void;
   onMemoSave: (lead: Candidate, memo: string) => void;
+  onSaveNote: (lead: Candidate, text: string) => Promise<void>;
+  onOpenLog: (lead: Candidate) => void;
   onStatusChange: (lead: Candidate, status: string) => void;
   onShowMessage: (lead: Candidate) => void;
   // フォームURLを保存する（失敗したら、エラーを投げる）
@@ -174,6 +179,14 @@ export default function CandidatePanel(props: CandidatePanelProps) {
                   {editing.error && <p className="url-edit-error">{editing.error}</p>}
                 </div>
               )}
+
+              <LeadLogControls
+                leadId={lead.leadId}
+                currentNote={lead.currentNote ?? ""}
+                latestLog={lead.latestLog ?? null}
+                onSaveNote={(text) => props.onSaveNote(lead, text)}
+                onOpenLog={() => props.onOpenLog(lead)}
+              />
 
               <textarea
                 key={`${lead.leadId}:${lead.memo}`}

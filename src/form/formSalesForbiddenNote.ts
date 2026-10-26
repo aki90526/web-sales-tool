@@ -1,7 +1,8 @@
-import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../google/salesManagementRepository";
+import { appendLeadLog } from "../domain/leadLog";
+import { readSalesManagementTable, statusRangeForRow } from "../google/salesManagementRepository";
 import { SheetsClient } from "../google/sheetsClient";
 
-// 問い合わせページに営業お断りの記載があったリードを「除外」にして、根拠をメモに残す
+// 問い合わせページに営業お断りの記載があったリードを「除外」にして、根拠をリードログに残す
 export const excludeLeadForSalesForbidden = async (
   sheets: SheetsClient,
   leadId: string,
@@ -21,7 +22,8 @@ export const excludeLeadForSalesForbidden = async (
     await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["除外"]]);
   }
 
-  if (!lead.memo.includes(note)) {
-    await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[lead.memo ? `${lead.memo}\n${note}` : note]]);
-  }
+  // 根拠は、メモではなく、リードログに残す
+  await appendLeadLog(sheets, [
+    { leadId, kind: "ステータス変更", text: `${lead.status} → 除外（${note}）` }
+  ]);
 };

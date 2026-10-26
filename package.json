@@ -16,6 +16,7 @@
     "forms:mark-sent": "ts-node src/scripts/markFormSubmitted.ts",
     "leads:set-status": "ts-node src/scripts/setLeadStatus.ts",
     "leads:recheck-rejected": "ts-node src/scripts/recheckRejectedLeads.ts",
+    "leads:migrate-log": "ts-node src/scripts/migrateLeadLog.ts",
     "settings:migrate-resend": "ts-node src/scripts/migrateResendSettings.ts",
     "forms:watch": "ts-node src/scripts/watchFormCompletion.ts",
     "send:emails": "ts-node src/scripts/sendSalesEmails.ts",

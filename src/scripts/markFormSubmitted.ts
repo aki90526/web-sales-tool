@@ -1,6 +1,7 @@
 import { loadConfig } from "../config/env";
 import { buildSalesMessage, readSalesContentConfig } from "../contact/salesMessage";
 import { SHEETS, Status } from "../domain/lead";
+import { appendLeadLog } from "../domain/leadLog";
 import { readSendRecords } from "../domain/resend";
 import { readLastFormFillSession } from "../form/formFillSession";
 import { readAnalysisSalesContexts } from "../google/analysisDataRepository";
@@ -246,6 +247,10 @@ export const markFormSent = async (options: MarkSentOptions): Promise<void> => {
 
   await appendApproachHistory(sheets, lead, subject, body, options.note, sentAt);
   await updateLeadStatus(sheets, lead, "送信済み");
+  await appendLeadLog(sheets, [
+    { leadId: lead.leadId, kind: "送信", text: `フォームの送信を記録しました（${options.note || "送信済みにする"}）` },
+    { leadId: lead.leadId, kind: "ステータス変更", text: `${lead.status} → 送信済み` }
+  ]);
 
   console.log(`Marked form submission as sent: ${lead.leadId}`);
 };

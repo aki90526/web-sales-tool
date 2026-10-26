@@ -4,7 +4,8 @@ export const SHEETS = {
   approachHistory: "アプローチ履歴",
   messageTemplates: "メッセージテンプレート",
   settings: "設定",
-  exclusionList: "除外リスト"
+  exclusionList: "除外リスト",
+  leadLog: "リードログ"
 } as const;
 
 export const SETTINGS_CELLS = {

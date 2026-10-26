@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { daysBetween, readResendSettings, todayInTokyo } from "../domain/resend";
 import { SHEETS } from "../domain/lead";
+import { appendLeadLog, LeadLogEntry, readAllLeadLogs, recheckStateFromLog } from "../domain/leadLog";
 import { lastCheckedDate } from "../domain/recheckSchedule";
 import { clearRecheckDays, parseRecheckSetting } from "../domain/skipTracking";
 import { detectSalesForbidden } from "../domain/salesForbiddenDetection";
@@ -191,11 +192,6 @@ const assessLead = async (lead: SalesManagementLead): Promise<Assessment> => {
   return { sendable: false, reason: "連絡先を見つけられない" };
 };
 
-const replaceRecheckLine = (memo: string, line: string): string => {
-  const kept = memo.split("\n").filter((entry) => !entry.startsWith(RECHECK_LINE_PREFIX));
-  return [...kept, line].join("\n").trim();
-};
-
 const readReactedLeadIds = async (sheets: SheetsClient): Promise<Set<string>> => {
   const rows = await sheets.getValues(`'${SHEETS.approachHistory}'!A2:J`);
   const ids = new Set<string>();
@@ -214,17 +210,32 @@ export const recheckRejectedLeads = async (
   options: { dryRun: boolean; limit: number; today?: string; leadIds?: string[]; baselineOnly?: boolean }
 ): Promise<RecheckResult[]> => {
   const today = options.today ?? todayInTokyo();
-  const [table, settings, reacted] = await Promise.all([
+  const [table, settings, reacted, allLogs] = await Promise.all([
     readSalesManagementTable(sheets),
     readResendSettings(sheets),
-    readReactedLeadIds(sheets)
+    readReactedLeadIds(sheets),
+    readAllLeadLogs(sheets)
   ]);
   const results: RecheckResult[] = [];
+  const logsByLead = new Map<string, LeadLogEntry[]>();
+
+  allLogs.forEach((entry) => logsByLead.set(entry.leadId, [...(logsByLead.get(entry.leadId) ?? []), entry]));
+
+  // 前回確認した日とフォームの指紋は、ログから読む（移行前のメモの記録も、念のため見る）
+  const stateOf = (lead: { leadId: string; memo: string }): { last: string; fingerprint: string } => {
+    const fromLog = recheckStateFromLog(logsByLead.get(lead.leadId) ?? []);
+    const fromMemo = lastCheckedDate(lead.memo);
+
+    return {
+      last: fromLog.lastDate > fromMemo ? fromLog.lastDate : fromMemo,
+      fingerprint: fromLog.fingerprint || readStoredFingerprint(lead.memo)
+    };
+  };
 
   const due = table.leads
     .filter((lead) => lead.status === "見送り" && !reacted.has(lead.leadId) && lead.officialSiteUrl)
     .filter((lead) => !options.leadIds || options.leadIds.includes(lead.leadId))
-    .map((lead) => ({ lead, last: lastCheckedDate(lead.memo), setting: parseRecheckSetting(lead.recheckDays) }))
+    .map((lead) => ({ lead, last: stateOf(lead).last, setting: parseRecheckSetting(lead.recheckDays) }))
     .filter(({ setting }) => setting.kind !== "never")
     .filter(({ last, setting }) => {
       const interval = setting.kind === "days" ? setting.days : settings.recheckIntervalDays;
@@ -243,13 +254,15 @@ export const recheckRejectedLeads = async (
     if (options.baselineOnly) {
       const formUrl = lead.contactFormUrl;
       const fingerprint = formUrl ? await formFingerprint(formUrl) : "";
-      const baselineLine = `${RECHECK_LINE_PREFIX}${today} 確認。見送りのまま（フォームの状態を記録）${fingerprint ? ` [フォーム指紋:${fingerprint}]` : ""}`;
+      const baselineText = `${today} 確認。見送りのまま（フォームの状態を記録）`;
 
       if (!options.dryRun) {
-        await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[replaceRecheckLine(lead.memo, baselineLine)]]);
+        await appendLeadLog(sheets, [
+          { leadId: lead.leadId, kind: "再確認", text: baselineText, detail: fingerprint ? `フォーム指紋:${fingerprint}` : "" }
+        ]);
       }
 
-      results.push({ leadId: lead.leadId, companyName: lead.companyName, outcome: "unchanged", detail: baselineLine.replace(RECHECK_LINE_PREFIX, "") });
+      results.push({ leadId: lead.leadId, companyName: lead.companyName, outcome: "unchanged", detail: baselineText });
       continue;
     }
 
@@ -264,7 +277,7 @@ export const recheckRejectedLeads = async (
 
     if (revive && formUrl && !newContact && hasFormFailureNote(lead.memo)) {
       fingerprint = await formFingerprint(formUrl);
-      const stored = readStoredFingerprint(lead.memo);
+      const stored = stateOf(lead).fingerprint;
 
       if (fingerprint && (!stored || stored === fingerprint)) {
         revive = false;
@@ -279,9 +292,9 @@ export const recheckRejectedLeads = async (
     if (revive) {
       const contact = assessment.foundEmail || assessment.foundFormUrl || lead.emailAddress || lead.contactFormUrl;
       const changed = fingerprint ? "フォームが変更されていたため" : newContact ? "連絡先を確認できたため" : "公式サイトと連絡先を確認できたため";
-      line = `${RECHECK_LINE_PREFIX}${changed}送信待ちに変更 (${today}) ${contact}`;
+      line = `${changed}送信待ちに変更 (${today}) ${contact}`;
     } else {
-      line = `${RECHECK_LINE_PREFIX}${today} 確認。見送りのまま（${skipReason}）${fingerprint ? ` [フォーム指紋:${fingerprint}]` : ""}`;
+      line = `${today} 確認。見送りのまま（${skipReason}）`;
     }
 
     if (!options.dryRun) {
@@ -302,14 +315,17 @@ export const recheckRejectedLeads = async (
         await clearRecheckDays(sheets, table, lead);
       }
 
-      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[replaceRecheckLine(lead.memo, line)]]);
+      await appendLeadLog(sheets, [
+        { leadId: lead.leadId, kind: "再確認", text: line, detail: fingerprint ? `フォーム指紋:${fingerprint}` : "" },
+        ...(revive ? [{ leadId: lead.leadId, kind: "ステータス変更", text: "見送り → 送信待ち（見送りの再確認）" }] : [])
+      ]);
     }
 
     results.push({
       leadId: lead.leadId,
       companyName: lead.companyName,
       outcome: revive ? "revived" : "unchanged",
-      detail: line.replace(RECHECK_LINE_PREFIX, "")
+      detail: line
     });
   }
 

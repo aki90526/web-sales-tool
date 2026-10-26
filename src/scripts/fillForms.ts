@@ -8,6 +8,7 @@ import { appendFormOutcome, domainOf } from "../form/formOutcomeLog";
 import { upsertFormWatchEntry } from "../form/formWatchStatus";
 import { findFormCandidates, FormCandidate, FormSkipReason } from "../contact/formCandidates";
 import { readSalesContentConfig } from "../contact/salesMessage";
+import { appendLeadLog } from "../domain/leadLog";
 import { fillCandidateFormsInBrowser } from "../form/browserFormAutofill";
 import { saveLastFormFillSession } from "../form/formFillSession";
 import { fieldRangeForRow, readSalesManagementTable } from "../google/salesManagementRepository";
@@ -321,6 +322,25 @@ const main = async (): Promise<void> => {
     }
 
     console.log(`送信後: npm run forms:mark-sent（送信完了画面を検知した場合は自動で記録します）`);
+
+    // 自動入力の結果を、リードログに残す
+    const confirmText =
+      confirm.status === "advanced"
+        ? "確認画面まで進みました"
+        : confirm.status === "validation-error"
+          ? `確認画面に進めませんでした（${(confirm.detail ?? "").slice(0, 120)}）`
+          : confirm.status === "skipped"
+            ? "確認ボタンは押していません"
+            : "確認画面の状態は不明です";
+
+    await appendLeadLog(sheets, [
+      {
+        leadId: candidate.leadId,
+        kind: "自動入力",
+        text: `フォームに自動入力しました（${result.filled.length}項目）。${confirmText}${result.warnings.length > 0 ? ` / 警告: ${result.warnings.map((warning) => warning.slice(0, 80)).join(" / ")}` : ""}`
+      },
+      ...(result.captcha ? [{ leadId: candidate.leadId, kind: "不具合", text: `CAPTCHAを検出しました（${result.captcha}）。手動で送信してください` }] : [])
+    ]);
   }
 
   startCompletionWatcher(

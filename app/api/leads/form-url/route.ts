@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "../../../../src/config/env";
 import { CONTACT_METHODS, STATUSES } from "../../../../src/domain/lead";
 import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../../../../src/google/salesManagementRepository";
+import { appendLeadLog } from "../../../../src/domain/leadLog";
 import { createSheetsClient } from "../../../../src/google/sheetsClient";
 
 const HISTORY_PREFIX = "フォームURL";
@@ -61,23 +62,16 @@ export async function POST(request: Request) {
     let nextUrl = contactFormUrl;
     let nextMethod = lead.contactMethod;
     let nextStatus = lead.status;
-    let memo = lead.memo;
+    const memo = lead.memo;
     let historyLine = "";
+    let logText = "";
 
     if (restore) {
       nextUrl = restore.contactFormUrl;
       nextMethod = restore.contactMethod;
       nextStatus = restore.status;
 
-      if (removeLine) {
-        const lines = memo.split("\n");
-        const index = lines.lastIndexOf(removeLine);
-
-        if (index >= 0) {
-          lines.splice(index, 1);
-          memo = lines.join("\n");
-        }
-      }
+      logText = "フォームURLの変更を元に戻しました";
     } else {
       // 連絡方法が未定（連絡先なし）のリードは、フォームにして、「連絡先なし」で見送りだったものは送信待ちに戻す
       if (!lead.contactMethod || lead.contactMethod === "未定") {
@@ -106,7 +100,7 @@ export async function POST(request: Request) {
         ].filter(Boolean);
 
         historyLine = `${parts.join(" / ")} (${stamp})`;
-        memo = memo ? `${memo}\n${historyLine}` : historyLine;
+        logText = parts.join(" / ");
       }
     }
 
@@ -120,8 +114,9 @@ export async function POST(request: Request) {
       await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [[nextStatus]]);
     }
 
-    if (memo !== lead.memo) {
-      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[memo]]);
+    // 履歴は、メモではなく、リードログに残す
+    if (logText) {
+      await appendLeadLog(sheets, [{ leadId, kind: "連絡先", text: logText, actor: "手入力" }]);
     }
 
     return NextResponse.json({

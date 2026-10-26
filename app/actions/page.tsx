@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
+import { LeadLogModal } from "../components/LeadLog";
 import SkipPeriodDialog from "../components/SkipPeriodDialog";
 import CandidatePanel, { isManualOnly, type Candidate } from "./CandidatePanel";
 import ResultBar from "./ResultBar";
@@ -44,6 +45,7 @@ export default function ActionsPage() {
   const [selection, setSelection] = useState<{ touched: boolean; ids: string[] }>({ touched: false, ids: [] });
   const [candidateNotice, setCandidateNotice] = useState<string | null>(null);
   const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [logLeadInfo, setLogLeadInfo] = useState<{ leadId: string; companyName: string } | null>(null);
   const [skipDialogLead, setSkipDialogLead] = useState<Candidate | null>(null);
   const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
   const undoInfo = useRef<{ leadId: string; previousStatus: string; historyLine: string } | null>(null);
@@ -188,6 +190,31 @@ export default function ActionsPage() {
     } catch (err) {
       setCandidateError(`メモの保存に失敗しました: ${err instanceof Error ? err.message : ""}`);
     }
+  };
+
+  // 操作者が書く「現在の状況」を保存する（ログにも残る）。失敗したら、エラーを投げる
+  const saveCandidateNote = async (lead: Candidate, text: string): Promise<void> => {
+    const res = await fetch("/api/leads/note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadId: lead.leadId, text })
+    });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(body.message ?? `HTTP ${res.status}`);
+    }
+
+    const at = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Tokyo" });
+
+    setAllLeads(
+      (current) =>
+        current?.map((entry) =>
+          entry.leadId === lead.leadId
+            ? { ...entry, currentNote: text, latestLog: { at, kind: "状況", text: text ? `状況を更新: ${text}` : "状況をクリアしました", actor: "手入力" } }
+            : entry
+        ) ?? current
+    );
   };
 
   const changeCandidateStatus = async (lead: Candidate, status: string, recheckDays?: string) => {
@@ -910,6 +937,8 @@ export default function ActionsPage() {
           error={candidateError}
           onToggle={toggleCandidate}
           onMemoSave={saveCandidateMemo}
+          onSaveNote={saveCandidateNote}
+          onOpenLog={(lead) => setLogLeadInfo({ leadId: lead.leadId, companyName: lead.companyName })}
           onStatusChange={changeCandidateStatus}
           onShowMessage={showCandidateMessage}
           onFormUrlChange={changeCandidateFormUrl}
@@ -1138,6 +1167,8 @@ export default function ActionsPage() {
           </div>
         </div>
       )}
+
+      {logLeadInfo && <LeadLogModal leadId={logLeadInfo.leadId} companyName={logLeadInfo.companyName} onClose={() => setLogLeadInfo(null)} />}
 
       <UndoToast toast={undoToast} onUndo={undoCandidateStatus} onClose={() => setUndoToast(null)} />
 

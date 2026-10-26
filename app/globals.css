@@ -2388,3 +2388,102 @@ button.skip-count-badge:hover {
   border-bottom-color: var(--accent);
   color: var(--accent);
 }
+
+/* リードごとのログ */
+.lead-log-controls {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.lead-log-note-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lead-log-note {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fffdf5;
+  padding: 4px 8px;
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.lead-log-latest {
+  display: block;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lead-log-latest:hover {
+  color: var(--accent);
+}
+
+.lead-log-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.lead-log-modal {
+  max-width: 760px;
+}
+
+.lead-log-filter {
+  max-width: 220px;
+  margin-bottom: 12px;
+}
+
+.lead-log-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lead-log-list li {
+  display: grid;
+  grid-template-columns: 112px 92px minmax(0, 1fr);
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.lead-log-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lead-log-kind {
+  font-weight: 800;
+}
+
+.lead-log-text {
+  overflow-wrap: anywhere;
+}
+
+.lead-log-text em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.lead-log-text small {
+  display: block;
+  color: var(--muted);
+}

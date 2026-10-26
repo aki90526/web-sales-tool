@@ -3,6 +3,7 @@
 import { CheckCircle2, ExternalLink, FileText, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles } from "lucide-react";
 import ActionMenu from "./ActionMenu";
 import { skipPeriodLabel } from "../components/SkipPeriodDialog";
+import { LeadLogControls, type LatestLog } from "../components/LeadLog";
 import { nextRecheckLabel } from "../../src/domain/recheckSchedule";
 import { STATUSES } from "../../src/domain/lead";
 
@@ -20,6 +21,9 @@ export type CardLead = {
   memo: string;
   contactCount?: number;
   recheckDays?: string;
+  currentNote?: string;
+  latestLog?: LatestLog;
+  recheckBaseDate?: string;
 };
 
 export type CardNotice = { status: "success" | "failed"; text: string };
@@ -45,6 +49,8 @@ type LeadCardsProps<T extends CardLead> = {
   onMarkFormSent: (lead: T) => void;
   onChangeRecheck: (lead: T) => void;
   recheckDefaultDays: number;
+  onSaveNote: (lead: T, text: string) => Promise<void>;
+  onOpenLog: (lead: T) => void;
 };
 
 // メモ欄の高さを、内容に合わせる（普段は最大3行まで。編集中は全文を表示する。上限はCSS側）
@@ -122,7 +128,7 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                   onClick={() => props.onChangeRecheck(lead)}
                   title={`見送りの再確認の予定日（期間: ${skipPeriodLabel(lead.recheckDays ?? "")}。クリックで変更）`}
                 >
-                  {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", props.recheckDefaultDays)}
+                  {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", props.recheckDefaultDays, lead.recheckBaseDate ?? "")}
                 </button>
               )}
               {/* 連絡方法は、想定する連絡方法（メール・フォーム）か、未定だけを表示する。連絡先の登録・変更は、「連絡先」メニューから */}
@@ -187,7 +193,15 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
               )}
             </div>
 
-            <textarea
+            <LeadLogControls
+              leadId={lead.leadId}
+              currentNote={lead.currentNote ?? ""}
+              latestLog={lead.latestLog ?? null}
+              onSaveNote={(text) => props.onSaveNote(lead, text)}
+              onOpenLog={() => props.onOpenLog(lead)}
+            />
+
+<textarea
               key={`${lead.leadId}:${lead.memo}`}
               ref={autoResize}
               className="memo-input card-memo"

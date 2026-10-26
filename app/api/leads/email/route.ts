@@ -3,6 +3,7 @@ import { loadConfig } from "../../../../src/config/env";
 import { CONTACT_METHODS, STATUSES } from "../../../../src/domain/lead";
 import { isValidEmail } from "../../../../src/email/emailList";
 import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../../../../src/google/salesManagementRepository";
+import { appendLeadLog } from "../../../../src/domain/leadLog";
 import { createSheetsClient } from "../../../../src/google/sheetsClient";
 
 const HISTORY_PREFIX = "メールアドレス";
@@ -62,8 +63,9 @@ export async function POST(request: Request) {
     let nextEmail = email;
     let nextMethod = lead.contactMethod;
     let nextStatus = lead.status;
-    let memo = lead.memo;
+    const memo = lead.memo;
     let historyLine = "";
+    let logText = "";
 
     if (restore) {
       // 元に戻す: 値を戻し、そのとき追記した行を、メモから消す
@@ -71,15 +73,7 @@ export async function POST(request: Request) {
       nextMethod = restore.contactMethod;
       nextStatus = restore.status;
 
-      if (removeLine) {
-        const lines = memo.split("\n");
-        const index = lines.lastIndexOf(removeLine);
-
-        if (index >= 0) {
-          lines.splice(index, 1);
-          memo = lines.join("\n");
-        }
-      }
+      logText = "メールアドレスの変更を元に戻しました";
     } else {
       // メールを優先する。フォーム・未定のリードは、ステータスを問わず（フォームで送信済みのリードも）、連絡方法をメールにする
       if (lead.contactMethod !== "メール") {
@@ -107,7 +101,7 @@ export async function POST(request: Request) {
       }).format(new Date());
 
       historyLine = `${parts.join(" / ")} (${stamp})`;
-      memo = memo ? `${memo}\n${historyLine}` : historyLine;
+      logText = parts.join(" / ");
     }
 
     await sheets.updateValues(fieldRangeForRow(table.columns, "emailAddress", lead.rowNumber), [[nextEmail]]);
@@ -120,8 +114,9 @@ export async function POST(request: Request) {
       await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [[nextStatus]]);
     }
 
-    if (memo !== lead.memo) {
-      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[memo]]);
+    // 履歴は、メモではなく、リードログに残す
+    if (logText) {
+      await appendLeadLog(sheets, [{ leadId, kind: "連絡先", text: logText, actor: "手入力" }]);
     }
 
     return NextResponse.json({

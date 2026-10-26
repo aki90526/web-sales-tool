@@ -11,6 +11,7 @@ import {
 import { isBounceSubject, parseBounce } from "../email/bounceDetection";
 import { detectOptOut } from "../email/optOutDetection";
 import { recheckRejectedLeads } from "../collection/rejectedRecheck";
+import { appendLeadLog } from "../domain/leadLog";
 import { todayInTokyo } from "../domain/resend";
 import { revertDueResends } from "../domain/resendRevert";
 import { createGmailClient, GmailClient, GmailMessageMetadata } from "../google/gmailClient";
@@ -395,11 +396,16 @@ const updateLeadStatuses = async (
         await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["除外" as Status]]);
       }
 
-      if (!lead.memo.includes(line)) {
-        await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[lead.memo ? `${lead.memo}\n${line}` : line]]);
-      }
+      await appendLeadLog(sheets, [
+        { leadId: lead.leadId, kind: "返信・検知", text: line },
+        ...(lead.status !== "除外" ? [{ leadId: lead.leadId, kind: "ステータス変更", text: `${lead.status} → 除外（配信停止・営業お断りの返信）` }] : [])
+      ]);
     } else if (lead.status !== "返信あり") {
       await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["返信あり" as Status]]);
+      await appendLeadLog(sheets, [
+        { leadId: lead.leadId, kind: "返信・検知", text: "返信を検知しました" },
+        { leadId: lead.leadId, kind: "ステータス変更", text: `${lead.status} → 返信あり（返信の検知）` }
+      ]);
     }
   }
 };
@@ -454,6 +460,7 @@ const syncBookingNotifications = async (
       }
 
       await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[lead.memo ? `${lead.memo}\n${line}` : line]]);
+      await appendLeadLog(sheets, [{ leadId: lead.leadId, kind: "返信・検知", text: `面談予約を検知: ${line}` }]);
 
       for (const history of histories.filter((row) => row.leadId === lead.leadId && row.sendStatus === "送信済み" && row.replyStatus !== "返信あり")) {
         await sheets.updateValues(`'${SHEETS.approachHistory}'!I${history.rowNumber}:J${history.rowNumber}`, [
@@ -572,9 +579,12 @@ const syncBounces = async (
         }
       }
 
-      const memoLines = [lead.memo, reasonText, actionLine, skipLine].filter(Boolean).join("\n");
-      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[memoLines]]);
-      lead.memo = memoLines;
+      // 不達の内容と、その後の対応は、メモではなく、リードログに残す
+      await appendLeadLog(sheets, [
+        { leadId: lead.leadId, kind: "返信・検知", text: `メール不達を検知: ${reasonText}` },
+        ...(actionLine ? [{ leadId: lead.leadId, kind: "連絡先", text: actionLine }] : []),
+        ...(skipLine ? [{ leadId: lead.leadId, kind: "ステータス変更", text: `${lead.status || "(空)"} → 見送り（メール不達）` }] : [])
+      ]);
     }
 
     applied.push({ lead, recipient: bounce.recipient, detail: reasonText, next });

@@ -1,4 +1,5 @@
-import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../google/salesManagementRepository";
+import { appendLeadLog } from "./leadLog";
+import { readSalesManagementTable, statusRangeForRow } from "../google/salesManagementRepository";
 import { SheetsClient } from "../google/sheetsClient";
 import { SHEETS } from "./lead";
 import { readResendSettings, readSendRecords, resendDueDate, daysBetween, todayInTokyo } from "./resend";
@@ -60,12 +61,13 @@ export const revertDueResends = async (
     }
 
     const elapsedDays = daysBetween(record.lastSentAt, today);
-    const line = `再送対象: 前回送信${formatMonthDay(record.lastSentAt)}から${elapsedDays}日経過 → 送信待ち (${today})`;
+    const line = `前回送信${formatMonthDay(record.lastSentAt)}から${elapsedDays}日経過`;
 
     if (!options.dryRun) {
       await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["送信待ち"]]);
-      await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [
-        [lead.memo ? `${lead.memo}\n${line}` : line]
+      await appendLeadLog(sheets, [
+        { leadId: lead.leadId, kind: "再送", text: `再送の時期になりました（${line}）` },
+        { leadId: lead.leadId, kind: "ステータス変更", text: "送信済み → 送信待ち（再送の時期）" }
       ]);
     }
 

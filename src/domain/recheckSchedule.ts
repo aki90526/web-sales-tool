@@ -21,7 +21,7 @@ export type NextRecheck = { kind: "never" } | { kind: "pending" } | { kind: "dat
 
 // 次の再確認の日。リードごとの日数（空欄は既定の日数、「なし」は再確認しない）と、メモの記録から求める。
 // 記録が無いリードは、次の自動処理で確認される（pending）
-export const nextRecheck = (memo: string, recheckDays: string, defaultDays: number): NextRecheck => {
+export const nextRecheck = (memo: string, recheckDays: string, defaultDays: number, baseDate = ""): NextRecheck => {
   const value = recheckDays.trim();
 
   if (value === "なし") {
@@ -30,13 +30,14 @@ export const nextRecheck = (memo: string, recheckDays: string, defaultDays: numb
 
   const parsed = Number(value);
   const days = value && Number.isInteger(parsed) && parsed > 0 ? parsed : defaultDays;
-  const last = lastCheckedDate(memo);
+  const fromMemo = lastCheckedDate(memo);
+  const last = baseDate > fromMemo ? baseDate : fromMemo;
 
   return last ? { kind: "date", date: addDays(last, days) } : { kind: "pending" };
 };
 
-export const nextRecheckLabel = (memo: string, recheckDays: string, defaultDays: number): string => {
-  const next = nextRecheck(memo, recheckDays, defaultDays);
+export const nextRecheckLabel = (memo: string, recheckDays: string, defaultDays: number, baseDate = ""): string => {
+  const next = nextRecheck(memo, recheckDays, defaultDays, baseDate);
 
   if (next.kind === "never") return "再確認しない";
   if (next.kind === "pending") return "再確認 まもなく";

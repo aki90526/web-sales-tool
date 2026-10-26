@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Check, CheckCircle2, Copy, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
+import { LeadLogControls, LeadLogModal, type LatestLog } from "../components/LeadLog";
 import SkipPeriodDialog, { skipPeriodLabel } from "../components/SkipPeriodDialog";
 import { nextRecheckLabel } from "../../src/domain/recheckSchedule";
 import ActionMenu, { type ActionMenuItem } from "./ActionMenu";
@@ -29,6 +30,10 @@ type Lead = {
   // 連絡した回数（送信済みの件数）と、見送りの再確認までの日数（空欄 = 既定、「なし」 = 再確認しない）
   contactCount?: number;
   recheckDays?: string;
+  // 操作者が書く現在の状況、いちばん新しいログ、見送りの再確認の基準日
+  currentNote?: string;
+  latestLog?: LatestLog;
+  recheckBaseDate?: string;
 };
 
 const ALL = "すべて";
@@ -85,6 +90,7 @@ export default function LeadsPage() {
   const [autoRecordedLeadIds, setAutoRecordedLeadIds] = useState<Set<string>>(new Set());
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [logLead, setLogLead] = useState<Lead | null>(null);
   const [skipDialog, setSkipDialog] = useState<{ lead: Lead; mode: "status" | "edit" } | null>(null);
   const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string } | null>(null);
   const [messageContent, setMessageContent] = useState<{ subject: string; body: string } | null>(null);
@@ -398,6 +404,36 @@ export default function LeadsPage() {
     } catch (err) {
       setStatusError(err instanceof Error ? err.message : "再確認の期間を更新できませんでした");
     }
+  };
+
+  // 操作者が書く「現在の状況」を保存する（ログにも残る）。失敗したら、エラーを投げる
+  const saveNote = async (lead: Lead, text: string): Promise<void> => {
+    const res = await fetch("/api/leads/note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadId: lead.leadId, text })
+    });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(body.message ?? `HTTP ${res.status}`);
+    }
+
+    const at = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Tokyo" });
+
+    setLeads((current) =>
+      current
+        ? current.map((entry) =>
+            entry.leadId === lead.leadId
+              ? {
+                  ...entry,
+                  currentNote: text,
+                  latestLog: { at, kind: "状況", text: text ? `状況を更新: ${text}` : "状況をクリアしました", actor: "手入力" }
+                }
+              : entry
+          )
+        : current
+    );
   };
 
   const undoStatusChange = async () => {
@@ -871,6 +907,8 @@ export default function LeadsPage() {
               methodClass={methodClass}
               onStatusChange={(lead, status) => updateStatus(lead, status)}
               onChangeRecheck={(lead) => setSkipDialog({ lead, mode: "edit" })}
+              onSaveNote={saveNote}
+              onOpenLog={(lead) => setLogLead(lead)}
               onMemoSave={updateMemo}
               onEditFormUrl={editFormUrl}
               onEditEmail={editEmail}
@@ -1010,11 +1048,18 @@ export default function LeadsPage() {
                             onClick={() => setSkipDialog({ lead, mode: "edit" })}
                             title={`見送りの再確認の予定日（期間: ${skipPeriodLabel(lead.recheckDays ?? "")}。クリックで変更）`}
                           >
-                            {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", recheckDefaultDays)}
+                            {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", recheckDefaultDays, lead.recheckBaseDate ?? "")}
                           </button>
                         )}
                       </td>
                       <td className="col-memo">
+                        <LeadLogControls
+                          leadId={lead.leadId}
+                          currentNote={lead.currentNote ?? ""}
+                          latestLog={lead.latestLog ?? null}
+                          onSaveNote={(text) => saveNote(lead, text)}
+                          onOpenLog={() => setLogLead(lead)}
+                        />
                         <textarea
                           key={lead.memo}
                           ref={autoResizeTextarea}
@@ -1046,6 +1091,8 @@ export default function LeadsPage() {
           </div>
         )}
       </section>
+
+      {logLead && <LeadLogModal leadId={logLead.leadId} companyName={logLead.companyName} onClose={() => setLogLead(null)} />}
 
       <UndoToast toast={undoToast} onUndo={undoStatusChange} onClose={() => setUndoToast(null)} />
 

@@ -21,6 +21,8 @@ export type SalesManagementLead = {
   contactCount: number;
   // 見送りの再確認までの日数。空欄は設定シートの既定、「なし」は再確認しない
   recheckDays: string;
+  // 操作者が書く、いまの状況（1行）。メモとは別。更新すると、リードログにも残る
+  currentNote: string;
 };
 
 export type SalesManagementColumnMap = {
@@ -41,6 +43,7 @@ export type SalesManagementColumnMap = {
   // 見送りの管理用の列。シートに無い間は -1（npm run settings:migrate-resend で追加する）
   contactCount: number;
   recheckDays: number;
+  currentNote: number;
 };
 
 export type SalesManagementTable = {
@@ -65,10 +68,11 @@ const HEADER_ALIASES: Record<keyof SalesManagementColumnMap, string[]> = {
   nextActionDate: ["次回対応日"],
   memo: ["メモ"],
   contactCount: ["連絡回数"],
-  recheckDays: ["再確認までの日数"]
+  recheckDays: ["再確認までの日数"],
+  currentNote: ["現在の状況"]
 };
 
-const OPTIONAL_COLUMNS: ReadonlyArray<keyof SalesManagementColumnMap> = ["contactCount", "recheckDays"];
+const OPTIONAL_COLUMNS: ReadonlyArray<keyof SalesManagementColumnMap> = ["contactCount", "recheckDays", "currentNote"];
 
 const RANGE = `'${SHEETS.salesManagement}'!A:AZ`;
 
@@ -139,7 +143,8 @@ const toLead = (
     nextActionDate: cell(row, columns.nextActionDate),
     memo: cell(row, columns.memo),
     contactCount: columns.contactCount >= 0 ? parseScore(cell(row, columns.contactCount)) : 0,
-    recheckDays: columns.recheckDays >= 0 ? cell(row, columns.recheckDays) : ""
+    recheckDays: columns.recheckDays >= 0 ? cell(row, columns.recheckDays) : "",
+    currentNote: columns.currentNote >= 0 ? cell(row, columns.currentNote) : ""
   };
 };
 

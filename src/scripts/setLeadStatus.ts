@@ -1,7 +1,8 @@
 import { loadConfig } from "../config/env";
 import { STATUSES, Status } from "../domain/lead";
-import { fieldRangeForRow, readSalesManagementTable, statusRangeForRow } from "../google/salesManagementRepository";
+import { readSalesManagementTable, statusRangeForRow } from "../google/salesManagementRepository";
 import { normalizeRecheckInput, setRecheckDays } from "../domain/skipTracking";
+import { appendLeadLog } from "../domain/leadLog";
 import { createSheetsClient } from "../google/sheetsClient";
 
 const printHelp = (): void => {
@@ -88,10 +89,10 @@ const main = async (): Promise<void> => {
     throw new Error('--recheck-days must be a number of days (1-3650) or "なし"');
   }
 
-  const line = `ステータス変更: ${lead.status || "(空)"} → ${status} (${formatTokyoDate(new Date())})${note ? ` ${note}` : ""}`;
-
   await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [[status as Status]]);
-  await sheets.updateValues(fieldRangeForRow(table.columns, "memo", lead.rowNumber), [[lead.memo ? `${lead.memo}\n${line}` : line]]);
+  await appendLeadLog(sheets, [
+    { leadId: lead.leadId, kind: "ステータス変更", text: `${lead.status || "(空)"} → ${status}${note ? ` ${note}` : ""}`, actor: "手入力" }
+  ]);
 
   if (status === "見送り" && lead.status !== "見送り") {
     await setRecheckDays(sheets, table, lead, recheckDays);
