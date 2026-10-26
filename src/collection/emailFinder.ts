@@ -28,11 +28,22 @@ const decodeCloudflareEmail = (encoded: string): string => {
   }
 };
 
+const MAILTO_PATTERN = /mailto:([^"'\s\\<>?&;]+)/gi;
+
+const safeDecode = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 const extractEmails = (html: string): string[] => {
   const emails: string[] = [];
 
-  for (const match of html.matchAll(/href\s*=\s*["']mailto:([^"'?]+)/gi)) {
-    emails.push(decodeURIComponent(match[1]).trim());
+  // <a href="mailto:..."> のほか、サイト作成サービスのJSONデータ（"hyperlink":"mailto:..."）など、HTMLの中の mailto: をすべて見る
+  for (const match of html.matchAll(MAILTO_PATTERN)) {
+    emails.push(safeDecode(match[1]).trim());
   }
 
   for (const match of html.matchAll(/data-cfemail\s*=\s*["']([0-9a-f]+)["']/gi)) {
@@ -115,7 +126,7 @@ export const findEmailOnSite = async (officialSiteUrl: string, contactUrl: strin
     }
 
     const mailtoEmails = new Set(
-      Array.from(html.matchAll(/href\s*=\s*["']mailto:([^"'?]+)/gi)).map((match) => decodeURIComponent(match[1]).trim().toLowerCase())
+      Array.from(html.matchAll(MAILTO_PATTERN)).map((match) => safeDecode(match[1]).trim().toLowerCase())
     );
 
     for (const email of extractEmails(html)) {
