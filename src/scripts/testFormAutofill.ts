@@ -199,7 +199,15 @@ const main = async (): Promise<void> => {
         (field) => JSON.stringify(expected[field]) !== JSON.stringify(values[field])
       );
 
-      if (diffs.length === 0) {
+      // 同名の *.expected-warnings.json（警告に含まれる文言の一覧）があるときは、それぞれの文言を含む警告が出ていることも確認する
+      const warningsFile = file.replace(/\.html$/, ".expected-warnings.json");
+      const missingWarnings = fs.existsSync(warningsFile)
+        ? (JSON.parse(fs.readFileSync(warningsFile, "utf8")) as string[]).filter(
+            (needle) => !warnings.some((warning) => warning.includes(needle))
+          )
+        : [];
+
+      if (diffs.length === 0 && missingWarnings.length === 0) {
         console.log(`PASS  ${name}`);
         continue;
       }
@@ -208,6 +216,9 @@ const main = async (): Promise<void> => {
       console.log(`FAIL  ${name}`);
       diffs.forEach((field) => {
         console.log(`  ${field}: 期待 ${format(expected[field])} / 実際 ${format(values[field])}`);
+      });
+      missingWarnings.forEach((needle) => {
+        console.log(`  警告なし: 「${needle}」を含む警告が出ていない`);
       });
     }
   } finally {

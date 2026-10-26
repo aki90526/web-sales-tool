@@ -15,6 +15,16 @@
   "agree_bundle": [
     "on"
   ],
+  "news_f": [
+    "no"
+  ],
+  "news_g": [
+    "yes"
+  ],
+  "news_i": "",
+  "agree_radio": [
+    "agree"
+  ],
   "topic[]": [
     "a",
     "b"

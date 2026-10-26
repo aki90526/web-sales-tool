@@ -40,6 +40,28 @@
   <p><label><input type="checkbox" name="agree_bundle" value="on"> 個人情報の取り扱いおよび今後のご案内メールの配信に同意します</label></p>
 
   <fieldset>
+    <legend>今後のメール配信（必須）</legend>
+    <label><input type="radio" name="news_f" value="yes" required checked> 受信する</label>
+    <label><input type="radio" name="news_f" value="no" required> 受信しない</label>
+  </fieldset>
+
+  <p><label><input type="checkbox" name="news_g" value="yes" required checked> メールマガジンの配信を受け取る（必須）</label></p>
+
+  <p>セミナーのご案内メール（はい／いいえ）
+    <select name="news_i">
+      <option value="">選択してください</option>
+      <option value="yes">はい</option>
+      <option value="no">いいえ</option>
+    </select>
+  </p>
+
+  <fieldset>
+    <legend>個人情報の取り扱いと今後のご案内メールの配信について</legend>
+    <label><input type="radio" name="agree_radio" value="agree"> 同意する</label>
+    <label><input type="radio" name="agree_radio" value="disagree"> 同意しない</label>
+  </fieldset>
+
+  <fieldset>
     <legend>お問い合わせ項目</legend>
     <label><input type="checkbox" name="topic[]" value="a"> 販促物・会社案内の制作</label>
     <label><input type="checkbox" name="topic[]" value="b"> Webサイトの制作</label>

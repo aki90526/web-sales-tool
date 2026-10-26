@@ -2379,7 +2379,8 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
 
   // メルマガ・案内メールの受信希望の欄では、受信しない側（「希望しない」など）を選ぶ。
   // こちらは営業メールの送り手であり、相手のメルマガの受信を勝手に有効にしないため。サイト側が「希望する」を初期選択にしている場合も、「希望しない」に直す。
-  // 個人情報・規約への同意と一体の欄（必須の欄を含む）や、意味が判別できない欄（はい／いいえだけ）は、触らず、手動確認の警告を出す
+  // 触らず、警告で手動確認を促すもの: 個人情報・規約への同意と一体の欄、意味が判別できない欄（はい／いいえだけ）、必須の「受信する」側のチェックボックス。
+  // 必須のラジオ・プルダウンでも、「希望しない」の選択肢があれば、それを選ぶ（必須は、何かを選べばよいため）
   const MARKETING_CONTEXT =
     /(メール(マガジン|配信)|メルマガ|ニュースレター|newsletter|(各種|最新|新着|セミナー|イベント|キャンペーン|サービス|商品|製品).{0,8}(ご)?(案内|お知らせ|情報)|(今後|当社|弊社|各種).{0,12}(配信|ご案内)|(配信|受信|受け取り).{0,8}(希望|可否)|(広告|宣伝|販促|営業|プロモーション).{0,4}(メール|連絡))/i;
   const PRIVACY_CONTEXT = /(個人情報|プライバシー|規約|privacy|policy)/i;
@@ -2423,7 +2424,13 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       const context = `${groupLabel} ${nearestPreviousLabelText(elements[0])}`.slice(0, 300);
       const optionTexts = elements.map((element) => radioOptionLabelFor(element));
 
-      if (!MARKETING_CONTEXT.test(context) || PRIVACY_CONTEXT.test(`${context} ${optionTexts.join(" ")}`)) {
+      if (!MARKETING_CONTEXT.test(context)) {
+        return;
+      }
+
+      if (PRIVACY_CONTEXT.test(`${context} ${optionTexts.join(" ")}`)) {
+        // 個人情報・規約への同意と一体の欄。受信の可否を勝手に決めず、手動で確認してもらう（同意欄としての従来の処理は、そのまま）
+        result.warnings.push(`${groupLabel.slice(0, 60)} は個人情報・規約の同意と受信希望が一体の欄です。内容を手動で確認してください。`);
         return;
       }
 
@@ -2463,7 +2470,13 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       // 受信希望の欄かどうかは、欄の見出し（選択肢が1つだけのときは、その文言も）で判定する。複数の選択肢を連結した文で判定すると、事業内容の選択肢の文言（「会社案内」など）に反応してしまう
       const marketingText = elements.length === 1 ? `${groupLabel} ${optionTexts[0]}` : groupLabel;
 
-      if (!MARKETING_CONTEXT.test(marketingText) || PRIVACY_CONTEXT.test(`${groupLabel} ${optionTexts.join(" ")}`)) {
+      if (!MARKETING_CONTEXT.test(marketingText)) {
+        return;
+      }
+
+      if (PRIVACY_CONTEXT.test(`${groupLabel} ${optionTexts.join(" ")}`)) {
+        // 個人情報・規約への同意と一体の欄（例:「個人情報の取り扱いおよびご案内メールの配信に同意します」）。分けて選べないため、触らず、手動で確認してもらう（同意欄としての従来の処理は、そのまま）
+        result.warnings.push(`${checkboxOptionLabelFor(elements[0]).slice(0, 60)} は個人情報・規約の同意と受信希望が一体の欄です。内容を手動で確認してください。`);
         return;
       }
 
@@ -2483,9 +2496,12 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
         elements
           .filter((element) => !optOuts.includes(element) && element.checked)
           .forEach((element) => {
-            if (!element.required) {
-              uncheckInput(element);
+            if (element.required || element.getAttribute("aria-required") === "true") {
+              result.warnings.push(`${checkboxOptionLabelFor(element).slice(0, 60)} は必須の受信希望の欄です。内容を手動で確認してください。`);
+              return;
             }
+
+            uncheckInput(element);
           });
         return;
       }
@@ -2516,13 +2532,20 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
 
       const context = labelFor(element);
 
-      if (!MARKETING_CONTEXT.test(context) || PRIVACY_CONTEXT.test(context)) {
+      if (!MARKETING_CONTEXT.test(context)) {
+        return;
+      }
+
+      if (PRIVACY_CONTEXT.test(context)) {
+        result.warnings.push(`${shortLabelFor(element).slice(0, 60)} は個人情報・規約の同意と受信希望が一体の欄です。内容を手動で確認してください。`);
         return;
       }
 
       const optOut = Array.from(element.options).find((option) => isOptOutText(option.textContent || option.value));
 
       if (!optOut) {
+        // 「はい／いいえ」などで、どちらが受信しない側か判別できない。勝手に決めず、手動で確認してもらう
+        result.warnings.push(`${shortLabelFor(element).slice(0, 60)} は受信希望の欄です。受信しない側を手動で確認してください。`);
         return;
       }
 
