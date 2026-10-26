@@ -97,6 +97,11 @@ const scoreContactLink = (link: LinkCandidate, sourceUrl: string, leadType: stri
     score -= 60;
   }
 
+  // お知らせ・ブログなどの記事ページは、タイトルに「営業」「依頼」などが含まれていても、問い合わせ窓口ではない（例:「年末年始の営業につきまして」）
+  if (ARTICLE_PATH_PATTERN.test(target.pathname)) {
+    score -= 70;
+  }
+
   if (isProductionOrAgencyLead(leadType)) {
     if (/(制作パートナー|ビジネスパートナー|パートナー|協業|提携|業務委託|外注|営業)/.test(haystack)) {
       score += 55;
@@ -134,7 +139,19 @@ const findBestContactLinks = (
 ): Array<{ link: LinkCandidate; score: number }> => {
   const currentKey = normalizeUrlKey(currentUrl);
 
-  return extractLinks(html, sourceUrl)
+  // 同じURLへのリンク（ヘッダー・フッター・本文に何度も出る）は、文言の長い（情報の多い）ものを1つだけにする
+  const unique = new Map<string, LinkCandidate>();
+
+  for (const link of extractLinks(html, sourceUrl)) {
+    const key = normalizeUrlKey(link.url);
+    const existing = unique.get(key);
+
+    if (!existing || link.text.length > existing.text.length) {
+      unique.set(key, link);
+    }
+  }
+
+  return Array.from(unique.values())
     .filter((link) => normalizeUrlKey(link.url) !== currentKey)
     .map((link) => ({
       link,
@@ -149,6 +166,32 @@ const hasUsableForm = async (url: string): Promise<boolean> => {
   try {
     const html = await fetchText(url);
     return pageAppearsToContainForm(html) && !isRequestOnlyForm(html);
+  } catch {
+    return false;
+  }
+};
+
+// 入口のページ（フォームが無く、窓口へのリンクだけがあるページ）の中から、入力フォームのある窓口を探す。
+// 営業先が制作会社・広告代理店のときは、「パートナー募集」「協業」などの窓口を優先する（スコアは通常のリンクと同じ）
+const findDeeperContactLink = async (entranceUrl: string, leadType: string): Promise<LinkCandidate | null> => {
+  try {
+    const html = await fetchText(entranceUrl);
+
+    for (const best of findBestContactLinks(html, entranceUrl, leadType, entranceUrl, 5)) {
+      if (best.score >= 70 && (await hasUsableForm(best.link.url))) {
+        return best.link;
+      }
+    }
+  } catch {
+    // 取得できなければ、1段目のままにする
+  }
+
+  return null;
+};
+
+const isRequestOnlyPage = async (url: string): Promise<boolean> => {
+  try {
+    return isRequestOnlyForm(await fetchText(url));
   } catch {
     return false;
   }
@@ -438,6 +481,8 @@ export const verifyContactUrl = async (
     ? await fetchText(candidate.contactUrl).then(pageAppearsToContainForm, () => false)
     : false;
 
+  let fallback: { best: { link: LinkCandidate; score: number }; sourceUrl: string; currentUrl: string } | null = null;
+
   for (const sourceUrl of candidateSourceUrls(candidate)) {
     try {
       const html = await fetchText(sourceUrl);
@@ -460,22 +505,54 @@ export const verifyContactUrl = async (
           continue;
         }
 
+        // 予約・依頼専用のフォームは、協業・パートナー提案の送信先にならないので、次の候補を見る
+        if (!currentHasForm && (await isRequestOnlyPage(best.link.url))) {
+          continue;
+        }
+
+        // 見つけたページが入口だけ（入力フォームが無い）で、その中に「パートナー募集」などの窓口へのリンクがあれば、もう1段、たどる。
+        // たどれず、フォームも無いページは、ほかに使える窓口が見つからなかったときの代わりとして、取っておく
+        let deeper: LinkCandidate | null = null;
+
+        if (!currentHasForm && !(await hasUsableForm(best.link.url))) {
+          deeper = await findDeeperContactLink(best.link.url, candidate.leadType);
+
+          if (!deeper) {
+            fallback ??= { best, sourceUrl, currentUrl };
+            continue;
+          }
+        }
+
+        const chosen = deeper ?? best.link;
+
         return {
           candidate: {
             ...candidate,
-            contactUrl: best.link.url
+            contactUrl: chosen.url
           },
           correction: {
             from: currentUrl,
-            to: best.link.url,
+            to: chosen.url,
             sourceUrl,
-            reason: best.link.text || "問い合わせフォームへの詳細リンクを検出"
+            reason: deeper ? `${best.link.text || best.link.url} のページ内の「${deeper.text || deeper.url}」を検出` : best.link.text || "問い合わせフォームへの詳細リンクを検出"
           }
         };
       }
     } catch {
       // Best-effort only. Collection should not fail because a site blocks lightweight verification.
     }
+  }
+
+  if (fallback) {
+    return {
+      candidate: { ...candidate, contactUrl: fallback.best.link.url },
+      correction: {
+        from: fallback.currentUrl,
+        to: fallback.best.link.url,
+        sourceUrl: fallback.sourceUrl,
+        reason: fallback.best.link.text || "問い合わせフォームへの詳細リンクを検出"
+      }
+    };
   }
 
   return { candidate };
