@@ -122,6 +122,19 @@ export const discoverContact = async (
       current = (await excludeRequestOnlyForm(current)).candidate;
     }
 
+    // 見つけたページに入力フォームが見当たらず、メールもないなら、使える連絡先とは言えないので、登録しない（送信待ちにも戻さない）
+    if (current.contactUrl && !current.email) {
+      const presence = await checkFormPresence(current.contactUrl);
+
+      if (presence.warning?.includes("見当たりません")) {
+        candidate = {
+          ...candidate,
+          memo: [candidate.memo, `連絡先の候補 ${current.contactUrl} は、入力フォームが見当たらないため登録しませんでした`].filter(Boolean).join("\n")
+        };
+        current = { ...current, contactUrl: "" };
+      }
+    }
+
     if (!current.contactUrl && !current.email) {
       const found = await findEmailOnSite(current.officialSiteUrl, "");
 
