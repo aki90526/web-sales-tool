@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>pilot 動的: 独自プルダウン（管理下・架空）</title>
+<style>
+  #dd { position: relative; display: inline-block; min-width: 260px; }
+  #dd .cur { border: 1px solid #999; padding: 4px 8px; cursor: pointer; }
+  #dd ul { position: absolute; list-style: none; margin: 0; padding: 0; border: 1px solid #999; background: #fff; display: none; width: 100%; }
+  #dd.open ul { display: block; }
+  #dd li { padding: 4px 8px; cursor: pointer; }
+</style></head>
+<body>
+<h1>お問い合わせ（独自プルダウン。テスト用）</h1>
+<form method="post" action="/receive" id="f">
+  <p><label>お名前（必須） <input type="text" name="name" required></label></p>
+  <p><label>メールアドレス（必須） <input type="email" name="email" required></label></p>
+  <p>お問い合わせ種別（必須）
+    <span id="dd" role="combobox" aria-expanded="false">
+      <span class="cur" id="cur">選択してください</span>
+      <ul role="listbox">
+        <li role="option" data-value="service">サービスについて</li>
+        <li role="option" data-value="recruit">採用について</li>
+        <li role="option" data-value="partner">パートナー募集・協業について</li>
+        <li role="option" data-value="other">その他</li>
+      </ul>
+    </span>
+    <input type="hidden" name="kind" id="kind" value="">
+  </p>
+  <p><label>お問い合わせ内容（必須） <textarea name="message" required></textarea></label></p>
+  <p id="err" style="color:#b42318"></p>
+  <p><button type="submit" id="submit">送信</button></p>
+</form>
+<script>
+  var dd = document.getElementById("dd");
+  dd.addEventListener("click", function (e) {
+    var li = e.target.closest("li");
+    if (li) { document.getElementById("cur").textContent = li.textContent; document.getElementById("kind").value = li.dataset.value; dd.classList.remove("open"); }
+    else { dd.classList.toggle("open"); }
+  });
+  document.getElementById("f").addEventListener("submit", function (e) {
+    if (!document.getElementById("kind").value) { e.preventDefault(); document.getElementById("err").textContent = "お問い合わせ種別を選択してください"; }
+  });
+</script>
+</body></html>

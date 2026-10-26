@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>pilot 動的: 複数ステップ（管理下・架空）</title></head>
+<body>
+<h1>お問い合わせ（2ステップ。テスト用）</h1>
+<form method="post" action="/receive" id="f">
+  <div id="step1">
+    <p><label>お名前（必須） <input type="text" name="name" required></label></p>
+    <p><label>メールアドレス（必須） <input type="email" name="email" required></label></p>
+    <p><button type="button" id="next">次へ</button></p>
+  </div>
+  <div id="step2" hidden>
+    <p><label>お問い合わせ内容（必須） <textarea name="message" required></textarea></label></p>
+    <p><button type="submit" id="submit">送信</button></p>
+  </div>
+</form>
+<script>
+  document.getElementById("next").addEventListener("click", function () {
+    document.getElementById("step1").hidden = true;
+    document.getElementById("step2").hidden = false;
+  });
+</script>
+</body></html>

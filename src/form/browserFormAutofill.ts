@@ -2652,6 +2652,61 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     }
   });
 
+  // 入力そのものは変えず、自動入力では扱えない形のフォームに気づけるよう、警告だけを足す。
+  // (1) 複数ステップ（「次へ」ボタン）、(2) 添付ファイル必須、(3) 独自プルダウン（div で作った選択欄）で、未選択のまま残っているもの
+  const rowTextFor = (element: HTMLElement): string =>
+    (element.closest("fieldset, tr, dl, li, .form-group, .row, p, div")?.textContent ?? "").replace(/\s+/g, " ").slice(0, 200);
+  const isRequiredLooking = (element: HTMLElement): boolean => {
+    if (
+      (element as HTMLInputElement).required ||
+      element.getAttribute("aria-required") === "true" ||
+      element.closest(".wpcf7-validates-as-required, [aria-required='true']") !== null
+    ) {
+      return true;
+    }
+
+    const text = rowTextFor(element);
+
+    return /(必須|required)/i.test(text) && !/(任意|optional)/i.test(text);
+  };
+
+  // 送信ボタン（type=submit）の「次へ」は、確認画面へ進むボタンの場合が多く、複数ステップとは限らないので、対象にしない
+  const NEXT_BUTTON_TEXT = /^(次へ|次へ進む|次に進む|次のステップへ?|次のページへ?|next)(\s*[>＞»→▶])?$/i;
+  const nextButtons = Array.from(
+    document.querySelectorAll<HTMLElement>("form button[type='button'], form input[type='button'], form a[role='button']")
+  ).filter((element) => {
+    const text = ((element as HTMLInputElement).value || element.textContent || "").replace(/\s+/g, " ").trim();
+    return NEXT_BUTTON_TEXT.test(text) && visible(element);
+  });
+
+  if (nextButtons.length > 0) {
+    result.warnings.push(
+      "「次へ」ボタンがあります。入力欄が次の画面にも続く複数ステップのフォームの可能性があります。次の画面は自動入力されないので、手動で入力してください。"
+    );
+  }
+
+  document.querySelectorAll<HTMLInputElement>("input[type='file']").forEach((element) => {
+    if (element.disabled || !visible(element) || element.files?.length || !isRequiredLooking(element)) {
+      return;
+    }
+
+    result.warnings.push(`${shortLabelFor(element).slice(0, 60)} は添付ファイルが必須です。手動で添付してください。`);
+  });
+
+  document.querySelectorAll<HTMLElement>("[role='combobox']").forEach((element) => {
+    const tag = element.tagName.toLowerCase();
+
+    if (tag === "select" || tag === "input" || tag === "textarea" || !visible(element) || !isRequiredLooking(element)) {
+      return;
+    }
+
+    const shown = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+
+    if (/^(選択してください|選んでください|選択|未選択|---|--|select|choose|please select)/i.test(shown)) {
+      result.warnings.push(`${rowTextFor(element).slice(0, 40)} は独自のプルダウンで、未選択のままです。手動で選択してください。`);
+    }
+  });
+
   if (result.filled.length === 0) {
     result.warnings.push("入力できる項目を自動判定できませんでした。フォーム項目名を確認してください。");
   }
