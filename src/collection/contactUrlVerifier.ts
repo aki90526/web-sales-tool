@@ -102,6 +102,15 @@ const scoreContactLink = (link: LinkCandidate, sourceUrl: string, leadType: stri
     score -= 70;
   }
 
+  // リンクの文言そのものが「パートナー募集」などのときは、制作会社・広告代理店への提案の窓口として優先する（パスに recruit があっても減点しない）
+  if (isProductionOrAgencyLead(leadType) && /(パートナー募集|協力会社募集|外注先募集|業務委託募集|協業パートナー|ビジネスパートナー募集)/.test(link.text)) {
+    score += 55;
+
+    if (/(採用|求人|新卒|中途|recruit|career|entry|job)/i.test(haystack)) {
+      score += 35;
+    }
+  }
+
   if (isProductionOrAgencyLead(leadType)) {
     if (/(制作パートナー|ビジネスパートナー|パートナー|協業|提携|業務委託|外注|営業)/.test(haystack)) {
       score += 55;
@@ -172,15 +181,89 @@ const hasUsableForm = async (url: string): Promise<boolean> => {
 };
 
 // 入口のページ（フォームが無く、窓口へのリンクだけがあるページ）の中から、入力フォームのある窓口を探す。
-// 営業先が制作会社・広告代理店のときは、「パートナー募集」「協業」などの窓口を優先する（スコアは通常のリンクと同じ）
-const findDeeperContactLink = async (entranceUrl: string, leadType: string): Promise<LinkCandidate | null> => {
-  try {
-    const html = await fetchText(entranceUrl);
+// 1段目のリンクにフォームが無くても、入口が「パートナー募集」などの協業の窓口なら、その配下のページ（職種ごとのページなど）を、あと2段までたどる。
+// 確認するページ数に上限を付ける（1つの入口につき最大12ページ）
+const DEEP_CRAWL_PAGE_LIMIT = 12;
+const APPLY_LINK_PATTERN = /(応募|エントリー|apply|entry|フォーム|form)/i;
 
-    for (const best of findBestContactLinks(html, entranceUrl, leadType, entranceUrl, 5)) {
+const findDeeperContactLink = async (entranceUrl: string, leadType: string, entranceText = ""): Promise<LinkCandidate | null> => {
+  const entrance = safeUrl(entranceUrl);
+
+  if (!entrance) {
+    return null;
+  }
+
+  try {
+    const entranceHtml = await fetchText(entranceUrl);
+
+    // 入口が協業の窓口（パートナー募集など）のときは、ヘッダー・フッターにある一般の問い合わせリンクではなく、その配下の窓口を探す
+    const isPartnerSection = PARTNER_FORM_PATTERN.test(`${entranceText} ${entrance.pathname}`) && isProductionOrAgencyLead(leadType);
+    const sectionPath = entrance.pathname.replace(/\/$/, "");
+
+    for (const best of findBestContactLinks(entranceHtml, entranceUrl, leadType, entranceUrl, 5)) {
+      const target = safeUrl(best.link.url);
+      const inSection = target !== null && (target.pathname.startsWith(`${sectionPath}/`) || APPLY_LINK_PATTERN.test(`${best.link.text} ${target.pathname}`));
+
+      if (isPartnerSection && !inSection) {
+        continue;
+      }
+
       if (best.score >= 70 && (await hasUsableForm(best.link.url))) {
         return best.link;
       }
+    }
+
+    // ここから先は、協業の窓口（パートナー募集など）の配下に限る
+    if (!isPartnerSection) {
+      return null;
+    }
+
+    const sectionPrefix = sectionPath;
+    const visited = new Set<string>([normalizeUrlKey(entranceUrl)]);
+    let level: Array<{ url: string; html: string }> = [{ url: entranceUrl, html: entranceHtml }];
+    let fetched = 1;
+
+    for (let depth = 0; depth < 2 && level.length > 0; depth += 1) {
+      const next: Array<{ url: string; html: string }> = [];
+
+      for (const page of level) {
+        const links = extractLinks(page.html, page.url).filter((link) => {
+          const target = safeUrl(link.url);
+
+          return (
+            target !== null &&
+            !visited.has(normalizeUrlKey(link.url)) &&
+            !ARTICLE_PATH_PATTERN.test(target.pathname) &&
+            (target.pathname.startsWith(`${sectionPrefix}/`) || APPLY_LINK_PATTERN.test(`${link.text} ${target.pathname}`))
+          );
+        });
+        // 応募・フォームを思わせるリンクを先に確認する
+        links.sort((a, b) => Number(APPLY_LINK_PATTERN.test(`${b.text} ${b.url}`)) - Number(APPLY_LINK_PATTERN.test(`${a.text} ${a.url}`)));
+
+        for (const link of links) {
+          if (fetched >= DEEP_CRAWL_PAGE_LIMIT) {
+            return null;
+          }
+
+          visited.add(normalizeUrlKey(link.url));
+          fetched += 1;
+          let html: string;
+
+          try {
+            html = await fetchText(link.url);
+          } catch {
+            continue;
+          }
+
+          if (pageAppearsToContainForm(html) && !isRequestOnlyForm(html)) {
+            return link;
+          }
+
+          next.push({ url: link.url, html });
+        }
+      }
+
+      level = next;
     }
   } catch {
     // 取得できなければ、1段目のままにする
@@ -515,7 +598,7 @@ export const verifyContactUrl = async (
         let deeper: LinkCandidate | null = null;
 
         if (!currentHasForm && !(await hasUsableForm(best.link.url))) {
-          deeper = await findDeeperContactLink(best.link.url, candidate.leadType);
+          deeper = await findDeeperContactLink(best.link.url, candidate.leadType, best.link.text);
 
           if (!deeper) {
             fallback ??= { best, sourceUrl, currentUrl };
