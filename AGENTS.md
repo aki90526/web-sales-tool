@@ -41,7 +41,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Next.js 16（App Router）+ React 19 + Tailwind v4 のダッシュボード（`app/`）。この Next.js は一般的な知識と違う点がある。書く前に `node_modules/next/dist/docs/` を読む（上の注意を参照）。
 - CLI は ts-node の TypeScript（`src/scripts/*`、`package.json` の `scripts`）。ダッシュボードは、同じコードを呼ぶ（`src/dashboard/jobRunner.ts` が子プロセスとして起動し、標準出力の `[DASHBOARD_UPDATE]` / `[DASHBOARD_SUMMARY]` を画面に反映する）。
 - Google Sheets は REST を自前で呼ぶ（`src/google/sheetsClient.ts`。`getValues` / `getFormulas` / `updateValues` / `appendValues` / `ensureColumns`）。
-- フォーム自動入力は、リモートデバッグ付きの Chrome（ポート 9222）を `chrome-remote-interface` で操作する（`src/form/browserFormAutofill.ts`）。**送信ボタンは押さない**（人が確認して送る）。CAPTCHAは回避しない。メルマガ・案内メールの受信希望欄（ラジオ・チェック・プルダウン）は、「希望しない」側を選ぶ（サイトが「希望する」を初期選択にしていても直す）。「はい／いいえ」だけで受信しない側が判別できない欄、個人情報・規約への同意と一体の欄、必須の欄は触らず、警告で手動確認を促す（`fillMarketingOptOut`。回帰テスト `synthetic-marketing-optout.html`）。
+- フォーム自動入力は、リモートデバッグ付きの Chrome（ポート 9222）を `chrome-remote-interface` で操作する（`src/form/browserFormAutofill.ts`）。**送信ボタンは押さない**（人が確認して送る）。CAPTCHAは回避しない。メルマガ・案内メールの受信希望欄（ラジオ・チェック・プルダウン）は、欄の見出しで判定し、「希望しない」側を選ぶ（必須のラジオ・プルダウンでも選ぶ。サイトが「希望する」を初期選択にしていても直す）。選ばず、警告で手動確認を促すもの: 「はい／いいえ」だけで受信しない側が判別できない欄、個人情報・規約への同意と一体の欄（同意欄としての従来の処理はそのまま）、必須の「受信する」側のチェックボックス（`fillMarketingOptOut`。回帰テスト `synthetic-marketing-optout.html`と、警告の確認 `.expected-warnings.json`。合成フィクスチャでの確認で、実サイト全般の動作は未確認）。
 - メールは SMTP（nodemailer）で送り、返信・不達・面談予約の検知は Gmail API（`gmail:sync-replies`）。
 - OpenAI は、営業先候補の収集と分析（`src/openai/`）。
 - 認証: ダッシュボードは Tailscale Serve（tailnet 内のみ）経由。`proxy.ts` が `Tailscale-User-Login` ヘッダーと `DASHBOARD_ALLOWED_TAILSCALE_USER`（`.env`）を検査し、書き込み系の同一オリジンと JSON を強制する。
@@ -186,9 +186,11 @@ npm run settings:migrate-resend  # 再送・見送りまわりのシート整備
 - 段階0・1A・1B の試作と自動検証は実施済み。選定した 12 フォームで、既存の期待値に一致した（実サイトでの正解率を示すものではない）。
 - 停止後の表示破棄、submit イベントなしの受信記録は修正済み。Codex が、コードと保存結果を読み取りで確認した。
 - 次は、管理下のフォーム数件を、阿部が実際に操作して確認する。本人による確認・修正・送信操作と使いやすさは、まだ未確認。
-- 同意・受信希望項目（c1〜c4）の方針は、阿部の判断待ち。
+- 受信希望欄（c1）: main で「希望しない」側を選ぶ実装を入れ（`333acea`、警告の修正 `0939c87`）、pilot へ取り込み済み。合成フィクスチャで、「触らず警告」の説明と実装が一致することを確認した。実サイト全般の動作は未確認。
+- 同意欄（c2〜c4）の方針は、阿部の判断待ち。
+- 取り込み後の 1B: 期待値との一致 12/12、終了コード 0。取り込み後の 1A: 期待値との一致 12/12。ただし、発生元未確定の通信試行（`accounts.google.com`）が実行によって出る（終了コード 6）。変更前のコードでも出たが、今回の変更と無関係か、環境起因かは確定していない（要確認）。
 - 1C（クラウドブラウザ方式の成立性確認）と OpenAI 収集の追加検証、外部提供は、未開始。
-- 詳細は転記しない。参照先（`feature/cloud-pilot` 内）: `pilot/README.md`、`pilot/records/13-before-manual-check.md`、`pilot/records/10-consent-policy-proposal.md`。
+- 詳細は転記しない。参照先（`feature/cloud-pilot` 内）: `pilot/README.md`、`pilot/records/13-before-manual-check.md`、`pilot/records/14-main-newsletter-change.md`、`pilot/records/10-consent-policy-proposal.md`。
 
 ## 法務・運用の注意
 
