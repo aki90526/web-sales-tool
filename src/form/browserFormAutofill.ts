@@ -342,6 +342,7 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     firstNameHiragana: payload.sender.nameHiragana.split(/\s+/).slice(1).join(" ") || payload.sender.nameHiragana,
     department: payload.sender.department,
     businessDescription: payload.sender.businessDescription,
+    specialty: payload.sender.specialty,
     age: payload.sender.age,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
@@ -858,6 +859,22 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     }
 
     // 「貴社の事業内容」が「内容」を含むため本文欄と誤判定されないよう、先に判定する
+    // 「得意としている業務」「対応可能な分野」など、自分の強みを書く欄（パートナー募集・応募フォーム）。「得意先」は取引先のことなので除く
+    // 入力例（placeholder）に「得意分野」と書いてあるだけの欄（一言PRなど）は対象にしないため、見出し（ラベル）だけで判定する
+    const headingText = [
+      element.id ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`)?.textContent : "",
+      element.closest("label")?.textContent,
+      element.getAttribute("aria-label"),
+      element.previousElementSibling?.textContent?.slice(0, 60),
+      nearestPreviousLabelText(element)
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    if (/(得意(?!先)|対応可能(な)?(業務|分野|領域|範囲)|専門(分野|領域)|できること)/.test(headingText) && !/(お問い合わせ|お問合せ|問い合わせ|ご相談|相談)内容/.test(text)) {
+      return "specialty";
+    }
+
     if (matches(text, "businessDescription") && !/(お問い合わせ|お問合せ|問い合わせ|ご相談|相談)内容/.test(text)) {
       return "businessDescription";
     }

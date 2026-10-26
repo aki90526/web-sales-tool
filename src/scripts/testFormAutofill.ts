@@ -37,6 +37,7 @@ export const TEST_PAYLOAD: FormAutofillPayload = {
     prefecture: "埼玉県",
     city: "春日部市",
     streetAddress: "中央1-2-3",
+    specialty: "テスト用の得意業務",
     signatureTagline: "",
     optOutNotice: ""
   },

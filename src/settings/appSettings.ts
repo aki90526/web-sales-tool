@@ -50,6 +50,7 @@ export const TEXT_SETTINGS: TextSettingDef[] = [
   { key: "送信者_都道府県", label: "都道府県", group: "送信者", fallback: CONTACT_SENDER.prefecture },
   { key: "送信者_市区町村", label: "市区町村", group: "送信者", fallback: CONTACT_SENDER.city },
   { key: "送信者_以降の住所", label: "番地以降", group: "送信者", fallback: CONTACT_SENDER.streetAddress },
+  { key: "送信者_得意な業務", label: "得意な業務（フォームの「得意としている業務」欄に入ります）", group: "送信者", multiline: true, fallback: CONTACT_SENDER.specialty, hint: "パートナー募集・応募フォームにある「得意な業務」「対応可能な分野」などの欄に、自動入力します。文面の差し込み {送信者_得意な業務} にも使えます" },
   { key: "送信者_住所", label: "住所（短い表記）", group: "送信者", fallback: CONTACT_SENDER.address, hint: "文面の差し込み {送信者_住所} に使います" },
   { key: "送信者_フォーム住所", label: "住所（署名・フォーム用）", group: "送信者", fallback: CONTACT_SENDER.formAddress, hint: "署名と、フォームの住所欄に使います" },
   { key: "署名_紹介文", label: "署名の紹介文", group: "署名・案内", fallback: CONTACT_SENDER.signatureTagline, hint: "署名の1行目「会社名 | ○○」の○○の部分。空欄にすると会社名だけになります" },

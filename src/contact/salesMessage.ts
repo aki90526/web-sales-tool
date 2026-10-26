@@ -22,6 +22,8 @@ export type SenderInfo = {
   prefecture: string;
   city: string;
   streetAddress: string;
+  // フォームの「得意としている業務」などの欄に入れる文
+  specialty: string;
   // 署名の1行目に、会社名のあとに続ける紹介文
   signatureTagline: string;
   // 配信停止の案内文（本文に無いときに自動で付ける）
@@ -112,6 +114,8 @@ export const CONTACT_SENDER: SenderInfo = {
   prefecture: "埼玉県",
   city: "春日部市",
   streetAddress: "西金野井1074-10",
+  specialty:
+    "WordPress・Shopifyのサイト構築・改修、HTML/CSS/JavaScriptによるフロントエンド実装、保守運用。Next.js / TypeScriptでのWebアプリ開発（Googleカレンダー連携の予約システム、生成AIを組み込んだ業務ツールなど）にも対応しています。",
   signatureTagline: "春日部市でフリーランスのWeb制作を行っています。",
   optOutNotice:
     "※今後このようなご連絡が不要な場合は、お手数ですが本メールへの返信にてお知らせください。以後のご連絡を控えます。"
@@ -191,6 +195,7 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     prefecture: setting(settings, "送信者_都道府県", CONTACT_SENDER.prefecture),
     city: setting(settings, "送信者_市区町村", CONTACT_SENDER.city),
     streetAddress: setting(settings, "送信者_以降の住所", CONTACT_SENDER.streetAddress),
+    specialty: setting(settings, "送信者_得意な業務", CONTACT_SENDER.specialty),
     signatureTagline: setting(settings, "署名_紹介文", CONTACT_SENDER.signatureTagline),
     optOutNotice: setting(settings, "配信停止の案内文", CONTACT_SENDER.optOutNotice)
   };
@@ -657,6 +662,8 @@ const renderTemplate = (
     ["送信者_市区町村", sender.city],
     ["senderStreetAddress", sender.streetAddress],
     ["送信者_以降の住所", sender.streetAddress],
+    ["senderSpecialty", sender.specialty],
+    ["送信者_得意な業務", sender.specialty],
     ["senderChatworkId", sender.chatworkId],
     ["送信者_チャットワークID", sender.chatworkId]
   ]);
