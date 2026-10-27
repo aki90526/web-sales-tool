@@ -16,13 +16,15 @@ export const SETTINGS_CELLS = {
 export const RESEND_SETTING_KEYS = {
   firstIntervalDays: "再送間隔日数",
   laterIntervalDays: "再送間隔日数（2回目以降）",
-  recheckIntervalDays: "見送り再確認間隔日数"
+  recheckIntervalDays: "見送り再確認間隔日数",
+  recheckLaterIntervalDays: "見送り再確認間隔日数（2回目以降）"
 } as const;
 
 export const DEFAULT_RESEND_SETTINGS = {
   firstIntervalDays: 90,
   laterIntervalDays: 180,
-  recheckIntervalDays: 30
+  recheckIntervalDays: 30,
+  recheckLaterIntervalDays: 90
 } as const;
 
 // 営業管理の「連絡回数」。アプローチ履歴の「送信済み」（不達を除く）の件数

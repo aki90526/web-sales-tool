@@ -177,6 +177,14 @@ export const saveAppSettings = async (sheets: SheetsClient, update: AppSettingsU
     });
   }
 
+  if (update.intervals?.recheckLaterIntervalDays !== undefined) {
+    intervalWrites.push({
+      key: RESEND_SETTING_KEYS.recheckLaterIntervalDays,
+      value: parseDays(update.intervals.recheckLaterIntervalDays, "見送りの再確認間隔（2回目以降）"),
+      memo: "見送りが2回目以降のリードを再確認する間隔（日数）"
+    });
+  }
+
   const textWrites: Array<{ def: TextSettingDef; value: string }> = [];
 
   for (const [key, rawValue] of Object.entries(update.textSettings ?? {})) {

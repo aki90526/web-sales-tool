@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { daysBetween, readResendSettings, todayInTokyo } from "../domain/resend";
 import { SHEETS } from "../domain/lead";
-import { appendLeadLog, LeadLogEntry, readAllLeadLogs, recheckStateFromLog } from "../domain/leadLog";
+import { appendLeadLog, LeadLogEntry, readAllLeadLogs, recheckStateFromLog, skipCountFromLog } from "../domain/leadLog";
 import { lastCheckedDate } from "../domain/recheckSchedule";
 import { clearRecheckDays, parseRecheckSetting } from "../domain/skipTracking";
 import { detectSalesForbidden } from "../domain/salesForbiddenDetection";
@@ -235,10 +235,11 @@ export const recheckRejectedLeads = async (
   const due = table.leads
     .filter((lead) => lead.status === "見送り" && !reacted.has(lead.leadId) && lead.officialSiteUrl)
     .filter((lead) => !options.leadIds || options.leadIds.includes(lead.leadId))
-    .map((lead) => ({ lead, last: stateOf(lead).last, setting: parseRecheckSetting(lead.recheckDays) }))
+    .map((lead) => ({ lead, last: stateOf(lead).last, setting: parseRecheckSetting(lead.recheckDays), count: skipCountFromLog(logsByLead.get(lead.leadId) ?? [], lead.status) }))
     .filter(({ setting }) => setting.kind !== "never")
-    .filter(({ last, setting }) => {
-      const interval = setting.kind === "days" ? setting.days : settings.recheckIntervalDays;
+    .filter(({ last, setting, count }) => {
+      // リードごとに期間を決めていなければ、1回目の見送りは「見送りの再確認」、2回目以降は「（2回目以降）」の日数
+      const interval = setting.kind === "days" ? setting.days : count >= 2 ? settings.recheckLaterIntervalDays : settings.recheckIntervalDays;
       return !last || options.leadIds !== undefined || daysBetween(last, today) >= interval;
     })
     // 確認日が古い（または未確認の）ものから先に確認する

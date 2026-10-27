@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Save } from "lucide-react";
 
-type Intervals = { firstIntervalDays: number; laterIntervalDays: number; recheckIntervalDays: number };
+type Intervals = { firstIntervalDays: number; laterIntervalDays: number; recheckIntervalDays: number; recheckLaterIntervalDays: number };
 
 type Template = {
   templateId: string;
@@ -288,11 +288,16 @@ export default function SettingsPage() {
               <small className="panel-caption">2回目の送信以降、次を送るまでの日数</small>
             </label>
             <label className="field">
-              見送りの再確認（日）
+              見送りの再確認（日）: 1回目の見送り
               <input type="number" min={1} max={3650} value={intervals.recheckIntervalDays || ""} onChange={(event) => setInterval("recheckIntervalDays", event.target.value)} />
               <small className="panel-caption">
                 「見送り」のリードの公式サイト・連絡先を確認し直す間隔（リードごとに期間を決めていない場合に使います。リードごとの期間は、見送りにするときに選べます）。「除外」にしたリードと、返信のあったリードは対象外です
               </small>
+            </label>
+            <label className="field">
+              見送りの再確認（日）: 2回目以降の見送り
+              <input type="number" min={1} max={3650} value={intervals.recheckLaterIntervalDays || ""} onChange={(event) => setInterval("recheckLaterIntervalDays", event.target.value)} />
+              <small className="panel-caption">一度、送信待ちに戻ったあと、また見送りになったリードの間隔。見送りの回数は、リードログから数えます</small>
             </label>
           </div>
         </section>

@@ -140,3 +140,35 @@ export const recheckStateFromLog = (entries: LeadLogEntry[]): { lastDate: string
 
   return { lastDate, fingerprint };
 };
+
+// 見送りになった回数（ログから数える）。最初から見送りで登録されたリードは、ログに「→ 見送り」が無いため、
+// 見送りから戻った回数（＋いま見送りなら1）も考えて、大きい方を使う。「元に戻す」の操作は、取り消しとして数える
+export const skipCountFromLog = (entries: LeadLogEntry[], currentStatus: string): number => {
+  let into = 0;
+  let outOf = 0;
+
+  for (const entry of entries) {
+    const undo = entry.text.includes("元に戻す");
+
+    if (entry.kind === "ステータス変更") {
+      if (/→\s*見送り/.test(entry.text)) {
+        if (undo) outOf -= 1;
+        else into += 1;
+      } else if (/見送り\s*→/.test(entry.text) && !entry.text.includes("見送りの再確認")) {
+        if (undo) into -= 1;
+        else outOf += 1;
+      }
+    }
+
+    // 見送りの再確認で送信待ちに戻った回数
+    if (entry.kind === "再確認" && entry.text.includes("送信待ちに変更")) {
+      outOf += 1;
+    }
+
+    if (entry.kind === "連絡先" && /ステータス:\s*見送り\s*→/.test(entry.text)) {
+      outOf += 1;
+    }
+  }
+
+  return Math.max(into, outOf + (currentStatus === "見送り" ? 1 : 0), 0);
+};

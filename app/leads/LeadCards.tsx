@@ -24,6 +24,7 @@ export type CardLead = {
   currentNote?: string;
   latestLog?: LatestLog;
   recheckBaseDate?: string;
+  recheckDefaultDaysForLead?: number;
 };
 
 export type CardNotice = { status: "success" | "failed"; text: string };
@@ -128,7 +129,7 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                   onClick={() => props.onChangeRecheck(lead)}
                   title={`見送りの再確認の予定日（期間: ${skipPeriodLabel(lead.recheckDays ?? "")}。クリックで変更）`}
                 >
-                  {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", props.recheckDefaultDays, lead.recheckBaseDate ?? "")}
+                  {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", lead.recheckDefaultDaysForLead ?? props.recheckDefaultDays, lead.recheckBaseDate ?? "")}
                 </button>
               )}
               {/* 連絡方法は、想定する連絡方法（メール・フォーム）か、未定だけを表示する。連絡先の登録・変更は、「連絡先」メニューから */}

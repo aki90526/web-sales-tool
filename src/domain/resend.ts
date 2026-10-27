@@ -5,6 +5,8 @@ export type ResendSettings = {
   firstIntervalDays: number;
   laterIntervalDays: number;
   recheckIntervalDays: number;
+  // 見送りが2回目以降のリードの、再確認の間隔
+  recheckLaterIntervalDays: number;
 };
 
 export type SendRecord = {
@@ -34,7 +36,8 @@ export const readResendSettings = async (sheets: SheetsClient): Promise<ResendSe
   return {
     firstIntervalDays: parseDays(values.get(RESEND_SETTING_KEYS.firstIntervalDays), DEFAULT_RESEND_SETTINGS.firstIntervalDays),
     laterIntervalDays: parseDays(values.get(RESEND_SETTING_KEYS.laterIntervalDays), DEFAULT_RESEND_SETTINGS.laterIntervalDays),
-    recheckIntervalDays: parseDays(values.get(RESEND_SETTING_KEYS.recheckIntervalDays), DEFAULT_RESEND_SETTINGS.recheckIntervalDays)
+    recheckIntervalDays: parseDays(values.get(RESEND_SETTING_KEYS.recheckIntervalDays), DEFAULT_RESEND_SETTINGS.recheckIntervalDays),
+    recheckLaterIntervalDays: parseDays(values.get(RESEND_SETTING_KEYS.recheckLaterIntervalDays), DEFAULT_RESEND_SETTINGS.recheckLaterIntervalDays)
   };
 };
 

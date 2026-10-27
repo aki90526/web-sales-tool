@@ -46,6 +46,14 @@ const main = async (): Promise<void> => {
     ]);
   }
 
+  if (!existingKeys.has(RESEND_SETTING_KEYS.recheckLaterIntervalDays)) {
+    additions.push([
+      RESEND_SETTING_KEYS.recheckLaterIntervalDays,
+      DEFAULT_RESEND_SETTINGS.recheckLaterIntervalDays,
+      "見送りが2回目以降のリードを再確認する間隔（日数）"
+    ]);
+  }
+
   if (additions.length > 0) {
     const startRow = settingsRows.length + 1;
     await write(`'${SHEETS.settings}'!A${startRow}:C${startRow + additions.length - 1}`, additions);

@@ -34,6 +34,7 @@ type Lead = {
   currentNote?: string;
   latestLog?: LatestLog;
   recheckBaseDate?: string;
+  recheckDefaultDaysForLead?: number;
 };
 
 const ALL = "すべて";
@@ -1048,7 +1049,7 @@ export default function LeadsPage() {
                             onClick={() => setSkipDialog({ lead, mode: "edit" })}
                             title={`見送りの再確認の予定日（期間: ${skipPeriodLabel(lead.recheckDays ?? "")}。クリックで変更）`}
                           >
-                            {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", recheckDefaultDays, lead.recheckBaseDate ?? "")}
+                            {nextRecheckLabel(lead.memo, lead.recheckDays ?? "", lead.recheckDefaultDaysForLead ?? recheckDefaultDays, lead.recheckBaseDate ?? "")}
                           </button>
                         )}
                       </td>
