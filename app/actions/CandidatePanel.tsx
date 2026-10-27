@@ -33,6 +33,8 @@ type CandidatePanelProps = {
   onMemoSave: (lead: Candidate, memo: string) => void;
   // 直近の自動入力で出た、リードごとの警告（要確認の項目）
   warnings: Record<string, string[]>;
+  // いま自動入力したリード（先頭に残している）
+  pinnedIds: string[];
   onSaveNote: (lead: Candidate, text: string) => Promise<void>;
   onOpenLog: (lead: Candidate) => void;
   onStatusChange: (lead: Candidate, status: string) => void;
@@ -131,6 +133,11 @@ export default function CandidatePanel(props: CandidatePanelProps) {
                     {lead.leadId} / {lead.leadType}
                     {lead.region ? ` / ${lead.region}` : ""}
                   </span>
+                  {props.pinnedIds.includes(lead.leadId) && (
+                    <span className="status-badge waiting" title="次の実行を始めるまで、このリードを先頭に残します">
+                      いま自動入力したリード{lead.status !== "送信待ち" ? `（${lead.status}）` : ""}
+                    </span>
+                  )}
                 </div>
                 <span className="score-badge">{lead.salesScore}</span>
               </div>

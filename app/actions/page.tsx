@@ -136,16 +136,26 @@ export default function ActionsPage() {
     if (!allLeads) return null;
     const futureDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && value > todayTokyo;
 
+    // いま自動入力したリードは、状況が変わっても（CAPTCHAが見つかって手動のみになる、送信済みになるなど）、候補の先頭に残す。
+    // 自動入力のあとで、ステータスやログの操作ができるように（次の実行を始める、または送信済みの登録をするまで）
+    const pinned = new Set(tab === "form" ? (autoFillResult ?? []).map((lead) => lead.leadId) : []);
+    const isCandidate = (lead: Candidate): boolean =>
+      lead.status === "送信待ち" &&
+      !futureDate(lead.nextActionDate) &&
+      (tab === "email"
+        ? lead.contactMethod === "メール" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.emailAddress.trim())
+        : lead.contactMethod === "フォーム" && /^https?:\/\//i.test(lead.contactFormUrl));
+
     return allLeads
-      .filter((lead) => lead.status === "送信待ち" && !futureDate(lead.nextActionDate))
-      .filter((lead) =>
-        tab === "email"
-          ? lead.contactMethod === "メール" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.emailAddress.trim())
-          : lead.contactMethod === "フォーム" && /^https?:\/\//i.test(lead.contactFormUrl)
-      )
-      // 自動入力できるものを上、手動のみ（CAPTCHAあり）を下に並べる。それぞれ、スコアの高い順
-      .sort((a, b) => Number(isManualOnly(a)) - Number(isManualOnly(b)) || b.salesScore - a.salesScore);
-  }, [allLeads, tab, todayTokyo]);
+      .filter((lead) => pinned.has(lead.leadId) || isCandidate(lead))
+      // 自動入力したものを先頭、次に、自動入力できるもの、手動のみ（CAPTCHAあり）の順。それぞれ、スコアの高い順
+      .sort(
+        (a, b) =>
+          Number(pinned.has(b.leadId)) - Number(pinned.has(a.leadId)) ||
+          Number(isManualOnly(a)) - Number(isManualOnly(b)) ||
+          b.salesScore - a.salesScore
+      );
+  }, [allLeads, tab, todayTokyo, autoFillResult]);
 
   const maxSelect = tab === "email" ? 10 : 5;
 
@@ -944,6 +954,7 @@ export default function ActionsPage() {
         </div>
 
         <CandidatePanel
+          pinnedIds={tab === "form" ? (autoFillResult ?? []).map((lead) => lead.leadId) : []}
           warnings={fillWarnings.reduce<Record<string, string[]>>((map, warning) => {
             map[warning.leadId] = [...(map[warning.leadId] ?? []), warning.message];
             return map;
