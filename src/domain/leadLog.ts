@@ -29,6 +29,8 @@ export type LeadLogEntry = {
   actor: string;
   // 補助の情報（フォームの指紋など）
   detail: string;
+  // シート上の行番号（編集・削除のときに使う）
+  rowNumber?: number;
 };
 
 export const LEAD_LOG_HEADER = ["日時", "リードID", "種類", "内容", "記録者", "詳細"];
@@ -75,7 +77,8 @@ export const appendLeadLog = async (
   }
 };
 
-const parseRow = (row: unknown[]): LeadLogEntry => ({
+const parseRow = (row: unknown[], rowNumber?: number): LeadLogEntry => ({
+  rowNumber,
   at: String(row[0] ?? "").trim(),
   leadId: String(row[1] ?? "").trim(),
   kind: String(row[2] ?? "").trim(),
@@ -88,7 +91,7 @@ const parseRow = (row: unknown[]): LeadLogEntry => ({
 export const readAllLeadLogs = async (sheets: SheetsClient): Promise<LeadLogEntry[]> => {
   try {
     const rows = await sheets.getValues(`'${SHEETS.leadLog}'!A2:F`);
-    return rows.map(parseRow).filter((entry) => entry.leadId);
+    return rows.map((row, index) => parseRow(row, index + 2)).filter((entry) => entry.leadId);
   } catch {
     return [];
   }

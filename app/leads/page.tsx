@@ -1092,7 +1092,7 @@ export default function LeadsPage() {
         )}
       </section>
 
-      {logLead && <LeadLogModal leadId={logLead.leadId} companyName={logLead.companyName} onClose={() => setLogLead(null)} />}
+      {logLead && <LeadLogModal leadId={logLead.leadId} companyName={logLead.companyName} onClose={() => setLogLead(null)} onChanged={() => void refreshLeadsQuietly()} />}
 
       <UndoToast toast={undoToast} onUndo={undoStatusChange} onClose={() => setUndoToast(null)} />
 

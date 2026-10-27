@@ -1168,7 +1168,7 @@ export default function ActionsPage() {
         </div>
       )}
 
-      {logLeadInfo && <LeadLogModal leadId={logLeadInfo.leadId} companyName={logLeadInfo.companyName} onClose={() => setLogLeadInfo(null)} />}
+      {logLeadInfo && <LeadLogModal leadId={logLeadInfo.leadId} companyName={logLeadInfo.companyName} onClose={() => setLogLeadInfo(null)} onChanged={loadLeads} />}
 
       <UndoToast toast={undoToast} onUndo={undoCandidateStatus} onClose={() => setUndoToast(null)} />
 

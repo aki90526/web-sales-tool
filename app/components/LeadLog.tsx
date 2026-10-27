@@ -5,7 +5,9 @@ import { History, X } from "lucide-react";
 
 export type LatestLog = { at: string; kind: string; text: string; actor: string } | null;
 
-type LogEntry = { at: string; leadId: string; kind: string; text: string; actor: string; detail: string };
+type LogEntry = { at: string; leadId: string; kind: string; text: string; actor: string; detail: string; rowNumber?: number };
+
+const NOTE_PREFIX = "状況を更新: ";
 
 const shortTime = (at: string): string => at.slice(0, 16);
 
@@ -89,10 +91,51 @@ export function LeadLogControls({
 }
 
 // リードごとのログを、新しい順に表示する
-export function LeadLogModal({ leadId, companyName, onClose }: { leadId: string; companyName: string; onClose: () => void }) {
+export function LeadLogModal({
+  leadId,
+  companyName,
+  onClose,
+  onChanged
+}: {
+  leadId: string;
+  companyName: string;
+  onClose: () => void;
+  // ログを直した・消したあとに呼ぶ（一覧の表示を更新するため）
+  onChanged?: () => void;
+}) {
   const [entries, setEntries] = useState<LogEntry[] | null>(null);
   const [error, setError] = useState("");
   const [kind, setKind] = useState("すべて");
+  // 編集中の行（シート上の行番号）と、入力中の内容
+  const [editing, setEditing] = useState<{ rowNumber: number; draft: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // 手で書いた「状況」のログを、直す・消す。システムが書いたログは、変更できない
+  const changeEntry = async (entry: LogEntry, action: { text: string } | { remove: true }) => {
+    setBusy(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/leads/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId, rowNumber: entry.rowNumber, at: entry.at, ...("remove" in action ? { delete: true } : { text: action.text }) })
+      });
+      const body = await res.json();
+
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+
+      setEntries(body.entries as LogEntry[]);
+      setEditing(null);
+      onChanged?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "変更できませんでした");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -159,9 +202,59 @@ export function LeadLogModal({ leadId, companyName, onClose }: { leadId: string;
               <span className="lead-log-time">{shortTime(entry.at)}</span>
               <span className="lead-log-kind">{entry.kind}</span>
               <span className="lead-log-text">
-                {entry.text}
-                {entry.actor === "手入力" && <em> （手入力）</em>}
-                {entry.detail && !entry.detail.startsWith("フォーム指紋") && <small>{entry.detail}</small>}
+                {editing && editing.rowNumber === entry.rowNumber ? (
+                  <span className="lead-log-edit">
+                    <input
+                      value={editing.draft}
+                      maxLength={200}
+                      disabled={busy}
+                      onChange={(event) => setEditing({ rowNumber: editing.rowNumber, draft: event.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="btn primary lead-log-save"
+                      disabled={busy || !editing.draft.trim()}
+                      onClick={() => void changeEntry(entry, { text: editing.draft })}
+                    >
+                      保存
+                    </button>
+                    <button type="button" className="btn secondary lead-log-save" disabled={busy} onClick={() => setEditing(null)}>
+                      キャンセル
+                    </button>
+                  </span>
+                ) : (
+                  <>
+                    {entry.text}
+                    {entry.actor === "手入力" && <em> （手入力）</em>}
+                    {entry.detail && !entry.detail.startsWith("フォーム指紋") && <small>{entry.detail}</small>}
+                    {entry.kind === "状況" && entry.actor === "手入力" && entry.rowNumber && (
+                      <span className="lead-log-actions">
+                        {entry.text.startsWith(NOTE_PREFIX) && (
+                          <button
+                            type="button"
+                            className="link-accent"
+                            disabled={busy}
+                            onClick={() => setEditing({ rowNumber: entry.rowNumber as number, draft: entry.text.slice(NOTE_PREFIX.length) })}
+                          >
+                            編集
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="link-accent"
+                          disabled={busy}
+                          onClick={() => {
+                            if (window.confirm("このログを削除します。よろしいですか？")) {
+                              void changeEntry(entry, { remove: true });
+                            }
+                          }}
+                        >
+                          削除
+                        </button>
+                      </span>
+                    )}
+                  </>
+                )}
               </span>
             </li>
           ))}

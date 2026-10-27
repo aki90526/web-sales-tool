@@ -2499,3 +2499,33 @@ button.skip-count-badge:hover {
   font-size: 12px;
   white-space: nowrap;
 }
+
+.lead-log-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lead-log-edit input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  background: #fffbeb;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.lead-log-actions {
+  display: inline-flex;
+  gap: 10px;
+  margin-left: 8px;
+}
+
+.lead-log-actions button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
