@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- synthetic: 必須の「知ったきっかけ」プルダウンに「その他」が無い場合は、選ばずに警告する -->
+<html lang="ja"><head><meta charset="utf-8"><title>synthetic-required-referral-select</title></head><body>
+<form class="form" method="post" action="/send">
+  <div class="form-field required"><label for="name">お名前</label><input type="text" name="name" id="name"></div>
+  <div class="form-field required"><label for="email">メールアドレス</label><input type="email" name="email" id="email"></div>
+  <div class="form-field required"><label for="body">お問い合わせ内容</label><textarea name="body" id="body"></textarea></div>
+  <div class="form-field required"><label for="how">弊社を知ったきっかけ</label>
+    <select name="how" id="how"><option value=""></option><option value="1">インターネット検索</option><option value="2">SNS</option><option value="3">知人の紹介</option></select>
+  </div>
+  <input type="submit" value="確認する">
+</form>
+</body></html>

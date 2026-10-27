@@ -1466,6 +1466,43 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       return;
     }
 
+    // 「○○を知ったきっかけ」のような、必須の選択欄は、無難な「その他」を選ぶ（「その他」が無いときは、選ばず、警告で手動選択を促す）。
+    // 任意の欄は、触らない。見出しだけで判定する（入力例などの文字に反応しないため）
+    // 空の選択肢が selected 指定されている（値は空でない）ものも、未選択として扱う
+    const selectedText = (element.options[element.selectedIndex]?.textContent ?? "").trim();
+
+    if (!element.disabled && (!hasMeaningfulSelectValue(element) || selectedText === "")) {
+      const heading = [
+        element.id ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`)?.textContent : "",
+        element.getAttribute("aria-label"),
+        element.previousElementSibling?.textContent?.slice(0, 60),
+        nearestPreviousLabelText(element)
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const requiredSelect =
+        element.required ||
+        element.getAttribute("aria-required") === "true" ||
+        /validates-as-required/.test(element.className) ||
+        element.closest(".required") !== null;
+
+      if (requiredSelect && /(知った|きっかけ|キッカケ|切っ掛け|どこで|どちらで|認知|流入|how did you (hear|find)|referral)/i.test(heading)) {
+        const other = Array.from(element.options).find((option) => /^(その他|そのほか|other)/i.test((option.textContent ?? "").trim()));
+
+        if (other) {
+          element.value = other.value;
+          element.dispatchEvent(new Event("input", { bubbles: true }));
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+
+          if (element.value === other.value) {
+            result.selected.push({ label: shortLabelFor(element), option: (other.textContent ?? "").trim() || other.value });
+          }
+        }
+
+        return;
+      }
+    }
+
     if (element.disabled || !isInquiryChoiceLabel(labelFor(element))) {
       return;
     }
