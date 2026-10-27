@@ -240,9 +240,15 @@ const isAutomatedMessage = (message: GmailMessageMetadata): boolean => {
 const FORM_AUTO_REPLY_WINDOW_MS = 10 * 60 * 1000;
 
 // 「以下の内容を受付けました」など、送信内容を控えとして返す受付メールの本文
-const isFormReceiptBody = (text: string): boolean => {
-  return /(以下の内容[をで]?.{0,10}(受け?付け?|承り|送信)|受け?付け?(いた)?しました|自動(返信|送信|配信)(され|して|い?た?し)?)/.test(
-    text
+export const isFormReceiptBody = (text: string): boolean => {
+  return (
+    /(以下の内容[をで]?.{0,10}(受け?付け?|承り|送信)|受け?付け?(いた)?しました|自動(返信|送信|配信)(され|して|い?た?し)?)/.test(text) ||
+    // 「配信専用」「このメールに返信されても、返信内容の確認およびご返答ができません」など、返信を受け付けない旨の注意書き
+    /(配信専用|送信専用|返信専用ではありません|(このメール|本メール)に(ご)?返信(いただいても|されても|しても).{0,20}(確認|返答|返信|対応)(でき|いたしかね|致しかね)|返信(は)?できません|ご返答ができません|お返事ができません)/.test(
+      text
+    ) ||
+    // 「ご入力いただいたメールアドレスに確認のメールをお送りしております」のような、受付の確認メール
+    /(ご入力(いただいた|頂いた)メールアドレス.{0,12}確認(の)?メール(を)?(お送り|送信))/.test(text)
   );
 };
 
@@ -342,12 +348,23 @@ const findReplyMatches = async (
       continue;
     }
 
-    const match = messages
-      .map((message) => {
-        const matchType = isLikelyReply(history, message, sentDate);
-        return matchType ? { history, message, matchType } : null;
-      })
-      .find((candidate): candidate is ReplyMatch => Boolean(candidate));
+    // 返信らしいメールのうち、自動返信・受付メール（件名、または本文の「配信専用」などで判定）は除く
+    let match: ReplyMatch | undefined;
+
+    for (const message of messages) {
+      const matchType = isLikelyReply(history, message, sentDate);
+
+      if (!matchType) {
+        continue;
+      }
+
+      if (isAutomatedMessage(message) || isFormReceiptBody(await gmail.getMessageText(message.id))) {
+        continue;
+      }
+
+      match = { history, message, matchType };
+      break;
+    }
 
     if (match) {
       matches.push(match);
@@ -728,12 +745,15 @@ const main = async (): Promise<void> => {
   }
 };
 
-main().catch((error: unknown) => {
-  if (error instanceof Error) {
-    console.error(error.message);
-  } else {
-    console.error(error);
-  }
+// 直接実行されたときだけ動かす（テストなどで読み込まれたときに、同期が走らないようにする）
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    if (error instanceof Error) {
+      console.error(error.message);
+    } else {
+      console.error(error);
+    }
 
-  process.exitCode = 1;
-});
+    process.exitCode = 1;
+  });
+}
