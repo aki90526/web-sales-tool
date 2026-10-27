@@ -46,6 +46,7 @@ type GmailMessageResponse = {
   id: string;
   threadId: string;
   internalDate?: string;
+  labelIds?: string[];
   payload?: GmailPayloadPart & {
     headers?: Array<{
       name: string;
@@ -101,6 +102,8 @@ export type GmailMessageMetadata = {
   messageId: string;
   inReplyTo: string;
   references: string;
+  // Gmailのラベル（SPAM = 迷惑メールのフォルダ）
+  labelIds: string[];
 };
 
 export type GmailClient = {
@@ -226,7 +229,8 @@ const toMetadata = (message: GmailMessageResponse): GmailMessageMetadata => {
     date: headerValue(message, "Date"),
     messageId: headerValue(message, "Message-ID"),
     inReplyTo: headerValue(message, "In-Reply-To"),
-    references: headerValue(message, "References")
+    references: headerValue(message, "References"),
+    labelIds: message.labelIds ?? []
   };
 };
 

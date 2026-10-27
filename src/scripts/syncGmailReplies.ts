@@ -43,6 +43,11 @@ type ReplyMatch = {
   optOut?: string;
 };
 
+// 迷惑メールのフォルダに振り分けられていたか
+const isInSpam = (message: GmailMessageMetadata): boolean => message.labelIds.includes("SPAM");
+
+const SPAM_ADVICE = "迷惑メールのフォルダにありました。Gmailで「迷惑メールではない」にして、このドメインからのメールが迷惑メールに入らないよう、フィルタを設定しておくと安心です";
+
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 200;
 
@@ -382,7 +387,8 @@ const updateReplyStatus = async (
   const memo = [
     match.history.memo,
     `Gmail返信検知: ${replyDate} / match=${match.matchType} / from=${match.message.from}`,
-    match.optOut ? `配信停止・営業お断りの返信を検知: 「${match.optOut}」` : ""
+    match.optOut ? `配信停止・営業お断りの返信を検知: 「${match.optOut}」` : "",
+    isInSpam(match.message) ? `迷惑メールのフォルダで検知しました` : ""
   ]
     .filter(Boolean)
     .join("\n");
@@ -399,6 +405,7 @@ const updateLeadStatuses = async (
   const table = await readSalesManagementTable(sheets);
   const optOuts = new Map(matches.filter((match) => match.optOut).map((match) => [match.history.leadId, match.optOut as string]));
   const replyLeadIds = new Set(matches.map((match) => match.history.leadId));
+  const spamLeadIds = new Set(matches.filter((match) => isInSpam(match.message)).map((match) => match.history.leadId));
 
   for (const lead of table.leads) {
     if (!replyLeadIds.has(lead.leadId)) {
@@ -409,7 +416,7 @@ const updateLeadStatuses = async (
 
     if (optOut) {
       // 配信停止・営業お断りの返信は「除外」にして、以後の送信・フォーム入力の対象から外す
-      const line = `配信停止・営業お断りの返信を検知: 「${optOut}」`;
+      const line = `配信停止・営業お断りの返信を検知: 「${optOut}」${spamLeadIds.has(lead.leadId) ? `（${SPAM_ADVICE}）` : ""}`;
 
       if (lead.status !== "除外") {
         await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["除外" as Status]]);
@@ -422,7 +429,7 @@ const updateLeadStatuses = async (
     } else if (lead.status !== "返信あり") {
       await sheets.updateValues(statusRangeForRow(table.columns, lead.rowNumber), [["返信あり" as Status]]);
       await appendLeadLog(sheets, [
-        { leadId: lead.leadId, kind: "返信・検知", text: "返信を検知しました" },
+        { leadId: lead.leadId, kind: "返信・検知", text: spamLeadIds.has(lead.leadId) ? `返信を検知しました（${SPAM_ADVICE}）` : "返信を検知しました" },
         { leadId: lead.leadId, kind: "ステータス変更", text: `${lead.status} → 返信あり（返信の検知）` }
       ]);
     }
@@ -675,6 +682,10 @@ const syncReplies = async (options: CliOptions): Promise<void> => {
   const bookings = await syncBookingNotifications(gmail, sheets, histories, options.dryRun);
   const bounces = await syncBounces(gmail, sheets, histories, lookbackDays, options.dryRun);
   const totalCount = matches.length + bookings.length + bounces.length;
+  const spamCount = matches.filter((match) => isInSpam(match.message)).length;
+
+  // 迷惑メールのフォルダにあった返信の件数（毎朝の同期の通知で、知らせるため）
+  console.log(`[DASHBOARD_SPAM] count=${spamCount}`);
 
   if (options.dryRun || matches.length === 0) {
     if (options.dryRun) {
@@ -690,7 +701,7 @@ const syncReplies = async (options: CliOptions): Promise<void> => {
 
     const company = table.leads.find((lead) => lead.leadId === match.history.leadId)?.companyName ?? "";
     console.log(
-      `[DASHBOARD_UPDATE] leadId=${match.history.leadId} company=${company} type=${match.optOut ? "optout" : "reply"} detail=${match.optOut ? `「${match.optOut}」 / ` : ""}${match.message.from} / ${match.message.subject}`
+      `[DASHBOARD_UPDATE] leadId=${match.history.leadId} company=${company} type=${match.optOut ? "optout" : "reply"} detail=${isInSpam(match.message) ? "【迷惑メールにありました】" : ""}${match.optOut ? `「${match.optOut}」 / ` : ""}${match.message.from} / ${match.message.subject}`
     );
   }
 
