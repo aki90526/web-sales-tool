@@ -1,3 +1,4 @@
+import { reviewSalesForbiddenClaims } from "../collection/salesForbiddenVerifier";
 import {
   COMPANY_SIZE_CATEGORIES,
   CompanySizeCategory,
@@ -537,6 +538,7 @@ const buildPrompt = (options: CollectLeadCandidateOptions): string => {
     "aiAdjustment は -10〜10 の整数。固定ロジックでは判断しづらい定性的な補正だけを入れてください。不明なら0。",
     "scoreSignals はJSONオブジェクトで、次のboolean/numberを可能な範囲で返してください:",
     "isOfficialSite, hasContactMethod, isTargetArea, isWebProductionBusiness, hasPartnerRecruiting, hasSubcontractorRecruiting, hasCoderRecruiting, handlesWordPress, handlesShopify, handlesMaintenance, complementarityScore, noOutsourcingPolicy, lowCollaborationFit, hasMobileIssue, hasWeakContactFlow, hasWeakCta, hasSeoIssue, hasStaleSite, hasWeakRecruitingPage, hasUnclearService, hasOldDesign, forbidsSalesContact, forbidsAdsMail, pastOptOut, reapproachForbidden, notOfficialSite, excludedIndustry",
+    "forbidsSalesContact / forbidsAdsMail は、営業・広告の連絡を「禁止」「お断り」と明確に書いている場合だけ true にしてください。「返信できない場合がある」「お返事を差し上げられないことがある」「対応いたしかねる場合がある」のような、やわらかい注意書きだけなら false にし、exclusionReason にも入れないでください。",
     "contactUrl は実際に入力欄がある問い合わせフォームURLを入れてください。/contact/ のような入口ページに複数の窓口リンクがある場合は、対象に最も合う詳細フォームURLを選んでください。",
     "contactUrl は、制作会社・広告代理店では制作パートナー、協業、提携、業務委託、営業向け窓口を優先してください。直クライアントでは一般問い合わせ、相談フォームを優先してください。不明なら空文字。",
     "contactUrl 除外: 「見積もり依頼」専用フォーム（リニューアル内容やページ数などその会社自身のサービスの見積もりだけを受け付けるフォーム）は、協業・パートナー提案や一般的な問い合わせの送信先として不適切なため選ばないでください。サイト内に見積もり専用フォーム以外の問い合わせ窓口（一般お問い合わせフォームやメールアドレス）がない場合は、contactUrl は空文字にしてください。",
@@ -587,6 +589,13 @@ const collectLeadCandidateChunk = async (
 
   if (!Array.isArray(parsed)) {
     throw new Error("OpenAI response JSON was not an array");
+  }
+
+  // AIが「営業禁止」と判断した候補は、ページの文章で確かめる（「返信しない場合がある」などを、禁止と読み違えることがあるため）
+  const clearedClaims = await reviewSalesForbiddenClaims(parsed);
+
+  if (clearedClaims > 0) {
+    console.log(`営業禁止の判断を、ページに記載がなかったため取り消した候補: ${clearedClaims}件`);
   }
 
   const candidates = parsed
