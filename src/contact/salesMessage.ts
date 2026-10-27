@@ -24,6 +24,8 @@ export type SenderInfo = {
   streetAddress: string;
   // フォームの「得意としている業務」などの欄に入れる文
   specialty: string;
+  // フォームの「価格の目安」「希望単価」などの欄に入れる文（協業・パートナー向けのフォームで、自分側の価格を聞かれる欄）
+  priceGuide: string;
   // 署名の1行目に、会社名のあとに続ける紹介文
   signatureTagline: string;
   // 配信停止の案内文（本文に無いときに自動で付ける）
@@ -116,6 +118,7 @@ export const CONTACT_SENDER: SenderInfo = {
   streetAddress: "西金野井1074-10",
   specialty:
     "WordPress・Shopifyのサイト構築・改修、HTML/CSS/JavaScriptによるフロントエンド実装、保守運用。Next.js / TypeScriptでのWebアプリ開発（Googleカレンダー連携の予約システム、生成AIを組み込んだ業務ツールなど）にも対応しています。",
+  priceGuide: "案件の内容・工数に応じて、個別にお見積りいたします。目安は、案件の概要を伺ったうえで、ご案内いたします。",
   signatureTagline: "春日部市でフリーランスのWeb制作を行っています。",
   optOutNotice:
     "※今後このようなご連絡が不要な場合は、お手数ですが本メールへの返信にてお知らせください。以後のご連絡を控えます。"
@@ -196,6 +199,7 @@ const readSenderInfo = (settings: Map<string, string>): SenderInfo => {
     city: setting(settings, "送信者_市区町村", CONTACT_SENDER.city),
     streetAddress: setting(settings, "送信者_以降の住所", CONTACT_SENDER.streetAddress),
     specialty: setting(settings, "送信者_得意な業務", CONTACT_SENDER.specialty),
+    priceGuide: setting(settings, "送信者_価格の目安", CONTACT_SENDER.priceGuide),
     signatureTagline: setting(settings, "署名_紹介文", CONTACT_SENDER.signatureTagline),
     optOutNotice: setting(settings, "配信停止の案内文", CONTACT_SENDER.optOutNotice)
   };

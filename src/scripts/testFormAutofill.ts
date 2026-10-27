@@ -38,6 +38,7 @@ export const TEST_PAYLOAD: FormAutofillPayload = {
     city: "春日部市",
     streetAddress: "中央1-2-3",
     specialty: "テスト用の得意業務",
+    priceGuide: "テスト用の価格の目安",
     signatureTagline: "",
     optOutNotice: ""
   },

@@ -347,6 +347,7 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     department: payload.sender.department,
     businessDescription: payload.sender.businessDescription,
     specialty: payload.sender.specialty,
+    priceGuide: payload.sender.priceGuide,
     age: payload.sender.age,
     nameWithCompanyName: `${payload.sender.name}（${payload.sender.companyName}）`,
     lastName: payload.sender.name.split(/\s+/)[0] || payload.sender.name,
@@ -928,6 +929,11 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
 
     if (/(得意(?!先)|対応可能(な)?(業務|分野|領域|範囲)|専門(分野|領域)|できること)/.test(headingText) && !/(お問い合わせ|お問合せ|問い合わせ|ご相談|相談)内容/.test(text)) {
       return "specialty";
+    }
+
+    // 協業・パートナー向けのフォームで、自分側の価格・単価を聞く欄（「価格の目安」「希望単価」「稼働単価」など）。お客様側の「予算」を聞く欄は、対象にしない
+    if (/(価格の目安|価格帯|料金の目安|単価|希望金額|報酬|ご提供価格|提供価格)/.test(headingText) && !/(予算|budget|お見積|見積り?依頼)/i.test(headingText)) {
+      return "priceGuide";
     }
 
     if (matches(text, "businessDescription") && !/(お問い合わせ|お問合せ|問い合わせ|ご相談|相談)内容/.test(text)) {
@@ -2832,6 +2838,22 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     });
   });
 
+  // 項目名の要素（dt・th・直前の要素）に「必須」と書かれている欄か（入力欄に required 属性が無いサイト用。「任意」とあれば除く）
+  const rawHeadingSaysRequired = (element: HTMLElement): boolean => {
+    const container = element.closest("dd, td, fieldset, .form-group, li, div");
+    const raw = [
+      container?.previousElementSibling?.textContent,
+      container?.querySelector("legend")?.textContent,
+      container?.parentElement?.previousElementSibling?.textContent
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .slice(0, 200);
+
+    return /(必須|required)/i.test(raw) && !/(任意|optional)/i.test(raw);
+  };
+
   // 必須なのに空のまま残った入力欄（希望日時・自由記述の質問など自動で決められない欄）を知らせる。
   // 「必須」の表示は誤判定しやすいので、required属性などはっきりした印がある欄だけを対象にする
   document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((element) => {
@@ -2853,7 +2875,8 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       element.required ||
       element.getAttribute("aria-required") === "true" ||
       /validates-as-required/.test(element.className) ||
-      element.closest(".required") !== null;
+      element.closest(".required") !== null ||
+      rawHeadingSaysRequired(element);
 
     if (required) {
       const key = element.getAttribute("name") || element.getAttribute("id") || "";
