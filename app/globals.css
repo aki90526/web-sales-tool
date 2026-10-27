@@ -2638,3 +2638,50 @@ button.skip-count-badge:hover {
   font-size: 12px;
   font-weight: 700;
 }
+
+/* 連絡先の再探索 */
+.rediscovery-modal {
+  max-width: 820px;
+}
+
+.rediscovery-body {
+  display: grid;
+  gap: 16px;
+}
+
+.rediscovery-body h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.rediscovery-row {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.rediscovery-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.rediscovery-ok,
+.rediscovery-ng {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rediscovery-ok {
+  color: #166534;
+}
+
+.rediscovery-ng {
+  color: #b45309;
+}

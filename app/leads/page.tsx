@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Check, CheckCircle2, Copy, ExternalLink, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
+import ContactRediscoveryModal from "../components/ContactRediscovery";
 import { LeadLogControls, LeadLogModal, type LatestLog } from "../components/LeadLog";
 import SkipPeriodDialog, { skipPeriodLabel } from "../components/SkipPeriodDialog";
 import { nextRecheckLabel } from "../../src/domain/recheckSchedule";
@@ -92,6 +93,7 @@ export default function LeadsPage() {
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [logLead, setLogLead] = useState<Lead | null>(null);
+  const [rediscoverLead, setRediscoverLead] = useState<Lead | null>(null);
   const [skipDialog, setSkipDialog] = useState<{ lead: Lead; mode: "status" | "edit" } | null>(null);
   const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string; formUrl?: string } | null>(null);
   const [messageContent, setMessageContent] = useState<{ subject: string; body: string } | null>(null);
@@ -785,6 +787,12 @@ export default function LeadsPage() {
         label: lead.contactFormUrl ? "フォームURLを変更" : "フォームURLを登録",
         icon: lead.contactFormUrl ? <Pencil size={15} /> : <FileText size={15} />,
         onClick: () => void editFormUrl(lead)
+      },
+      {
+        key: "rediscover",
+        label: "連絡先を再探索",
+        icon: <RefreshCw size={15} />,
+        onClick: () => setRediscoverLead(lead)
       }
     );
 
@@ -908,6 +916,7 @@ export default function LeadsPage() {
               onChangeRecheck={(lead) => setSkipDialog({ lead, mode: "edit" })}
               onSaveNote={saveNote}
               onOpenLog={(lead) => setLogLead(lead)}
+              onRediscover={(lead) => setRediscoverLead(lead)}
               onMemoSave={updateMemo}
               onEditFormUrl={editFormUrl}
               onEditEmail={editEmail}
@@ -1090,6 +1099,15 @@ export default function LeadsPage() {
           </div>
         )}
       </section>
+
+      {rediscoverLead && (
+        <ContactRediscoveryModal
+          leadId={rediscoverLead.leadId}
+          companyName={rediscoverLead.companyName}
+          onClose={() => setRediscoverLead(null)}
+          onApplied={() => void refreshLeadsQuietly()}
+        />
+      )}
 
       {logLead && <LeadLogModal leadId={logLead.leadId} companyName={logLead.companyName} onClose={() => setLogLead(null)} onChanged={() => void refreshLeadsQuietly()} />}
 

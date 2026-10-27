@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, FileText, MessageSquare, Mail, MousePointerClick, Pencil, Sparkles } from "lucide-react";
+import { CheckCircle2, ExternalLink, FileText, MessageSquare, Mail, MousePointerClick, Pencil, RefreshCw, Sparkles } from "lucide-react";
 import ActionMenu from "./ActionMenu";
 import { skipPeriodLabel } from "../components/SkipPeriodDialog";
 import { LeadLogControls, type LatestLog } from "../components/LeadLog";
@@ -52,6 +52,7 @@ type LeadCardsProps<T extends CardLead> = {
   recheckDefaultDays: number;
   onSaveNote: (lead: T, text: string) => Promise<void>;
   onOpenLog: (lead: T) => void;
+  onRediscover: (lead: T) => void;
 };
 
 // メモ欄の高さを、内容に合わせる（普段は最大3行まで。編集中は全文を表示する。上限はCSS側）
@@ -176,6 +177,12 @@ export default function LeadCards<T extends CardLead>(props: LeadCardsProps<T>) 
                     label: lead.contactFormUrl ? "フォームURLを変更" : "フォームURLを登録",
                     icon: lead.contactFormUrl ? <Pencil size={15} /> : <FileText size={15} />,
                     onClick: () => props.onEditFormUrl(lead)
+                  },
+                  {
+                    key: "rediscover",
+                    label: "連絡先を再探索",
+                    icon: <RefreshCw size={15} />,
+                    onClick: () => props.onRediscover(lead)
                   }
                 ]}
               />

@@ -11,7 +11,7 @@ export type ContactUrlVerificationResult = {
   };
 };
 
-type LinkCandidate = {
+export type LinkCandidate = {
   url: string;
   text: string;
 };
@@ -139,7 +139,7 @@ const scoreContactLink = (link: LinkCandidate, sourceUrl: string, leadType: stri
   return score;
 };
 
-const findBestContactLinks = (
+export const findBestContactLinks = (
   html: string,
   sourceUrl: string,
   leadType: string,

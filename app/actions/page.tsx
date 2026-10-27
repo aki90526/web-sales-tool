@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Check, CheckCircle2, ClipboardCheck, Copy, ExternalLink, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
+import ContactRediscoveryModal from "../components/ContactRediscovery";
 import { LeadLogModal } from "../components/LeadLog";
 import SkipPeriodDialog from "../components/SkipPeriodDialog";
 import CandidatePanel, { isManualOnly, type Candidate } from "./CandidatePanel";
@@ -45,6 +46,7 @@ export default function ActionsPage() {
   const [selection, setSelection] = useState<{ touched: boolean; ids: string[] }>({ touched: false, ids: [] });
   const [candidateNotice, setCandidateNotice] = useState<string | null>(null);
   const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [rediscoverInfo, setRediscoverInfo] = useState<{ leadId: string; companyName: string } | null>(null);
   const [logLeadInfo, setLogLeadInfo] = useState<{ leadId: string; companyName: string } | null>(null);
   const [skipDialogLead, setSkipDialogLead] = useState<Candidate | null>(null);
   const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
@@ -972,6 +974,7 @@ export default function ActionsPage() {
           onMemoSave={saveCandidateMemo}
           onSaveNote={saveCandidateNote}
           onOpenLog={(lead) => setLogLeadInfo({ leadId: lead.leadId, companyName: lead.companyName })}
+          onRediscover={(lead) => setRediscoverInfo({ leadId: lead.leadId, companyName: lead.companyName })}
           onStatusChange={changeCandidateStatus}
           onShowMessage={showCandidateMessage}
           onFormUrlChange={changeCandidateFormUrl}
@@ -1199,6 +1202,15 @@ export default function ActionsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {rediscoverInfo && (
+        <ContactRediscoveryModal
+          leadId={rediscoverInfo.leadId}
+          companyName={rediscoverInfo.companyName}
+          onClose={() => setRediscoverInfo(null)}
+          onApplied={loadLeads}
+        />
       )}
 
       {logLeadInfo && <LeadLogModal leadId={logLeadInfo.leadId} companyName={logLeadInfo.companyName} onClose={() => setLogLeadInfo(null)} onChanged={loadLeads} />}

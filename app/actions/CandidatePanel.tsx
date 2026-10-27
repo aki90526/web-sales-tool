@@ -37,6 +37,7 @@ type CandidatePanelProps = {
   pinnedIds: string[];
   onSaveNote: (lead: Candidate, text: string) => Promise<void>;
   onOpenLog: (lead: Candidate) => void;
+  onRediscover: (lead: Candidate) => void;
   onStatusChange: (lead: Candidate, status: string) => void;
   onShowMessage: (lead: Candidate) => void;
   // フォームURLを保存する（失敗したら、エラーを投げる）
@@ -108,12 +109,15 @@ export default function CandidatePanel(props: CandidatePanelProps) {
           const checked = selected.has(lead.leadId);
           const full = !checked && selectedIds.length >= maxSelect;
           const manualOnly = isManualOnly(lead);
-          const menuItems: ActionMenuItem[] = CHANGE_STATUSES.map((status) => ({
-            key: status,
-            label: `${status}にする`,
-            icon: null,
-            onClick: () => props.onStatusChange(lead, status)
-          }));
+          const menuItems: ActionMenuItem[] = [
+            ...CHANGE_STATUSES.map((status) => ({
+              key: status,
+              label: `${status}にする`,
+              icon: null,
+              onClick: () => props.onStatusChange(lead, status)
+            })),
+            { key: "rediscover", label: "連絡先を再探索", icon: null, onClick: () => props.onRediscover(lead) }
+          ];
 
           return (
             <article key={lead.leadId} className={`lead-card candidate-card${checked ? " selected" : ""}`}>

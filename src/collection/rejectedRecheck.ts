@@ -106,7 +106,7 @@ const stubCandidate = (lead: SalesManagementLead): LeadCandidate => {
 };
 
 // 登録済み、または見つけたフォームが、営業に使えるかを確認する
-const assessForm = async (formUrl: string): Promise<{ ok: boolean; reason: string }> => {
+export const assessForm = async (formUrl: string): Promise<{ ok: boolean; reason: string }> => {
   let html: string;
 
   try {
@@ -134,7 +134,7 @@ const assessForm = async (formUrl: string): Promise<{ ok: boolean; reason: strin
   return { ok: true, reason: "" };
 };
 
-const isArticleUrl = (url: string): boolean => {
+export const isArticleUrl = (url: string): boolean => {
   try {
     return Boolean(url) && ARTICLE_PATH_PATTERN.test(new URL(url).pathname);
   } catch {

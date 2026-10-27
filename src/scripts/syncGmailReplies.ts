@@ -318,9 +318,11 @@ const findReplyMatches = async (
       continue;
     }
 
+    // 迷惑メールのフォルダに振り分けられた返信も見つけるため、迷惑メールを含めて探す（ゴミ箱は除く）
+    const scope = "in:anywhere -in:trash";
     const query = isForm
-      ? `from:${domain} to:${replyToAddress} after:${formatGmailDate(afterDate)}`
-      : `from:${history.recipient} to:${replyToAddress} after:${formatGmailDate(afterDate)}`;
+      ? `${scope} from:${domain} to:${replyToAddress} after:${formatGmailDate(afterDate)}`
+      : `${scope} from:${history.recipient} to:${replyToAddress} after:${formatGmailDate(afterDate)}`;
     const messages = await gmail.searchMessages(query, 10);
 
     if (isForm) {
@@ -423,7 +425,7 @@ const syncBookingNotifications = async (
   histories: ApproachHistoryRow[],
   dryRun: boolean
 ): Promise<BookingSync[]> => {
-  const messages = await gmail.searchMessages('"新しい面談の予約が入りました" newer_than:90d', 20);
+  const messages = await gmail.searchMessages('in:anywhere -in:trash "新しい面談の予約が入りました" newer_than:90d', 20);
   const table = await readSalesManagementTable(sheets);
   const applied: BookingSync[] = [];
   const reflectedStatuses = ["未確認", "確認済み", "送信待ち", "送信済み"];
