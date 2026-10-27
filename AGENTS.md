@@ -86,6 +86,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 2回目以降の送信は、メッセージテンプレートの「用途=再送」の文面を自動で使う（`{前回送信月}` などを差し込む）。文面は、シートまたは `/settings` で編集できる。
 - `/settings` で編集できるもの（すべてシートの同じセルを読み書きする。`src/settings/appSettings.ts`）: 初回・再送の文面（件名・本文）、送信者の情報（`送信者_*`）、得意な業務（`送信者_得意な業務`。フォームの「得意としている業務」「対応可能な分野」などの欄に自動入力。見出しで判定し、入力例だけに書かれた語は対象にしない）、署名の紹介文（`署名_紹介文`）、配信停止の案内文（`配信停止の案内文`）、メールの送信元（From）とBCC（`src/settings/mailSettings.ts`。空欄は `.env` の `SMTP_FROM`/`SMTP_BCC`。SMTPのサーバー・アカウント・パスワードは秘密情報のため `.env` のままで、画面では扱わない）、営業先を探すAIへの指示のうち目的と重視点（`src/settings/collectionSettings.ts`。既定は `leadCandidateCollector.ts` の `DEFAULT_COLLECTION_GUIDANCE`）、再送・再確認の間隔。項目を足すときは `TEXT_SETTINGS`（文字の設定）に足し、`salesMessage.ts` の `readSenderInfo` で読む。
 - 送信完了の自動検知（`src/scripts/watchFormCompletion.ts`）: 自動入力したフォームのタブを1秒ごとに見て、完了画面を検知したら、同じプロセスの中で `markFormSent`（`markFormSubmitted.ts`）を呼んで記録する（以前は `npm run` を起動し直しており、反映に5〜9秒かかっていた）。実行操作の画面は2秒ごとに状態を取得する。
+- **連絡先の再探索**（リードの「操作」メニュー／カードの「連絡先」メニュー／実行操作の候補カードのメニュー → 「連絡先を再探索」。`src/collection/contactRediscovery.ts`、`POST /api/leads/rediscover`、`ContactRediscoveryModal`）: 公式サイトを調べ直し、いま登録のフォームの判定、サイト内のフォーム候補（記事ページ・依頼専用・営業お断り・フォームなし、を判定して理由を表示）、見つかったメールアドレスを提案する。AIは使わず費用なし。シートは変えず、阿部が「このURLを登録」「このメールアドレスを登録」を押したときだけ、既存の登録API（ログにも残る）で反映する。ルールで見つからないときにAIのWeb検索で探す段階は、未実装（費用の単位と上限を示してから作る）。
+- Gmail同期の検索は、迷惑メールのフォルダも含める（`in:anywhere -in:trash`）。自動返信・受付メール・配信エラーは、返信として数えない（`isAutomatedMessage` など）。
 - 送信の安全装置: 送信直前の再確認、二重送信を防ぐロック（`src/email/sendLock.ts`）、送信記録を先に残してから SMTP、フォームは10分以内の二重記録を拒否。
 
 ## よく使うコマンド
