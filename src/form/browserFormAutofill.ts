@@ -1466,7 +1466,7 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       return;
     }
 
-    // 「○○を知ったきっかけ」のような、必須の選択欄は、無難な「その他」を選ぶ（「その他」が無いときは、選ばず、警告で手動選択を促す）。
+    // 「○○を知ったきっかけ」のような、必須の選択欄は、「インターネット検索」（なければ「その他」）を選ぶ（どちらも無いときは、選ばず、警告で手動選択を促す）。
     // 任意の欄は、触らない。見出しだけで判定する（入力例などの文字に反応しないため）
     // 空の選択肢が selected 指定されている（値は空でない）ものも、未選択として扱う
     const selectedText = (element.options[element.selectedIndex]?.textContent ?? "").trim();
@@ -1487,7 +1487,11 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
         element.closest(".required") !== null;
 
       if (requiredSelect && /(知った|きっかけ|キッカケ|切っ掛け|どこで|どちらで|認知|流入|how did you (hear|find)|referral)/i.test(heading)) {
-        const other = Array.from(element.options).find((option) => /^(その他|そのほか|other)/i.test((option.textContent ?? "").trim()));
+        // 営業先は、インターネット検索（AIのWeb検索）で見つけているため、「インターネット検索」があればそれを選ぶ。なければ「その他」
+        const optionTexts = Array.from(element.options);
+        const other =
+          optionTexts.find((option) => /(インターネット|ネット|web|ウェブ|ホームページ).{0,4}検索|^検索|search/i.test((option.textContent ?? "").trim())) ??
+          optionTexts.find((option) => /^(その他|そのほか|other)/i.test((option.textContent ?? "").trim()));
 
         if (other) {
           element.value = other.value;
