@@ -255,6 +255,8 @@ export default function ActionsPage() {
       );
       setCandidateNotice(`${lead.leadId} ${lead.companyName} を「${status}」にしました`);
       setCandidateError(null);
+      // ステータスを変えたリードは、先頭の固定（いま自動入力したリード）をやめて、候補から外す
+      setAutoFillResult((current) => (current ? current.filter((entry) => entry.leadId !== lead.leadId) : current));
       loadTargets();
 
       if (body.historyLine && body.previousStatus) {
