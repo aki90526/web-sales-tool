@@ -2627,3 +2627,14 @@ button.skip-count-badge:hover {
   color: #166534;
   font-size: 12px;
 }
+
+.candidate-warnings {
+  margin: 6px 0 0;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  background: #fffbeb;
+  padding: 6px 10px 6px 24px;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+}

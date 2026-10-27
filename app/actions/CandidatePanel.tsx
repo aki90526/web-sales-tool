@@ -31,6 +31,8 @@ type CandidatePanelProps = {
   error: string | null;
   onToggle: (leadId: string) => void;
   onMemoSave: (lead: Candidate, memo: string) => void;
+  // 直近の自動入力で出た、リードごとの警告（要確認の項目）
+  warnings: Record<string, string[]>;
   onSaveNote: (lead: Candidate, text: string) => Promise<void>;
   onOpenLog: (lead: Candidate) => void;
   onStatusChange: (lead: Candidate, status: string) => void;
@@ -132,6 +134,14 @@ export default function CandidatePanel(props: CandidatePanelProps) {
                 </div>
                 <span className="score-badge">{lead.salesScore}</span>
               </div>
+
+              {(props.warnings[lead.leadId] ?? []).length > 0 && (
+                <ul className="candidate-warnings" aria-label="自動入力の警告">
+                  {(props.warnings[lead.leadId] ?? []).map((warning, index) => (
+                    <li key={index}>要確認: {warning}</li>
+                  ))}
+                </ul>
+              )}
 
               <div className="lead-card-links">
                 {lead.contactMethod === "メール" ? (

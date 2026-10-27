@@ -142,6 +142,13 @@ export const buildResultMessage = (job: DashboardJob): string => {
       return `本メールを${count}件送信しました。`;
     case "forms-todo":
       return `フォーム送信対象を${count}件確認しました。`;
+    case "forms-fill": {
+      const warnings = job.fillWarnings ?? [];
+
+      return warnings.length > 0
+        ? `自動入力しました。要確認が${warnings.length}件あります: ${warnings[0].leadId} ${warnings[0].message.slice(0, 60)}`
+        : "自動入力しました。";
+    }
     case "gmail-sync":
       return count === 0 ? "新しい返信・面談予約は見つかりませんでした。" : `返信・面談予約を${count}件、シートに反映しました。`;
     default:

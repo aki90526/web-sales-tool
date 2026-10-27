@@ -3961,8 +3961,10 @@ export const fillCandidateFormsInBrowser = async (
 
       results.push({ candidate, result, confirm, targetId: target.id, baseline, finalUrl, wrongPage, sampleSnapshot });
       await notify(
-        "フォーム入力を確認してください",
-        confirm.status === "advanced"
+        result.warnings.length > 0 ? "フォーム入力: 要確認の項目があります" : "フォーム入力を確認してください",
+        result.warnings.length > 0
+          ? `${candidate.leadId} ${candidate.companyName}: ${result.warnings[0].slice(0, 90)}${result.warnings.length > 1 ? `（ほか${result.warnings.length - 1}件）` : ""}`
+          : confirm.status === "advanced"
           ? `${candidate.leadId} ${candidate.companyName}: 確認画面まで進めました。Chromeを開いて内容を確認し、問題なければ送信ボタンを押してください。`
           : `${candidate.leadId} ${candidate.companyName}: Chromeを開いて入力内容を確認し、問題なければ送信ボタンを押してください。`
       );

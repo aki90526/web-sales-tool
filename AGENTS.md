@@ -45,7 +45,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 自動入力で開くChromeのタブは、前面に出さない（`open -g`、`CDP.Activate` を呼ばない）。作業中の画面を奪わないため。確認するときは、通知を見て、自分でChromeを開く。手動入力でも、フォームは、メッセージを確認・コピーしたあとに、モーダルの「フォームを開く」で開く（先に開かない）。
 - **フォーム判定の学習データ（`/forms`）**: 自動入力を実行するたびに、入力前のフォームの構造と判定結果を `data/form-samples/`（端末内のみ・git管理しない）へ記録する（`src/form/formSamples.ts`、`fillForms.ts` から）。同じフォーム（ドメイン+パス）は1件にまとまる。阿部が `/forms` で「正しい」を押すと、`test/form-fixtures/sample-<id>.html` と期待値が作られ、回帰テスト（`npm run test:forms`）に加わる。「間違いあり」は、メモ付きで改善の対象に残る（未対応のものは、`/api/form-samples` または `data/form-samples/*.json` の `status: "ng"` を読んで直す）。画面の上に、記録数・確認済みの正答率・確認画面まで進めた割合・警告なしで完結した割合を出す。
 - 「○○を知ったきっかけ」のような、必須のプルダウンは、「インターネット検索」があればそれを、なければ「その他」を選ぶ（営業先は、AIのWeb検索で見つけているため。どちらも無ければ選ばず、下の警告で手動選択を促す）。任意の欄は触らない。
-- 自動入力のあと、必須なのに空のまま残った入力欄・プルダウン（`required` 属性、`aria-required`、囲む要素の `class="required"`、CF7の必須class）は、「必須項目が未入力です（手動で入力してください）: ○○」の警告になり、確認ボタンは押さない。姓・名が別の欄に分かれているフォーム（囲む要素の class が last_name / first_name、または「お名前（姓・名）」の下に入力欄が2つ並ぶ形）は、姓と名を分けて入れる（`splitNameRole`）。
+- 自動入力のあと、必須なのに空のまま残った入力欄・プルダウン（`required` 属性、`aria-required`、囲む要素の `class="required"`、CF7の必須class）は、「必須項目が未入力です（手動で入力してください）: ○○」の警告になり、確認ボタンは押さない。警告は、実行操作の画面の赤い枠、直近の実行結果の1行、候補カード（「要確認: …」）、macOSの通知に出る。姓・名が別の欄に分かれているフォーム（囲む要素の class が last_name / first_name、または「お名前（姓・名）」の下に入力欄が2つ並ぶ形）は、姓と名を分けて入れる（`splitNameRole`）。
 - メールは SMTP（nodemailer）で送り、返信・不達・面談予約の検知は Gmail API（`gmail:sync-replies`）。
 - OpenAI は、営業先候補の収集と分析（`src/openai/`）。
 - 認証: ダッシュボードは Tailscale Serve（tailnet 内のみ）経由。`proxy.ts` が `Tailscale-User-Login` ヘッダーと `DASHBOARD_ALLOWED_TAILSCALE_USER`（`.env`）を検査し、書き込み系の同一オリジンと JSON を強制する。

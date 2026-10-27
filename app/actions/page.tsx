@@ -933,6 +933,10 @@ export default function ActionsPage() {
         </div>
 
         <CandidatePanel
+          warnings={fillWarnings.reduce<Record<string, string[]>>((map, warning) => {
+            map[warning.leadId] = [...(map[warning.leadId] ?? []), warning.message];
+            return map;
+          }, {})}
           tab={tab}
           candidates={candidates}
           selectedIds={selectedIds}
