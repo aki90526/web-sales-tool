@@ -368,7 +368,7 @@ export const FOLLOW_UP_DEFAULTS = {
     body: `{会社名}
 ご担当者様
 
-aaWebCreateの阿部です。
+埼玉県春日部市で、フリーランスとしてWeb制作・システム開発を行っております、aaWebCreateの阿部です。
 {前回送信月}に、外部制作パートナーのご提案で、ご連絡いたしました。お忙しいところ恐れ入ります。改めて、簡単にご連絡いたします。
 
 制作会社様の案件で、リソースが足りない時や、特定の技術（Next.js / Shopify / WordPress改修など）の知見が必要な時に、スポットでもお力になれます。
@@ -386,7 +386,7 @@ https://booking.aawebcreate.com/
   },
   partnerForm: {
     subject: FOLLOW_UP_PARTNER_SUBJECT,
-    body: `aaWebCreateの阿部です。{前回送信月}に、外部制作パートナーのご提案で、ご連絡いたしました。改めて、簡単にご連絡いたします。
+    body: `フリーランスでWeb制作・システム開発を行っております、aaWebCreateの阿部です。{前回送信月}に、外部制作パートナーのご提案で、ご連絡いたしました。改めて、簡単にご連絡いたします。
 
 Web業界12年、WordPress・Shopifyの実装から、Next.js / TypeScriptでのWebアプリ開発まで、制作会社様の案件で、スポットでもお力になれます。
 経歴・実績は、こちらです。
@@ -399,7 +399,7 @@ https://aawebcreate.com/profile/
     body: `{会社名}
 ご担当者様
 
-aaWebCreateの阿部です。
+埼玉県春日部市で、フリーランスとしてWeb制作・システム開発を行っております、aaWebCreateの阿部です。
 {前回送信月}に、Webサイトの改善について、ご連絡いたしました。お忙しいところ恐れ入ります。改めて、簡単にご連絡いたします。
 
 WordPressを中心としたWebサイト制作、Shopify構築、既存サイトの改修や保守などを行っております。
@@ -412,7 +412,7 @@ https://aawebcreate.com/profile/
   },
   directForm: {
     subject: FOLLOW_UP_DIRECT_SUBJECT,
-    body: `aaWebCreateの阿部です。{前回送信月}に、Webサイトの改善について、ご連絡いたしました。改めて、簡単にご連絡いたします。
+    body: `フリーランスでWeb制作・システム開発を行っております、aaWebCreateの阿部です。{前回送信月}に、Webサイトの改善について、ご連絡いたしました。改めて、簡単にご連絡いたします。
 
 WordPressを中心としたWebサイト制作、Shopify構築、既存サイトの改修や保守などを行っております。
 実績・対応領域は、こちらです。
