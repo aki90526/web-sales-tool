@@ -15,6 +15,8 @@ export type RescorePreview = {
   breakdown: Array<{ key: string; value: number }>;
   // 概算の根拠にした情報が足りないとき（分析データが無いなど）の注意
   warning: string;
+  // 概算の計算でも、除外の条件に当たる場合の理由（文章に、営業禁止などの言葉があるとき）
+  exclusionReason: string;
 };
 
 export const previewApproximateScore = async (sheets: SheetsClient, lead: SalesManagementLead): Promise<RescorePreview> => {
@@ -43,7 +45,8 @@ export const previewApproximateScore = async (sheets: SheetsClient, lead: SalesM
     companySizeCategory: (column("規模判定") || "不明") as never,
     companySizeMemo: column("規模メモ"),
     exclusionReason: "",
-    scoreSignals: {}
+    // 営業禁止かどうかは、スコアの概算では判定しない（分析文に「営業禁止」の言葉があるだけで0になるのを避ける。禁止かどうかは、別に、ページの文章で確かめる）
+    scoreSignals: { forbidsSalesContact: false, forbidsAdsMail: false }
   } as never);
 
   return {
@@ -53,6 +56,7 @@ export const previewApproximateScore = async (sheets: SheetsClient, lead: SalesM
     breakdown: Object.entries(result.scoreBreakdown)
       .filter(([key]) => key !== "total")
       .map(([key, value]) => ({ key, value })),
-    warning: row ? "" : "分析データが見つからないため、概算の精度が低くなります"
+    warning: row ? "" : "分析データが見つからないため、概算の精度が低くなります",
+    exclusionReason: result.exclusionReason
   };
 };
