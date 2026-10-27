@@ -135,7 +135,7 @@ export default function CandidatePanel(props: CandidatePanelProps) {
                   </span>
                   {props.pinnedIds.includes(lead.leadId) && (
                     <span className="status-badge waiting" title="次の実行を始めるまで、このリードを先頭に残します">
-                      いま自動入力したリード{lead.status !== "送信待ち" ? `（${lead.status}）` : ""}
+                      いま自動入力したリード
                     </span>
                   )}
                 </div>

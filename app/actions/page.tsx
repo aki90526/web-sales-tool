@@ -136,8 +136,8 @@ export default function ActionsPage() {
     if (!allLeads) return null;
     const futureDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && value > todayTokyo;
 
-    // いま自動入力したリードは、状況が変わっても（CAPTCHAが見つかって手動のみになる、送信済みになるなど）、候補の先頭に残す。
-    // 自動入力のあとで、ステータスやログの操作ができるように（次の実行を始める、または送信済みの登録をするまで）
+    // いま自動入力したリードは、CAPTCHAが見つかって手動のみになっても、候補の先頭に残す。
+    // 自動入力のあとで、ステータスやログの操作ができるように（次の実行を始める、または、ステータスが変わるまで）
     const pinned = new Set(tab === "form" ? (autoFillResult ?? []).map((lead) => lead.leadId) : []);
     const isCandidate = (lead: Candidate): boolean =>
       lead.status === "送信待ち" &&
@@ -147,7 +147,8 @@ export default function ActionsPage() {
         : lead.contactMethod === "フォーム" && /^https?:\/\//i.test(lead.contactFormUrl));
 
     return allLeads
-      .filter((lead) => pinned.has(lead.leadId) || isCandidate(lead))
+      // 先頭に残すのは、まだ「送信待ち」のリードだけ。ステータスが変わったら（送信完了の自動検知・手動の変更など、どの操作でも）候補から外れる
+      .filter((lead) => (pinned.has(lead.leadId) && lead.status === "送信待ち") || isCandidate(lead))
       // 自動入力したものを先頭、次に、自動入力できるもの、手動のみ（CAPTCHAあり）の順。それぞれ、スコアの高い順
       .sort(
         (a, b) =>
