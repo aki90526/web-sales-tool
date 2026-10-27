@@ -5,6 +5,27 @@ import { Check, ExternalLink, X } from "lucide-react";
 
 type Judgment = { url: string; label: string; ok: boolean; reason: string };
 
+type ScorePreview = {
+  currentScore: number;
+  approximateScore: number;
+  breakdown: Array<{ key: string; value: number }>;
+  warning: string;
+};
+
+const SCORE_LABELS: Record<string, string> = {
+  officialWebsite: "公式サイトがある",
+  contactMethod: "連絡手段がある",
+  webProductionBusiness: "Web制作業",
+  coderRecruiting: "コーダー募集",
+  subcontractorRecruiting: "外注・業務委託の募集",
+  partnerRecruiting: "パートナー募集",
+  wordpress: "WordPress対応",
+  shopify: "Shopify対応",
+  maintenance: "保守・運用",
+  complementarity: "補完性（提案との相性）",
+  aiAdjustment: "AIの補正"
+};
+
 type Result = {
   leadId: string;
   companyName: string;
@@ -32,6 +53,8 @@ export default function ContactRediscoveryModal({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [applied, setApplied] = useState<string[]>([]);
+  const [score, setScore] = useState<ScorePreview | null>(null);
+  const [scoreApplied, setScoreApplied] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -63,6 +86,55 @@ export default function ContactRediscoveryModal({
     };
   }, [leadId]);
 
+  // スコアの概算も、あわせて読み込む（登録は、ボタンを押したときだけ）
+  useEffect(() => {
+    let active = true;
+
+    fetch("/api/leads/rescore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadId })
+    })
+      .then(async (res) => {
+        const body = await res.json();
+
+        if (res.ok && active) {
+          setScore(body as ScorePreview);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [leadId]);
+
+  const applyScore = async () => {
+    setBusy("score");
+    setError("");
+
+    try {
+      const res = await fetch("/api/leads/rescore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId, apply: true })
+      });
+      const body = await res.json();
+
+      if (!res.ok) {
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+
+      setScore(body as ScorePreview);
+      setScoreApplied(true);
+      onApplied();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "登録できませんでした");
+    } finally {
+      setBusy("");
+    }
+  };
+
   const apply = async (kind: "form" | "email", value: string) => {
     setBusy(value);
     setError("");
@@ -93,7 +165,7 @@ export default function ContactRediscoveryModal({
       <div className="modal-panel rediscovery-modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3 className="panel-title">連絡先を再探索</h3>
+            <h3 className="panel-title">連絡先の再探索・スコアの再計算</h3>
             <p className="panel-caption">
               {leadId} {companyName}（公式サイトを調べ直します。AIは使わないので、費用はかかりません）
             </p>
@@ -179,6 +251,30 @@ export default function ContactRediscoveryModal({
                 <p className="panel-caption">新しく見つかったメールアドレスは、ありません。</p>
               )}
             </section>
+
+            {score && (
+              <section>
+                <h4>営業スコア（概算）</h4>
+                <p className="rediscovery-row">
+                  いまのスコア: <strong>{score.currentScore}</strong> / 概算: <strong>{score.approximateScore}</strong>
+                  {scoreApplied && (
+                    <span className="rediscovery-ok">
+                      <Check size={13} /> 登録しました
+                    </span>
+                  )}
+                </p>
+                <p className="panel-caption">
+                  保存済みの分析文などから、言葉で判定して出した目安です（AIの細かい判定は含みません。ずれることがあります）。除外で0になったリードを戻すときなどに使います。
+                  {score.breakdown.length > 0 && ` 内訳: ${score.breakdown.map((item) => `${SCORE_LABELS[item.key] ?? item.key} ${item.value}`).join(" / ")}`}
+                </p>
+                {score.warning && <p className="rediscovery-ng">{score.warning}</p>}
+                {!scoreApplied && score.approximateScore !== score.currentScore && (
+                  <button type="button" className="btn primary" disabled={busy !== ""} onClick={() => void applyScore()}>
+                    {busy === "score" ? "登録中..." : `スコアを ${score.approximateScore} にする`}
+                  </button>
+                )}
+              </section>
+            )}
 
             <p className="panel-caption">
               使えるものが無いときは、見送りにして、メモや「現在の状況」に理由を書くのがおすすめです。メールを登録すると、連絡方法はメールに切り替わります。
