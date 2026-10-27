@@ -167,7 +167,15 @@ export default function ActionsPage() {
     setLimit((current) => Math.min(current, next === "email" ? 10 : 5));
   };
 
+  // 別のリードが対象になったら（自動入力で、次のリードが入ったときや、リードIDを入力したとき）、前のリードの登録完了の表示を消す
+  useEffect(() => {
+    if (leadId.trim()) {
+      setMarkSentFeedback(null);
+    }
+  }, [leadId]);
+
   const toggleCandidate = (leadId: string) => {
+    setMarkSentFeedback(null);
     const current = selectedIds;
     const next = current.includes(leadId) ? current.filter((id) => id !== leadId) : [...current, leadId];
     if (next.length > maxSelect) return;
@@ -402,6 +410,8 @@ export default function ActionsPage() {
   };
 
   const handleAutoFill = async () => {
+    // 前のリードの「送信済みとして登録しました」の表示は、次の自動入力を始めたら消す
+    setMarkSentFeedback(null);
     setCaptchaWarning(null);
     setAutoFillResult(null);
     setConfirmedLeadIds([]);
@@ -469,6 +479,7 @@ export default function ActionsPage() {
   };
 
   const openManualForm = async (overrideLeadId?: string) => {
+    setMarkSentFeedback(null);
     setManualError(null);
     setManualMessage(null);
     setManualCopied(false);
