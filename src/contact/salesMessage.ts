@@ -118,7 +118,7 @@ export const CONTACT_SENDER: SenderInfo = {
   streetAddress: "西金野井1074-10",
   specialty:
     "WordPress・Shopifyのサイト構築・改修、HTML/CSS/JavaScriptによるフロントエンド実装、保守運用。Next.js / TypeScriptでのWebアプリ開発（Googleカレンダー連携の予約システム、生成AIを組み込んだ業務ツールなど）にも対応しています。",
-  priceGuide: "案件の内容・工数に応じて、個別にお見積りいたします。目安は、案件の概要を伺ったうえで、ご案内いたします。",
+  priceGuide: "案件の内容により変動するため、個別にお見積りいたします。目安は、下記の料金表をご覧ください。https://aawebcreate.com/price/",
   signatureTagline: "春日部市でフリーランスのWeb制作を行っています。",
   optOutNotice:
     "※今後このようなご連絡が不要な場合は、お手数ですが本メールへの返信にてお知らせください。以後のご連絡を控えます。"
