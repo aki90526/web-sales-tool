@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- synthetic: 見出しに「必須」とあるラジオの欄（required 属性なし）で、事実を答える欄は、選ばず、警告で手動選択を促す -->
+<html lang="ja"><head><meta charset="utf-8"><title>synthetic-required-radio-heading</title></head><body>
+<form method="post" action="/send"><dl>
+  <dt>お名前<span class="require">※必須</span></dt><dd><input type="text" name="name"></dd>
+  <dt>メールアドレス<span class="require">※必須</span></dt><dd><input type="email" name="email"></dd>
+  <dt>従業員数<span class="require">※必須</span></dt><dd>
+    <label><input type="radio" name="staff" value="10名未満">10名未満</label>
+    <label><input type="radio" name="staff" value="10名以上">10名以上</label></dd>
+  <dt>お問い合わせ内容<span class="require">※必須</span></dt><dd><textarea name="body"></textarea></dd>
+  <dd><input type="submit" value="確認する"></dd>
+</dl></form>
+</body></html>

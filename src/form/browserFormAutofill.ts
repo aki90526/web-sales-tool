@@ -1466,6 +1466,25 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       return;
     }
 
+    // 「インボイス対応」を問うプルダウンは、「対応している」を選ぶ
+    if (!element.disabled && /(インボイス|適格請求書)/.test(`${labelFor(element)}`) && element.value.trim() === "") {
+      const yes = Array.from(element.options).find(
+        (option) => /(対応(して)?(い)?る|対応可|登録(して)?(い)?る|登録済|はい|あり)/.test((option.textContent ?? "").trim()) && !/(していない|いない|できない|なし|未|いいえ)/.test((option.textContent ?? "").trim())
+      );
+
+      if (yes) {
+        element.value = yes.value;
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+
+        if (element.value === yes.value) {
+          result.selected.push({ label: shortLabelFor(element), option: (yes.textContent ?? "").trim() });
+        }
+
+        return;
+      }
+    }
+
     // 「○○を知ったきっかけ」のような、必須の選択欄は、「インターネット検索」（なければ「その他」）を選ぶ（どちらも無いときは、選ばず、警告で手動選択を促す）。
     // 任意の欄は、触らない。見出しだけで判定する（入力例などの文字に反応しないため）
     // 空の選択肢が selected 指定されている（値は空でない）ものも、未選択として扱う
@@ -1857,6 +1876,26 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
           }
           return;
         }
+      }
+
+      // 「インボイス対応」「適格請求書発行事業者」を問う欄は、「対応している（はい）」を選ぶ（阿部の方針）。選択済みなら、触らない
+      if (/(インボイス|適格請求書)/.test(`${groupLabel} ${nearestPreviousLabelText(elements[0])}`)) {
+        if (!elements.some((element) => element.checked)) {
+          const yes = elements.find((element) => {
+            const option = radioOptionLabelFor(element);
+            return /(対応(して)?(い)?る|対応可|対応できる|登録(して)?(い)?る|登録済|はい|あり|yes)/i.test(option) && !/(していない|いない|できない|なし|未|いいえ|no\b)/i.test(option);
+          });
+
+          if (yes) {
+            checkRadio(yes);
+
+            if (yes.checked) {
+              result.selected.push({ label: groupLabel.slice(0, 80), option: radioOptionLabelFor(yes).slice(0, 40) });
+            }
+          }
+        }
+
+        return;
       }
 
       const isInquiry = isInquiryRadioGroup(elements);
@@ -2745,6 +2784,52 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     if (group.length > 0 && !group.some((element) => element.checked)) {
       result.warnings.push(`${radioGroupLabelFor(group)} は手動選択が必要です。`);
     }
+  });
+
+  // 見出しに「必須」と書かれているだけで、required 属性のないラジオ・チェックボックスの欄（例: 「インボイス対応 ※必須」）で、何も選ばれていないものも知らせる
+  // （「対応している／していない」のように、事実を答える欄は、自動では決められないため、手動で選んでもらう）
+  const headingRequired = (group: HTMLInputElement[], groupLabel: string): boolean => {
+    // 項目名の整形で「必須」の文字は消えるため、元のページの文字（直前の項目名の要素、legend）も見る
+    const container = group[0].closest("dd, td, fieldset, .form-group, li, div");
+    const rawHeading = [
+      container?.previousElementSibling?.textContent,
+      container?.querySelector("legend")?.textContent,
+      container?.parentElement?.previousElementSibling?.textContent
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .slice(0, 200);
+    const heading = `${groupLabel} ${nearestPreviousLabelText(group[0])} ${rawHeading}`;
+
+    return (
+      group.some((element) => element.required || element.getAttribute("aria-required") === "true" || element.closest(".required") !== null) ||
+      (/(必須|required)/i.test(heading) && !/(任意|optional)/i.test(heading))
+    );
+  };
+
+  ["radio", "checkbox"].forEach((kind) => {
+    const names = new Set<string>();
+
+    document.querySelectorAll<HTMLInputElement>(`input[type='${kind}']`).forEach((element) => {
+      if (element.name && !element.disabled && visible(element)) {
+        names.add(element.name);
+      }
+    });
+
+    names.forEach((name) => {
+      const group = Array.from(document.querySelectorAll<HTMLInputElement>(`input[type='${kind}'][name="${CSS.escape(name)}"]`));
+      // 同意欄（1つだけのチェックボックス）は、別の警告で扱うため、ここでは、選択肢が2つ以上あるものだけ
+      const label = kind === "radio" ? radioGroupLabelFor(group) : checkboxGroupLabelFor(group);
+
+      if (group.length >= 2 && !group.some((element) => element.checked) && headingRequired(group, label)) {
+        const warning = `${REQUIRED_EMPTY_WARNING}${label.slice(0, 40)}`;
+
+        if (!result.warnings.includes(warning) && !result.warnings.some((entry) => entry.includes(label.slice(0, 20)) && entry.includes("手動選択が必要です"))) {
+          result.warnings.push(warning);
+        }
+      }
+    });
   });
 
   // 必須なのに空のまま残った入力欄（希望日時・自由記述の質問など自動で決められない欄）を知らせる。
