@@ -9,7 +9,7 @@ import { fieldRangeForRow, readSalesManagementTable, SalesManagementLead, status
 import { SheetsClient } from "../google/sheetsClient";
 import { LeadCandidate } from "../openai/leadCandidateCollector";
 import { BROWSER_FETCH_OPTIONS, fetchPage, htmlToText } from "./companyNameVerifier";
-import { checkFormPresence, excludeRequestOnlyForm, isRequestOnlyForm, verifyContactUrl } from "./contactUrlVerifier";
+import { ARTICLE_PATH_PATTERN, checkFormPresence, excludeRequestOnlyForm, isRequestOnlyForm, verifyContactUrl } from "./contactUrlVerifier";
 import { findEmailOnSite } from "./emailFinder";
 
 // 「見送り」のリードを、一定の間隔で再確認する。
@@ -134,6 +134,14 @@ const assessForm = async (formUrl: string): Promise<{ ok: boolean; reason: strin
   return { ok: true, reason: "" };
 };
 
+const isArticleUrl = (url: string): boolean => {
+  try {
+    return Boolean(url) && ARTICLE_PATH_PATTERN.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+};
+
 const assessLead = async (lead: SalesManagementLead): Promise<Assessment> => {
   let siteText: string;
 
@@ -153,13 +161,17 @@ const assessLead = async (lead: SalesManagementLead): Promise<Assessment> => {
     return { sendable: true, reason: "" };
   }
 
-  if (lead.contactFormUrl) {
+  // 登録されているフォームURLが、お知らせ・ブログなどの記事ページのときは、フォームとは認めず、探し直す
+  // （記事の中に、サイト検索などの <form> があるだけで、問い合わせフォームではないため）
+  const registeredIsArticle = isArticleUrl(lead.contactFormUrl);
+
+  if (lead.contactFormUrl && !registeredIsArticle) {
     const form = await assessForm(lead.contactFormUrl);
     return form.ok ? { sendable: true, reason: "" } : { sendable: false, reason: form.reason };
   }
 
-  // 連絡先が未登録: 公式サイトから探す
-  let candidate = stubCandidate(lead);
+  // 連絡先が未登録（または記事ページ）: 公式サイトから探す
+  let candidate = registeredIsArticle ? { ...stubCandidate(lead), contactUrl: "" } : stubCandidate(lead);
 
   try {
     candidate = (await verifyContactUrl(candidate)).candidate;
@@ -189,7 +201,7 @@ const assessLead = async (lead: SalesManagementLead): Promise<Assessment> => {
     // 見つからなかった扱い
   }
 
-  return { sendable: false, reason: "連絡先を見つけられない" };
+  return { sendable: false, reason: registeredIsArticle ? "登録のフォームURLがお知らせ・ブログなどの記事ページで、問い合わせフォームを見つけられない" : "連絡先を見つけられない" };
 };
 
 const readReactedLeadIds = async (sheets: SheetsClient): Promise<Set<string>> => {
