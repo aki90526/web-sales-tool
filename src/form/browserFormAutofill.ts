@@ -1,3 +1,4 @@
+import { FORM_IFRAME_HOSTS, pageSnapshotForm, type FormSnapshot } from "./formSnapshot";
 import { execFile } from "child_process";
 import http from "http";
 import path from "path";
@@ -100,6 +101,8 @@ export type BrowserFillResult = {
   wrongPage: boolean;
   // ページに営業お断りの記載があり、入力せずに中止した場合の該当文言（抜粋）
   salesForbidden?: string;
+  // 入力する前のフォームの構造（回帰テストの候補として記録する）
+  sampleSnapshot?: FormSnapshot;
 };
 
 type BrowserFillOptions = {
@@ -3837,6 +3840,13 @@ export const fillCandidateFormsInBrowser = async (
           body: candidate.body
         }
       };
+      // 入力する前のフォームの構造を記録しておく（あとで、判定が正しかったかを確認して、テスト用データにできる）
+      const sampleResponse = await client.Runtime.evaluate({
+        expression: `(${pageSnapshotForm.toString()})(${JSON.stringify(FORM_IFRAME_HOSTS.source)})`,
+        returnByValue: true
+      }).catch(() => undefined);
+      const sampleSnapshot = (sampleResponse?.result?.value as FormSnapshot | undefined) ?? undefined;
+
       const passResults = await runInAvailablePageContexts(client, payload, contextIds);
 
       await sleep(1000);
@@ -3908,7 +3918,7 @@ export const fillCandidateFormsInBrowser = async (
 
       const baseline = await readCompletionSnapshot(client).catch(() => null);
 
-      results.push({ candidate, result, confirm, targetId: target.id, baseline, finalUrl, wrongPage });
+      results.push({ candidate, result, confirm, targetId: target.id, baseline, finalUrl, wrongPage, sampleSnapshot });
       await notify(
         "フォーム入力を確認してください",
         confirm.status === "advanced"

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { FORM_IFRAME_HOSTS, FormSnapshot, pageSnapshotForm } from "../form/formSnapshot";
 import { HeadlessChromeClient, startHeadlessChrome } from "../form/headlessChrome";
 
 // 問い合わせフォームのページを画面なしのChromeで開き、自動入力の回帰テスト用に test/form-fixtures へ保存する。
@@ -11,64 +12,15 @@ import { HeadlessChromeClient, startHeadlessChrome } from "../form/headlessChrom
 // 保存後に npm run test:forms を実行すると、入力結果から *.expected.json が作られる。内容を必ず目で確認すること。
 
 const FIXTURE_DIR = path.resolve(__dirname, "../../test/form-fixtures");
-const FORM_IFRAME_HOSTS = /(bownow|hsforms|hubspot|formrun|form\.run|typeform|tayori|formmailer|f\.msgs|kintoneapp|google\.com\/forms|docs\.google\.com\/forms)/i;
 
-type Snapshot = { html: string } | { iframe: string } | { none: true };
-
-const pageSnapshotForm = (iframeHostPattern: string): Snapshot => {
-  const hidden = (element: Element): boolean => {
-    const style = window.getComputedStyle(element);
-    return style.display === "none" || style.visibility === "hidden";
-  };
-  const visibleControls = (root: Element): number =>
-    Array.from(root.querySelectorAll("input, textarea, select")).filter((element) => {
-      const type = (element.getAttribute("type") || "").toLowerCase();
-      const rect = element.getBoundingClientRect();
-      return !["hidden", "submit", "button", "image", "reset"].includes(type) && rect.width > 0 && rect.height > 0;
-    }).length;
-
-  const forms = Array.from(document.querySelectorAll("form"))
-    .map((form) => ({ form, count: visibleControls(form) }))
-    .filter(({ form, count }) => count >= 3 || (count >= 1 && form.querySelector("textarea")))
-    .sort((a, b) => b.count - a.count);
-
-  if (forms.length === 0) {
-    const iframe = Array.from(document.querySelectorAll("iframe")).find((frame) => new RegExp(iframeHostPattern, "i").test(frame.src));
-    return iframe ? { iframe: iframe.src } : { none: true };
-  }
-
-  const root = forms[0].form;
-  root.querySelectorAll("*").forEach((element) => {
-    if (!(element instanceof HTMLElement)) {
-      return;
-    }
-
-    const style = window.getComputedStyle(element);
-    if (style.display === "none") {
-      element.setAttribute("style", "display:none");
-    } else if (style.visibility === "hidden") {
-      element.setAttribute("style", "visibility:hidden");
-    }
-  });
-
-  if (hidden(root)) {
-    root.removeAttribute("style");
-  }
-
-  const clone = root.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll("script, noscript, style, link, iframe").forEach((element) => element.remove());
-
-  return { html: clone.outerHTML };
-};
-
-const snapshot = async (client: HeadlessChromeClient): Promise<Snapshot> => {
+const snapshot = async (client: HeadlessChromeClient): Promise<FormSnapshot> => {
   await new Promise((resolve) => setTimeout(resolve, 3000));
   const response = await client.Runtime.evaluate({
     expression: `(${pageSnapshotForm.toString()})(${JSON.stringify(FORM_IFRAME_HOSTS.source)})`,
     returnByValue: true
   });
 
-  return response.result.value as Snapshot;
+  return response.result.value as FormSnapshot;
 };
 
 const defaultName = (url: string): string => {

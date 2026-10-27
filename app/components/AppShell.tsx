@@ -6,6 +6,7 @@ import {
   BarChart3,
   Bot,
   CheckSquare,
+  ClipboardList,
   ListChecks,
   MailCheck,
   Plus,
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/leads", label: "リード一覧", icon: ListChecks },
   { href: "/collect", label: "候補収集", icon: Search },
   { href: "/actions", label: "実行操作", icon: Send },
+  { href: "/forms", label: "フォーム判定", icon: ClipboardList },
   { href: "/settings", label: "設定", icon: Settings }
 ];
 

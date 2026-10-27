@@ -9,6 +9,7 @@ import { upsertFormWatchEntry } from "../form/formWatchStatus";
 import { findFormCandidates, FormCandidate, FormSkipReason } from "../contact/formCandidates";
 import { readSalesContentConfig } from "../contact/salesMessage";
 import { appendLeadLog } from "../domain/leadLog";
+import { recordFormSample } from "../form/formSamples";
 import { fillCandidateFormsInBrowser } from "../form/browserFormAutofill";
 import { saveLastFormFillSession } from "../form/formFillSession";
 import { fieldRangeForRow, readSalesManagementTable } from "../google/salesManagementRepository";
@@ -264,7 +265,7 @@ const main = async (): Promise<void> => {
     }
   );
 
-  for (const { candidate, result, confirm, wrongPage, salesForbidden, finalUrl } of results) {
+  for (const { candidate, result, confirm, wrongPage, salesForbidden, finalUrl, sampleSnapshot } of results) {
     if (salesForbidden) {
       console.log("");
       console.log(`Skipped ${candidate.leadId} ${candidate.companyName}: 営業お断りの記載を検出したため入力せず、ステータスを「除外」にしました。`);
@@ -322,6 +323,28 @@ const main = async (): Promise<void> => {
     }
 
     console.log(`送信後: npm run forms:mark-sent（送信完了画面を検知した場合は自動で記録します）`);
+
+    // 入力前のフォームの構造と、自動入力の判定結果を記録する（/forms で確認して、テスト用データにできる）
+    if (sampleSnapshot && !wrongPage) {
+      try {
+        recordFormSample({
+          leadId: candidate.leadId,
+          companyName: candidate.companyName,
+          formUrl: candidate.formUrl,
+          finalUrl,
+          capturedAt: new Date().toISOString(),
+          snapshot: sampleSnapshot,
+          filled: result.filled,
+          selected: result.selected,
+          warnings: result.warnings,
+          confirmStatus: confirm.status,
+          confirmDetail: confirm.detail ?? "",
+          captcha: result.captcha
+        });
+      } catch (error: unknown) {
+        console.error(`フォームの記録に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
 
     // 自動入力の結果を、リードログに残す
     const confirmText =

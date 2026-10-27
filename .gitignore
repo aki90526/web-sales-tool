@@ -11,5 +11,6 @@ data/collect-history.json
 data/dashboard-jobs.json
 data/form-watch-status.json
 data/form-outcomes.json
+data/form-samples/
 *.ts.net.crt
 *.ts.net.key
