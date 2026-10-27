@@ -168,7 +168,8 @@ const launchChrome = async (port: number): Promise<void> => {
     execFile(
       "open",
       [
-        "-na",
+        // -g: アプリを前面に出さない（作業中の画面を、Chromeが奪わないようにする）
+        "-gna",
         "Google Chrome",
         "--args",
         `--remote-debugging-port=${port}`,
@@ -815,6 +816,57 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
     });
   };
 
+  // 姓・名が別の入力欄に分かれているかを、見出しや位置から判定する。
+  //  1) 入力欄を囲む要素の class に last_name / first_name などがある（例: Pardotのフォーム）
+  //  2) 「お名前（姓・名）」のように、1つの見出しの下に、テキスト入力欄が2つ並ぶ（左が姓、右が名）
+  const splitNameRole = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): "lastName" | "firstName" | "" => {
+    if (!(element instanceof HTMLInputElement) || !["text", ""].includes((element.getAttribute("type") || "").toLowerCase())) {
+      return "";
+    }
+
+    const heading = labelFor(element);
+
+    if (/(フリガナ|ふりがな|カナ|かな|kana|furigana|会社名|法人名|屋号)/i.test(heading)) {
+      return "";
+    }
+
+    let node: Element | null = element.parentElement;
+
+    for (let depth = 0; node && depth < 3; depth += 1, node = node.parentElement) {
+      const className = typeof node.className === "string" ? node.className : "";
+
+      if (/(^|[\s_-])(last[_-]?name|family[_-]?name)($|\s)/i.test(className)) {
+        return "lastName";
+      }
+
+      if (/(^|[\s_-])(first[_-]?name|given[_-]?name)($|\s)/i.test(className)) {
+        return "firstName";
+      }
+    }
+
+    if (!/(お名前|氏名|名前)/.test(heading) || !/姓\s*[・･\/／、,]?\s*名/.test(heading)) {
+      return "";
+    }
+
+    let group: Element | null = element.parentElement;
+
+    for (let depth = 0; group && depth < 4; depth += 1, group = group.parentElement) {
+      const inputs = Array.from(group.querySelectorAll<HTMLInputElement>("input")).filter(
+        (input) => ["text", ""].includes((input.getAttribute("type") || "").toLowerCase()) && visible(input)
+      );
+
+      if (inputs.length === 2) {
+        return inputs[0] === element ? "lastName" : inputs[1] === element ? "firstName" : "";
+      }
+
+      if (inputs.length > 2) {
+        break;
+      }
+    }
+
+    return "";
+  };
+
   const inferKey = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): string => {
     const text = labelFor(element);
     const fieldText = fieldSpecificTextFor(element);
@@ -989,6 +1041,12 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       }
 
       return "companyName";
+    }
+
+    const splitRole = splitNameRole(element);
+
+    if (splitRole) {
+      return splitRole;
     }
 
     if (matchesFullNameOnly(text) && matches(text, "name")) {
@@ -2661,12 +2719,43 @@ export const pageAutofill = (payload: FormAutofillPayload): FormAutofillResult =
       return;
     }
 
+    // 項目を囲む要素に class="required" が付いているフォーム（Pardot など）も、必須として扱う
     const required =
-      element.required || element.getAttribute("aria-required") === "true" || /validates-as-required/.test(element.className);
+      element.required ||
+      element.getAttribute("aria-required") === "true" ||
+      /validates-as-required/.test(element.className) ||
+      element.closest(".required") !== null;
 
     if (required) {
       const key = element.getAttribute("name") || element.getAttribute("id") || "";
       result.warnings.push(`${REQUIRED_EMPTY_WARNING}${shortLabelFor(element)}（${key}）`);
+    }
+  });
+
+  // 必須のプルダウンが、未選択（空の選択肢や「選択してください」）のまま残っているものも知らせる（例: 「○○を知ったキッカケ」）
+  document.querySelectorAll<HTMLSelectElement>("select").forEach((element) => {
+    if (element.disabled || !visible(element) || isHoneypotField(element)) {
+      return;
+    }
+
+    const selected = element.selectedOptions[0];
+    const shown = (selected?.textContent ?? "").trim();
+    const empty = !selected || element.value.trim() === "" || shown === "" || /^(選択してください|選んでください|選択|未選択|---|--|select|choose|please select)/i.test(shown);
+
+    if (!empty) {
+      return;
+    }
+
+    const required =
+      element.required ||
+      element.getAttribute("aria-required") === "true" ||
+      /validates-as-required/.test(element.className) ||
+      element.closest(".required") !== null;
+
+    if (required) {
+      // 選択肢の文字が混ざらないよう、見出し（label）を優先して使う
+      const heading = element.id ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`)?.textContent?.replace(/\s+/g, " ").trim() : "";
+      result.warnings.push(`${REQUIRED_EMPTY_WARNING}${heading || shortLabelFor(element).slice(0, 40)}`);
     }
   });
 
@@ -3652,7 +3741,7 @@ export const fillCandidateFormsInBrowser = async (
 
   for (const candidate of candidates) {
     const target = await CDP.New({ port: options.chromePort, url: "about:blank" });
-    await CDP.Activate({ port: options.chromePort, id: target.id });
+    // 新しいタブを前面に出さない（作業中のダッシュボードの前に、Chromeが出てこないようにする）。確認するときは、通知を見て、Chromeを開く
     const client = await CDP({ port: options.chromePort, target });
     const contextIds = new Set<number>();
 

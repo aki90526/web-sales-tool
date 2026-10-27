@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, CheckCircle2, Copy, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Copy, ExternalLink, FileText, Filter, LayoutGrid, List, Mail, MessageSquare, MousePointerClick, Pencil, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
 import { LeadLogControls, LeadLogModal, type LatestLog } from "../components/LeadLog";
 import SkipPeriodDialog, { skipPeriodLabel } from "../components/SkipPeriodDialog";
@@ -93,7 +93,7 @@ export default function LeadsPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [logLead, setLogLead] = useState<Lead | null>(null);
   const [skipDialog, setSkipDialog] = useState<{ lead: Lead; mode: "status" | "edit" } | null>(null);
-  const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string } | null>(null);
+  const [messageModal, setMessageModal] = useState<{ leadId: string; companyName: string; formUrl?: string } | null>(null);
   const [messageContent, setMessageContent] = useState<{ subject: string; body: string } | null>(null);
   const [messageLoading, setMessageLoading] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
@@ -643,16 +643,14 @@ export default function LeadsPage() {
     await refreshLeadsQuietly();
   };
 
-  // 件名・本文を表示し、フォームを新しいタブで開く
+  // 件名・本文を表示する。フォームは、メッセージを確認・コピーしたあとに、モーダルの「フォームを開く」で開く
+  // （先に開くと、新しいウィンドウが前に出て、メッセージを確認できないため）
   const manualFillLead = (lead: Lead) => {
-    if (/^https?:\/\//i.test(lead.contactFormUrl)) {
-      window.open(lead.contactFormUrl, "_blank", "noopener,noreferrer");
-    }
-    void openMessage(lead);
+    void openMessage(lead, /^https?:\/\//i.test(lead.contactFormUrl) ? lead.contactFormUrl : undefined);
   };
 
-  const openMessage = async (lead: Lead) => {
-    setMessageModal({ leadId: lead.leadId, companyName: lead.companyName });
+  const openMessage = async (lead: Lead, formUrl?: string) => {
+    setMessageModal({ leadId: lead.leadId, companyName: lead.companyName, formUrl });
     setMessageContent(null);
     setMessageError(null);
     setMessageLoading(true);
@@ -1147,6 +1145,12 @@ export default function LeadsPage() {
                     {copied ? <Check size={16} /> : <Copy size={16} />}
                     {copied ? "コピーしました" : "件名・本文をコピー"}
                   </button>
+                  {messageModal?.formUrl && (
+                    <a className="btn secondary" href={messageModal.formUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink size={16} />
+                      フォームを開く
+                    </a>
+                  )}
                 </div>
               </>
             )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Check, CheckCircle2, ClipboardCheck, Copy, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
+import { Check, CheckCircle2, ClipboardCheck, Copy, ExternalLink, Mail, MousePointerClick, RefreshCw, ScrollText, Send, X } from "lucide-react";
 import UndoToast, { type UndoToastData } from "../components/UndoToast";
 import { LeadLogModal } from "../components/LeadLog";
 import SkipPeriodDialog from "../components/SkipPeriodDialog";
@@ -487,9 +487,7 @@ export default function ActionsPage() {
         setLeadId(body.leadId);
         leadIdFromAutoFill.current = false;
       }
-      if (body.contactFormUrl) {
-        window.open(body.contactFormUrl, "_blank", "noopener,noreferrer");
-      }
+      // フォームは、メッセージを確認・コピーしたあとに、下の「フォームを開く」で開く（先に開くと、新しいウィンドウが前に出てしまう）
       setManualMessage({
         companyName: body.companyName,
         contactFormUrl: body.contactFormUrl,
@@ -859,6 +857,12 @@ export default function ActionsPage() {
                         {manualCopied ? <Check size={16} /> : <Copy size={16} />}
                         {manualCopied ? "コピーしました" : "件名・本文をコピー"}
                       </button>
+                      {manualMessage.contactFormUrl && (
+                        <a className="btn secondary" href={manualMessage.contactFormUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink size={16} />
+                          フォームを開く
+                        </a>
+                      )}
                     </div>
                   </div>
                 )}
