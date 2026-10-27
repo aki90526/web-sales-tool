@@ -3912,8 +3912,8 @@ export const fillCandidateFormsInBrowser = async (
       await notify(
         "フォーム入力を確認してください",
         confirm.status === "advanced"
-          ? `${candidate.leadId} ${candidate.companyName}: 確認画面まで進めました。内容を確認し、問題なければ送信ボタンを押してください。`
-          : `${candidate.leadId} ${candidate.companyName}: 入力内容を確認し、問題なければ送信ボタンを押してください。`
+          ? `${candidate.leadId} ${candidate.companyName}: 確認画面まで進めました。Chromeを開いて内容を確認し、問題なければ送信ボタンを押してください。`
+          : `${candidate.leadId} ${candidate.companyName}: Chromeを開いて入力内容を確認し、問題なければ送信ボタンを押してください。`
       );
     } finally {
       await client.close();
