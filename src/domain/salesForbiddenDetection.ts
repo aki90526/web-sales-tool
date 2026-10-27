@@ -8,17 +8,30 @@ const PATTERNS: RegExp[] = [
   /お問い合わせフォーム.{0,20}営業.{0,12}(禁止|お断り|不可)/
 ];
 
+// 電話・訪問・FAX だけを断る文言（「営業電話はお断り」など）は、メール・フォームでの連絡の禁止ではないので、除外の根拠にしない。
+// メール・問い合わせ・フォーム・連絡一般にも触れているものは、禁止とみなす
+const PHONE_OR_VISIT_ONLY = /(電話|TEL|訪問|来訪|飛び込み|FAX|ファックス)/i;
+const MAIL_OR_FORM_ALSO = /(メール|e-?mail|問い?合わ?せ|フォーム|連絡|ご連絡|セールス|売り込み|勧誘|営業活動|営業目的|営業行為)/i;
+
 // 該当すれば根拠となった文言（前後を含む短い抜粋）を返し、なければ null
 export const detectSalesForbidden = (pageText: string): string | null => {
   const text = pageText.replace(/[ \t　]+/g, " ");
 
   for (const pattern of PATTERNS) {
-    const match = pattern.exec(text);
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
 
-    if (match) {
-      const start = Math.max(0, match.index - 15);
+    for (const match of text.matchAll(new RegExp(pattern.source, flags))) {
+      const matched = match[0];
+
+      // 「営業のお電話はお断り」のように、電話・訪問だけを断る文言は、禁止とはみなさない
+      if (PHONE_OR_VISIT_ONLY.test(matched) && !MAIL_OR_FORM_ALSO.test(matched.replace(/営業(の|を)?(お)?電話/g, ""))) {
+        continue;
+      }
+
+      const start = Math.max(0, (match.index ?? 0) - 15);
+
       return text
-        .slice(start, match.index + match[0].length + 10)
+        .slice(start, (match.index ?? 0) + matched.length + 10)
         .replace(/\s+/g, " ")
         .trim();
     }
