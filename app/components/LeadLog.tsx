@@ -32,10 +32,11 @@ export function LeadLogControls({
     setDraft(currentNote);
   }, [currentNote]);
 
-  const commit = async () => {
-    const next = draft.trim();
+  const dirty = draft.trim() !== currentNote.trim();
 
-    if (next === currentNote.trim()) {
+  // 保存は、「保存」ボタンを押したときだけ行う（日本語の変換中のEnterや、入力欄から離れただけでは、保存しない）
+  const commit = async () => {
+    if (!dirty || saving) {
       return;
     }
 
@@ -43,10 +44,9 @@ export function LeadLogControls({
     setError("");
 
     try {
-      await onSaveNote(next);
+      await onSaveNote(draft.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存できませんでした");
-      setDraft(currentNote);
     } finally {
       setSaving(false);
     }
@@ -56,20 +56,24 @@ export function LeadLogControls({
     <div className="lead-log-controls">
       <div className="lead-log-note-row">
         <input
-          className="lead-log-note"
+          className={dirty ? "lead-log-note dirty" : "lead-log-note"}
           aria-label={`${leadId} の現在の状況`}
           value={draft}
           maxLength={200}
           disabled={saving}
           placeholder="現在の状況（例: フォーム受付を一時停止中）"
           onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => void commit()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.currentTarget.blur();
-            }
-          }}
         />
+        {dirty && (
+          <>
+            <button type="button" className="btn primary lead-log-save" disabled={saving} onClick={() => void commit()}>
+              {saving ? "保存中" : "保存"}
+            </button>
+            <button type="button" className="btn secondary lead-log-save" disabled={saving} onClick={() => setDraft(currentNote)}>
+              戻す
+            </button>
+          </>
+        )}
         <button type="button" className="btn secondary icon-tiny" onClick={onOpenLog} title="このリードのログを見る" aria-label={`${leadId} のログを見る`}>
           <History size={12} />
         </button>

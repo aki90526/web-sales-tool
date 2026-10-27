@@ -2487,3 +2487,15 @@ button.skip-count-badge:hover {
   display: block;
   color: var(--muted);
 }
+
+.lead-log-note.dirty {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.lead-log-save {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
